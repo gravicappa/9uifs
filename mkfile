@@ -7,7 +7,7 @@ CFLAGS = $CFLAGS `{sdl-config --cflags}
 #LDFLAGS = $LDFLAGS -static
 LDFLAGS = $LDFLAGS `{sdl-config --static-libs} 
 
-obj = 9pmsg.o 9pio.o fs.o connection.o main.o util.o net.o client.o
+obj = 9pmsg.o 9pio.o fs.o main.o util.o net.o client.o
 
 all:V: $name
 

@@ -56,6 +56,8 @@ rm_client(struct client *c)
 
   if (!c)
     return;
+  if (c->fd >= 0)
+    close(c->fd);
   if (c->inbuf)
     free(c->inbuf);
   if (c->outbuf)
@@ -104,5 +106,5 @@ process_client(struct client *c)
       return -1;
     memmove(inbuf, inbuf + size, msize - size);
     c->read -= size;
-  } while (1);
+  } while (c->read);
 }

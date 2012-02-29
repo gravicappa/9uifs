@@ -386,7 +386,7 @@ write_stat(struct p9_stream *s, struct p9_stat *stat)
 static unsigned char
 read_uint1(struct p9_stream *s, int *err)
 {
-  if (*err |= s->off + 1 >= s->size)
+  if (*err |= s->off + 1 > s->size)
     return 0;
   return s->buf[s->off++];
 }
@@ -396,7 +396,7 @@ read_uint2(struct p9_stream *s, int *err)
 {
   unsigned short x;
 
-  if (*err |= (s->off + 2 >= s->size))
+  if (*err |= (s->off + 2 > s->size))
     return 0;
   x = s->buf[s->off] | (s->buf[s->off + 1] << 8);
   s->off += 2;
@@ -408,7 +408,7 @@ read_uint4(struct p9_stream *s, int *err)
 {
   unsigned int x;
 
-  if (*err |= (s->off + 4 >= s->size))
+  if (*err |= (s->off + 4 > s->size))
     return 0;
 
   x = (s->buf[s->off]
@@ -424,7 +424,7 @@ read_uint8(struct p9_stream *s, int *err)
 {
   unsigned long long x;
 
-  if (*err |= (s->off + 8 >= s->size))
+  if (*err |= (s->off + 8 > s->size))
     return 0;
 
   x = read_uint4(s, err);
@@ -439,11 +439,13 @@ read_str(struct p9_stream *s, unsigned int *len, int *err)
 {
   char *x;
 
-  if (*err |= (s->off + 2 >= s->size))
+  if (*err |= (s->off + 2 > s->size))
     return 0;
 
   *len = read_uint2(s, err);
   if (*err |= (s->off + *len > s->size))
+    return 0;
+  if (!*len)
     return 0;
   x = (char *)s->buf + s->off;
   s->off += *len;
@@ -453,7 +455,7 @@ read_str(struct p9_stream *s, unsigned int *len, int *err)
 static void
 read_qid(struct p9_stream *s, struct p9_qid *qid, int *err)
 {
-  if (*err |= (s->off + 13 >= s->size))
+  if (*err |= (s->off + 13 > s->size))
     return;
   qid->type = read_uint1(s, err);
   qid->version = read_uint4(s, err);
@@ -465,7 +467,7 @@ read_data(struct p9_stream *s, unsigned int *len, int *err)
 {
   char *x;
 
-  if (*err |= (s->off + 4 >= s->size))
+  if (*err |= (s->off + 4 > s->size))
     return 0;
 
   *len = read_uint4(s, err);
@@ -555,15 +557,15 @@ p9_process_treq(struct p9_connection *c, struct p9_fs *fs)
   case P9_TSTAT: fn = fs->stat; break;
   case P9_TWSTAT: fn = fs->wstat; break;
   }
-  c->r.type = c->t.type ^ 1;
+  c->r.type = P9_RERROR;
   c->r.tag = c->t.tag;
   if (!fn) {
     P9_SET_STR(c->r.ename, "Function not implemented");
-    return -1;
+    return 0;
   }
   c->r.ename = 0;
   fn(c);
-  if (c->r.ename)
-    c->r.type = P9_RERROR;
+  if (!c->r.ename)
+    c->r.type = c->t.type ^ 1;
   return 0;
 }
