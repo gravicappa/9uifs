@@ -1,5 +1,6 @@
 #include <string.h>
 #include "9p.h"
+#include "util.h"
 
 struct p9_stream {
   unsigned int off;
@@ -26,7 +27,7 @@ static char *read_data(struct p9_stream *s, unsigned int *len, int *err);
 static void read_stat(struct p9_stream *s, struct p9_stat *stat, int *err);
 
 int
-p9_read_msg(int bytes, unsigned char *buf, struct p9_msg *m)
+p9_unpack_msg(int bytes, char *buf, struct p9_msg *m)
 {
   struct p9_stream s = {0, 0, 0};
   unsigned int i;
@@ -38,46 +39,47 @@ p9_read_msg(int bytes, unsigned char *buf, struct p9_msg *m)
   s.size = read_uint4(&s, &err);
   m->type = read_uint1(&s, &err);
   m->tag = read_uint2(&s, &err);
+
   switch (m->type) {
-    case P9_TVersion:
-    case P9_RVersion:
+    case P9_TVERSION:
+    case P9_RVERSION:
       m->msize = read_uint4(&s, &err);
       m->version = read_str(&s, &m->version_len, &err);
       break;
 
-    case P9_TAuth:
+    case P9_TAUTH:
       m->afid = read_uint4(&s, &err);
       m->uname = read_str(&s, &m->uname_len, &err);
       m->aname = read_str(&s, &m->aname_len, &err);
       break;
 
-    case P9_RAuth:
-    case P9_RAttach:
+    case P9_RAUTH:
+    case P9_RATTACH:
       read_qid(&s, &m->aqid, &err);
       break;
 
-    case P9_RError:
+    case P9_RERROR:
       m->ename = read_str(&s, &m->ename_len, &err);
       break;
 
-    case P9_TFlush:
+    case P9_TFLUSH:
       m->oldtag = read_uint2(&s, &err);
       break;
 
-    case P9_RFlush:
-    case P9_RClunk:
-    case P9_RRemove:
-    case P9_RWStat:
+    case P9_RFLUSH:
+    case P9_RCLUNK:
+    case P9_RREMOVE:
+    case P9_RWSTAT:
       break;
 
-    case P9_TAttach:
+    case P9_TATTACH:
       m->fid = read_uint4(&s, &err);
       m->afid = read_uint4(&s, &err);
       m->uname = read_str(&s, &m->uname_len, &err);
       m->aname = read_str(&s, &m->aname_len, &err);
       break;
 
-    case P9_TWalk:
+    case P9_TWALK:
       m->fid = read_uint4(&s, &err);
       m->newfid = read_uint4(&s, &err);
       m->nwname = read_uint2(&s, &err);
@@ -85,61 +87,61 @@ p9_read_msg(int bytes, unsigned char *buf, struct p9_msg *m)
         m->wname[i] = read_str(&s, &m->wname_len[i], &err);
       break;
 
-    case P9_RWalk:
+    case P9_RWALK:
       m->nwqid = read_uint2(&s, &err);
       for (i = 0; i < m->nwqid && i < P9_MAXWELEM; ++i)
         read_qid(&s, &m->wqid[i], &err);
       break;
 
-    case P9_TOpen:
+    case P9_TOPEN:
       m->fid = read_uint4(&s, &err);
       m->mode = read_uint1(&s, &err);
       break;
 
-    case P9_ROpen:
-    case P9_RCreate:
+    case P9_ROPEN:
+    case P9_RCREATE:
       read_qid(&s, &m->qid, &err);
       m->iounit = read_uint4(&s, &err);
       break;
 
-    case P9_TCreate:
+    case P9_TCREATE:
       m->fid = read_uint4(&s, &err);
       m->name = read_str(&s, &m->name_len, &err);
       m->perm = read_uint4(&s, &err);
       m->mode = read_uint1(&s, &err);
       break;
 
-    case P9_TRead:
+    case P9_TREAD:
       m->fid = read_uint4(&s, &err);
       m->offset = read_uint8(&s, &err);
       m->count = read_uint4(&s, &err);
       break;
 
-    case P9_RRead:
+    case P9_RREAD:
       m->data = read_data(&s, &m->data_len, &err);
       break;
 
-    case P9_TWrite:
+    case P9_TWRITE:
       m->fid = read_uint4(&s, &err);
       m->offset = read_uint8(&s, &err);
       m->data = read_data(&s, &m->data_len, &err);
       break;
 
-    case P9_RWrite:
+    case P9_RWRITE:
       m->count = read_uint4(&s, &err);
       break;
 
-    case P9_TClunk:
-    case P9_TRemove:
-    case P9_TStat:
+    case P9_TCLUNK:
+    case P9_TREMOVE:
+    case P9_TSTAT:
       m->fid = read_uint4(&s, &err);
       break;
 
-    case P9_RStat:
+    case P9_RSTAT:
       read_stat(&s, &m->stat, &err);
       break;
 
-    case P9_TWStat:
+    case P9_TWSTAT:
       m->fid = read_uint4(&s, &err);
       read_stat(&s, &m->stat, &err);
       break;
@@ -149,7 +151,7 @@ p9_read_msg(int bytes, unsigned char *buf, struct p9_msg *m)
 }
 
 int
-p9_write_msg(int bytes, char *buf, struct p9_msg *m)
+p9_pack_msg(int bytes, char *buf, struct p9_msg *m)
 {
   struct p9_stream s = {4, 0, 0};
   unsigned int size, i;
@@ -163,15 +165,15 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
   write_uint1(&s, m->type);
   write_uint2(&s, m->tag);
   switch (m->type) {
-    case P9_TVersion:
-    case P9_RVersion:
+    case P9_TVERSION:
+    case P9_RVERSION:
       if (s.off + 4 + 2 + m->version_len >= s.size)
         return -1;
       write_uint4(&s, m->msize); 
       write_str(&s, m->version_len, m->version);
       break;
 
-    case P9_TAuth:
+    case P9_TAUTH:
       if (s.off + 4 + 2 + m->uname_len + 2 + m->aname_len >= s.size)
         return -1;
       write_uint4(&s, m->afid);
@@ -179,32 +181,32 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
       write_str(&s, m->aname_len, m->aname);
       break;
 
-    case P9_RAuth:
-    case P9_RAttach:
+    case P9_RAUTH:
+    case P9_RATTACH:
       if (s.off + 13 >= s.size)
         return -1;
       write_qid(&s, &m->aqid);
       break;
 
-    case P9_RError:
+    case P9_RERROR:
       if (s.off + 2 + m->ename_len >= s.size)
         return -1;
       write_str(&s, m->ename_len, m->ename);
       break;
 
-    case P9_TFlush:
+    case P9_TFLUSH:
       if (s.off + 2 >= s.size)
         return -1;
       write_uint2(&s, m->oldtag);
       break;
 
-    case P9_RFlush:
-    case P9_RClunk:
-    case P9_RRemove:
-    case P9_RWStat:
+    case P9_RFLUSH:
+    case P9_RCLUNK:
+    case P9_RREMOVE:
+    case P9_RWSTAT:
       break;
 
-    case P9_TAttach:
+    case P9_TATTACH:
       if (s.off + 4 + 4 + 2 + m->uname_len + 2 + m->aname_len)
         return -1;
       write_uint4(&s, m->fid);
@@ -213,7 +215,7 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
       write_str(&s, m->aname_len, m->aname);
       break;
 
-    case P9_TWalk:
+    case P9_TWALK:
       size = s.off + 4 + 4 + 2;
       for (i = 0; i < m->nwname && i < P9_MAXWELEM; ++i)
         size += 2 + m->wname_len[i];
@@ -226,7 +228,7 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
         write_str(&s, m->wname_len[i], m->wname[i]);
       break;
 
-    case P9_RWalk:
+    case P9_RWALK:
       if (s.off + 2 + 13 * m->nwqid >= s.size)
         return -1;
       write_uint2(&s, m->nwqid);
@@ -234,22 +236,22 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
         write_qid(&s, &m->wqid[i]);
       break;
 
-    case P9_TOpen:
+    case P9_TOPEN:
       if (s.off + 4 + 1 >= s.size)
         return -1;
       write_uint4(&s, m->fid);
       write_uint1(&s, m->mode);
       break;
 
-    case P9_ROpen:
-    case P9_RCreate:
+    case P9_ROPEN:
+    case P9_RCREATE:
       if (s.off + 13 + 4 >= s.size)
         return -1;
       write_qid(&s, &m->qid);
       write_uint4(&s, m->iounit);
       break;
 
-    case P9_TCreate:
+    case P9_TCREATE:
       if (s.off + 4 + 2 + m->name_len + 4 + 1 >= s.size)
         return -1;
       write_uint4(&s, m->fid);
@@ -258,7 +260,7 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
       write_uint1(&s, m->mode);
       break;
 
-    case P9_TRead:
+    case P9_TREAD:
       if (s.off + 4 + 8 + 4 >= s.size)
         return -1;
       write_uint4(&s, m->fid);
@@ -266,13 +268,13 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
       write_uint4(&s, m->count);
       break;
 
-    case P9_RRead:
+    case P9_RREAD:
       if (s.off + 4 + m->data_len >= s.size)
         return -1;
       write_data(&s, m->data_len, m->data);
       break;
 
-    case P9_TWrite:
+    case P9_TWRITE:
       if (s.off + 4 + 8 + m->data_len >= s.size)
         return -1;
       write_uint4(&s, m->fid);
@@ -280,27 +282,27 @@ p9_write_msg(int bytes, char *buf, struct p9_msg *m)
       write_data(&s, m->data_len, m->data);
       break;
 
-    case P9_RWrite:
+    case P9_RWRITE:
       if (s.off + 4 >= s.size)
         return -1;
       write_uint4(&s, m->count);
       break;
 
-    case P9_TClunk:
-    case P9_TRemove:
-    case P9_TStat:
+    case P9_TCLUNK:
+    case P9_TREMOVE:
+    case P9_TSTAT:
       if (s.off + 4 >= s.size)
         return -1;
       write_uint4(&s, m->fid);
       break;
 
-    case P9_RStat:
+    case P9_RSTAT:
       if (s.off + 2 + m->stat.size >= s.size)
         return -1;
       write_stat(&s, &m->stat);
       break;
 
-    case P9_TWStat:
+    case P9_TWSTAT:
       if (s.off + 4 + 2 + m->stat.size >= s.size)
         return -1;
       write_uint4(&s, m->fid);
@@ -355,7 +357,7 @@ static void
 write_str(struct p9_stream *s, int len, char *x)
 {
   write_uint2(s, len);
-  memcpy(s->buf, x, len);
+  memcpy(s->buf + s->off, x, len);
   s->off += len;
 }
 
@@ -363,7 +365,7 @@ static void
 write_data(struct p9_stream *s, int len, char *x)
 {
   write_uint4(s, len);
-  memcpy(s->buf, x, len);
+  memcpy(s->buf + s->off, x, len);
   s->off += len;
 }
 
@@ -378,7 +380,7 @@ write_qid(struct p9_stream *s, struct p9_qid *qid)
 static void
 write_stat(struct p9_stream *s, struct p9_stat *stat)
 {
-  p9_pack_stat(s->size - s->off, s->buf + s->off, stat);
+  p9_pack_stat(s->size - s->off, (char *)s->buf + s->off, stat);
 }
 
 static unsigned char
@@ -441,7 +443,7 @@ read_str(struct p9_stream *s, unsigned int *len, int *err)
     return 0;
 
   *len = read_uint2(s, err);
-  if (*err |= (s->off + *len >= s->size))
+  if (*err |= (s->off + *len > s->size))
     return 0;
   x = (char *)s->buf + s->off;
   s->off += *len;
@@ -467,7 +469,7 @@ read_data(struct p9_stream *s, unsigned int *len, int *err)
     return 0;
 
   *len = read_uint4(s, err);
-  if (*err |= (s->off + *len >= s->size))
+  if (*err |= (s->off + *len > s->size))
     return 0;
   x = (char *)s->buf + s->off;
   s->off += *len;
@@ -477,16 +479,16 @@ read_data(struct p9_stream *s, unsigned int *len, int *err)
 static void
 read_stat(struct p9_stream *s, struct p9_stat *stat, int *err)
 {
-  *err |= p9_unpack_stat(s->size - s->off, s->buf + s->off, stat);
+  *err |= p9_unpack_stat(s->size - s->off, (char *)s->buf + s->off, stat);
 }
 
 int
-p9_pack_stat(int bytes, unsigned char *buf, struct p9_stat *stat)
+p9_pack_stat(int bytes, char *buf, struct p9_stat *stat)
 {
   struct p9_stream s = { 0, 0, 0 };
 
   s.size = bytes;
-  s.buf = buf;
+  s.buf = (unsigned char *)buf;
 
   stat->size = 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + stat->name_len + 2
       + stat->uid_len + 2 + stat->gid_len + 2 + stat->muid_len;
@@ -509,13 +511,13 @@ p9_pack_stat(int bytes, unsigned char *buf, struct p9_stat *stat)
 }
 
 int
-p9_unpack_stat(int bytes, unsigned char *buf, struct p9_stat *stat)
+p9_unpack_stat(int bytes, char *buf, struct p9_stat *stat)
 {
   struct p9_stream s = {0, 0, 0};
   int err = 0;
 
   s.size = bytes;
-  s.buf = buf;
+  s.buf = (unsigned char *)buf;
 
   stat->size = read_uint2(&s, &err);
   stat->type = read_uint2(&s, &err);
@@ -531,4 +533,37 @@ p9_unpack_stat(int bytes, unsigned char *buf, struct p9_stat *stat)
   stat->muid = read_str(&s, &stat->muid_len, &err);
 
   return err;
+}
+
+int
+p9_process_treq(struct p9_connection *c, struct p9_fs *fs)
+{
+  void (*fn)(struct p9_connection *c) = 0;
+
+  switch (c->t.type) {
+  case P9_TVERSION: fn = fs->version; break;
+  case P9_TAUTH: fn = fs->auth; break;
+  case P9_TATTACH: fn = fs->attach; break;
+  case P9_TFLUSH: fn = fs->flush; break;
+  case P9_TWALK: fn = fs->walk; break;
+  case P9_TOPEN: fn = fs->open; break;
+  case P9_TCREATE: fn = fs->create; break;
+  case P9_TREAD: fn = fs->read; break;
+  case P9_TWRITE: fn = fs->write; break;
+  case P9_TCLUNK: fn = fs->clunk; break;
+  case P9_TREMOVE: fn = fs->remove; break;
+  case P9_TSTAT: fn = fs->stat; break;
+  case P9_TWSTAT: fn = fs->wstat; break;
+  }
+  c->r.type = c->t.type ^ 1;
+  c->r.tag = c->t.tag;
+  if (!fn) {
+    P9_SET_STR(c->r.ename, "Function not implemented");
+    return -1;
+  }
+  c->r.ename = 0;
+  fn(c);
+  if (c->r.ename)
+    c->r.type = P9_RERROR;
+  return 0;
 }

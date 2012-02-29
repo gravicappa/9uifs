@@ -3,34 +3,36 @@
 #define P9_NOFID (~0u)
 
 enum {
-  P9_TVersion = 100,
-  P9_RVersion,
-  P9_TAuth = 102,
-  P9_RAuth,
-  P9_TAttach = 104,
-  P9_RAttach,
-  P9_TError = 106,  /* illegal */
-  P9_RError,
-  P9_TFlush = 108,
-  P9_RFlush,
-  P9_TWalk = 110,
-  P9_RWalk,
-  P9_TOpen = 112,
-  P9_ROpen,
-  P9_TCreate = 114,
-  P9_RCreate,
-  P9_TRead = 116,
-  P9_RRead,
-  P9_TWrite = 118,
-  P9_RWrite,
-  P9_TClunk = 120,
-  P9_RClunk,
-  P9_TRemove = 122,
-  P9_RRemove,
-  P9_TStat = 124,
-  P9_RStat,
-  P9_TWStat = 126,
-  P9_RWStat
+  P9_XSTART = 100,
+  P9_TVERSION = 100,
+  P9_RVERSION,
+  P9_TAUTH = 102,
+  P9_RAUTH,
+  P9_TATTACH = 104,
+  P9_RATTACH,
+  P9_TERROR = 106,  /* Illegal */
+  P9_RERROR,
+  P9_TFLUSH = 108,
+  P9_RFLUSH,
+  P9_TWALK = 110,
+  P9_RWALK,
+  P9_TOPEN = 112,
+  P9_ROPEN,
+  P9_TCREATE = 114,
+  P9_RCREATE,
+  P9_TREAD = 116,
+  P9_RREAD,
+  P9_TWRITE = 118,
+  P9_RWRITE,
+  P9_TCLUNK = 120,
+  P9_RCLUNK,
+  P9_TREMOVE = 122,
+  P9_RREMOVE,
+  P9_TSTAT = 124,
+  P9_RSTAT,
+  P9_TWSTAT = 126,
+  P9_RWSTAT,
+  P9_XEND
 };
 
 enum {
@@ -101,6 +103,7 @@ struct p9_stat {
 };
 
 struct p9_msg {
+  unsigned int size;
   unsigned int type;
   unsigned short tag;
   unsigned short oldtag;
@@ -141,14 +144,46 @@ struct p9_msg {
   struct p9_qid wqid[P9_MAXWELEM];
 };
 
-int p9_pack_stat(int bytes, unsigned char *buf, struct p9_stat *stat);
-int p9_unpack_stat(int bytes, unsigned char *buf, struct p9_stat *stat);
+#define P9_SET_STR(f, str) do { \
+    f = (str); \
+    f ## _len = strlen((str)); \
+  } while (0)
+
+int p9_pack_stat(int bytes, char *buf, struct p9_stat *stat);
+int p9_unpack_stat(int bytes, char *buf, struct p9_stat *stat);
+int p9_unpack_msg(int bytes, char *buf, struct p9_msg *m);
+int p9_pack_msg(int bytes, char *buf, struct p9_msg *m);
+
+struct p9_fid {
+  unsigned int fid;
+  struct p9_qid qid;
+  char mode;
+  unsigned int iounit;
+  char *uid;
+  void *context;
+};
 
 struct p9_connection {
-  int fd;
   int msize;
-  char *inbuf;
-  char *outbuf;
-  p9_msg t;
-  p9_msg r;
+  struct p9_msg t;
+  struct p9_msg r;
+  void *context;
 };
+
+struct p9_fs {
+  void (*version)(struct p9_connection *c);
+  void (*auth)(struct p9_connection *c);
+  void (*attach)(struct p9_connection *c);
+  void (*flush)(struct p9_connection *c);
+  void (*walk)(struct p9_connection *c);
+  void (*open)(struct p9_connection *c);
+  void (*create)(struct p9_connection *c);
+  void (*read)(struct p9_connection *c);
+  void (*write)(struct p9_connection *c);
+  void (*clunk)(struct p9_connection *c);
+  void (*remove)(struct p9_connection *c);
+  void (*stat)(struct p9_connection *c);
+  void (*wstat)(struct p9_connection *c);
+};
+
+int p9_process_treq(struct p9_connection *c, struct p9_fs *fs);
