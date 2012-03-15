@@ -51,7 +51,8 @@ enum {
 };
 
 /* bits in Qid.type */
-enum { P9_QTDIR = 0x80, /* type bit for directories */
+enum {
+  P9_QTDIR = 0x80, /* type bit for directories */
   P9_QTAPPEND = 0x40, /* type bit for append only files */
   P9_QTEXCL = 0x20, /* type bit for exclusive use files */
   P9_QTMOUNT = 0x10,  /* type bit for mounted channel */
@@ -142,6 +143,8 @@ struct p9_msg {
   struct p9_qid aqid;
 
   struct p9_qid wqid[P9_MAXWELEM];
+  int deferred;
+  void *context;
 };
 
 #define P9_SET_STR(f, str) do { \
@@ -149,6 +152,7 @@ struct p9_msg {
     f ## _len = strlen((str)); \
   } while (0)
 
+int p9_stat_size(struct p9_stat *stat);
 int p9_pack_stat(int bytes, char *buf, struct p9_stat *stat);
 int p9_unpack_stat(int bytes, char *buf, struct p9_stat *stat);
 int p9_unpack_msg(int bytes, char *buf, struct p9_msg *m);
@@ -157,8 +161,9 @@ int p9_pack_msg(int bytes, char *buf, struct p9_msg *m);
 struct p9_fid {
   unsigned int fid;
   struct p9_qid qid;
-  char mode;
+  char open_mode;
   unsigned int iounit;
+  int owns_uid;
   char *uid;
   void *context;
 };
@@ -167,6 +172,7 @@ struct p9_connection {
   int msize;
   struct p9_msg t;
   struct p9_msg r;
+  void *flushed;
   void *context;
 };
 
@@ -176,6 +182,7 @@ struct p9_fs {
   void (*attach)(struct p9_connection *c);
   void (*flush)(struct p9_connection *c);
   void (*walk)(struct p9_connection *c);
+  void (*walk1)(struct p9_connection *c, struct p9_fs *fs);
   void (*open)(struct p9_connection *c);
   void (*create)(struct p9_connection *c);
   void (*read)(struct p9_connection *c);

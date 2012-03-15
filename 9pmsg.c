@@ -485,6 +485,13 @@ read_stat(struct p9_stream *s, struct p9_stat *stat, int *err)
 }
 
 int
+p9_stat_size(struct p9_stat *stat)
+{
+  return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + stat->name_len + 2
+      + stat->uid_len + 2 + stat->gid_len + 2 + stat->muid_len;
+}
+
+int
 p9_pack_stat(int bytes, char *buf, struct p9_stat *stat)
 {
   struct p9_stream s = { 0, 0, 0 };
@@ -492,8 +499,7 @@ p9_pack_stat(int bytes, char *buf, struct p9_stat *stat)
   s.size = bytes;
   s.buf = (unsigned char *)buf;
 
-  stat->size = 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + stat->name_len + 2
-      + stat->uid_len + 2 + stat->gid_len + 2 + stat->muid_len;
+  stat->size = p9_stat_size(stat) - 2;
   if (s.off + 2 + stat->size >= s.size)
     return 1;
 
@@ -533,14 +539,13 @@ p9_unpack_stat(int bytes, char *buf, struct p9_stat *stat)
   stat->uid = read_str(&s, &stat->uid_len, &err);
   stat->gid = read_str(&s, &stat->gid_len, &err);
   stat->muid = read_str(&s, &stat->muid_len, &err);
-
   return err;
 }
 
 int
 p9_process_treq(struct p9_connection *c, struct p9_fs *fs)
 {
-  void (*fn)(struct p9_connection *c) = 0;
+  int (*fn)(struct p9_connection *c) = 0;
 
   switch (c->t.type) {
   case P9_TVERSION: fn = fs->version; break;
@@ -557,14 +562,13 @@ p9_process_treq(struct p9_connection *c, struct p9_fs *fs)
   case P9_TSTAT: fn = fs->stat; break;
   case P9_TWSTAT: fn = fs->wstat; break;
   }
+  memset(&c->r, 0, sizeof(c->r));
   c->r.type = P9_RERROR;
   c->r.tag = c->t.tag;
-  if (!fn) {
+  if (fn)
+    fn(c);
+  else
     P9_SET_STR(c->r.ename, "Function not implemented");
-    return 0;
-  }
-  c->r.ename = 0;
-  fn(c);
   if (!c->r.ename)
     c->r.type = c->t.type ^ 1;
   return 0;

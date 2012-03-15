@@ -18,6 +18,15 @@
 #include "client.h"
 #include "net.h"
 
+struct fs_entry *fs_client[] = {
+  {".", P9_QTDIR, 0, 0500, 0},
+  {"ctl", 0, 0, 0600, 0},
+  {"event", 0, 0, 0600, 0},
+  {"views", P9_QTDIR, 0, 0500, 0},
+  {"images", P9_QTDIR, 0, 0500, 0},
+  {0}
+};
+
 struct buf clients = {16 * sizeof(struct client)};
 
 struct client *
@@ -37,12 +46,48 @@ add_client(int server_fd, int msize)
   if (off < 0)
     die("Cannot allocate memory\n");
   c = (struct client *)(clients.b + off);
+  memset(c, 0, sizeof(*c));
   c->fd = fd;
+  c->fids.delta = 16 * sizeof(unsigned long);
   c->read = 0;
   c->size = 0;
   c->msize = msize;
   c->inbuf = (char *)malloc(msize);
   c->outbuf = (char *)malloc(msize);
+
+  c->fs.mode = P9_DMDIR | 0500;
+  c->fs.qpath = ++qid_cnt;
+  c->fs.context = c;
+
+  c->fs_event.name = "event";
+  c->fs_event.mode = 0400;
+  c->fs_event.qpath = ++qid_cnt;
+  c->fs_event.context = c;
+  add_file(&c->fs_event, &c->fs);
+
+  c->fs_views.name = "views";
+  c->fs_views.mode = P9_DMDIR | 0700;
+  c->fs_views.qpath = ++qid_cnt;
+  c->fs_views.context = c;
+  add_file(&c->fs_views, &c->fs);
+
+  c->fs_images.name = "images";
+  c->fs_images.mode = P9_DMDIR | 0700;
+  c->fs_images.qpath = ++qid_cnt;
+  c->fs_images.context = c;
+  add_file(&c->fs_images, &c->fs);
+
+  c->fs_fonts.name = "fonts";
+  c->fs_fonts.mode = P9_DMDIR | 0700;
+  c->fs_fonts.qpath = ++qid_cnt;
+  c->fs_fonts.context = c;
+  add_file(&c->fs_fonts, &c->fs);
+
+  c->fs_comm.name = "comm";
+  c->fs_comm.mode = P9_DMDIR | 0700;
+  c->fs_comm.qpath = ++qid_cnt;
+  c->fs_comm.context = c;
+  add_file(&c->fs_comm, &c->fs);
 
   return c;
 }
@@ -62,10 +107,9 @@ rm_client(struct client *c)
     free(c->inbuf);
   if (c->outbuf)
     free(c->outbuf);
-  off = c - (struct client *)clients.b;
-  end = off + sizeof(struct client);
-  memmove(clients.b + off, clients.b + end, clients.used - end);
-  clients.used -= sizeof(struct client);
+  if (c->fids.b)
+    free(c->fids.b);
+  rm_buf(&clients, sizeof(struct client), c);
 }
 
 unsigned int
@@ -107,4 +151,72 @@ process_client(struct client *c)
     memmove(inbuf, inbuf + size, msize - size);
     c->read -= size;
   } while (c->read);
+}
+
+void
+free_fid(struct p9_fid *fid)
+{
+  if (fid->owns_uid && fid->uid)
+    free(fid->uid);
+}
+
+void
+reset_fids(struct client *c)
+{
+  struct p9_fid *fids = (struct p9_fid *)c->fids.b;
+  int i, n = c->fids.used / sizeof(struct p9_fid);
+
+  for (i = 0; i < n; ++i)
+    free_fid(fids[i]);
+  c->fids.used = 0;
+}
+
+struct p9_fid *
+get_fid(unsigned int fid, struct client *c)
+{
+  struct p9_fid *fids = (struct p9_fid *)c->fids.b;
+  int i, n = c->fids.used / sizeof(struct p9_fid);
+
+  for (i = 0; i < n; ++i)
+    if (fids[i].fid == fid)
+      return &fids[i];
+  return 0;
+}
+
+int
+get_req_fid(struct p9_connection *c, struct p9_fid **fid)
+{
+  struct client *cl = (struct client *)c;
+
+  *fid = get_fid(c->t.fid, cl);
+  if (!*fid) {
+    P9_SET_STR(c->r.ename, "fid unknown or out of range");
+    return -1;
+  }
+  return 0;
+}
+
+struct p9_fid *
+add_fid(unsigned int fid, struct client *c)
+{
+  int off;
+  struct p9_fid *f;
+
+  off = add_data(&c->fids, sizeof(struct p9_fid), 0);
+  if (off < 0)
+    die("Cannot allocate memory\n");
+  f = (struct p9_fid *)(c->fids.b + off);
+  f->fid = fid;
+  f->context = c;
+  f->iounit = c->msize;
+  f->open_mode = 0;
+  f->uid = 0;
+  return f;
+}
+
+void
+rm_fid(struct p9_fid *fid, struct client *c)
+{
+  free_fid(fid);
+  rm_data(&c->fids, sizeof(struct p9_fid), fid);
 }

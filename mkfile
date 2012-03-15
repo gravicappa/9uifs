@@ -1,7 +1,7 @@
 name = devyat
 
-CC = gcc
-CFLAGS = -Wall -O0 -g -ansi -pedantic
+CC = pcc
+CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
 
 CFLAGS = $CFLAGS `{sdl-config --cflags}
 #LDFLAGS = $LDFLAGS -static

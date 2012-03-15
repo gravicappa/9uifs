@@ -2,7 +2,7 @@ extern int loglevel;
 
 void die(char *fmt, ...);
 void log_printf(int level, char *fmt, ...);
-void log_print_data(int level, unsigned int bytes, unsigned char *buf);
+void log_print_data(int level, unsigned int size, unsigned char *buf);
 
 struct buf {
   int delta;
@@ -11,4 +11,5 @@ struct buf {
   char *b;
 };
 
-int add_data(struct buf *buf, int bytes, const void *data);
+int add_data(struct buf *buf, int size, const void *data);
+int rm_data(struct buf *buf, int size, void *ptr);

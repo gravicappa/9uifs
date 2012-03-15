@@ -34,21 +34,21 @@ log_printf(int level, char *fmt, ...)
 }
 
 void
-log_print_data(int level, unsigned int bytes, unsigned char *buf)
+log_print_data(int level, unsigned int size, unsigned char *buf)
 {
   if (level <= loglevel) {
-    for (; bytes > 0; bytes--, buf++)
+    for (; size > 0; size--, buf++)
       log_printf(level, "%02x ", *buf);
     log_printf(level, "\n");
   }
 }
 
 int
-add_data(struct buf *buf, int bytes, const void *data)
+add_data(struct buf *buf, int size, const void *data)
 {
   int s = buf->size, off = buf->used;
 
-  while (buf->used + bytes >= s)
+  while (buf->used + size >= s)
     s += buf->delta;
   if (s > buf->size) {
     buf->size = s;
@@ -57,7 +57,22 @@ add_data(struct buf *buf, int bytes, const void *data)
       return -1;
   }
   if (data)
-    memcpy(buf->b + buf->used, data, bytes);
-  buf->used += bytes;
+    memcpy(buf->b + buf->used, data, size);
+  buf->used += size;
   return off;
+}
+
+int
+rm_data(struct buf *buf, int size, void *ptr)
+{
+  int off;
+
+  if (ptr < buf->b || ptr + size > buf->b + buf->used)
+    return -1;
+
+  off = ptr - buf->b;
+  end = off + size;
+  memmove(buf->b + off, buf->b + end, buf->used - end);
+  buf->used -= size;
+  return 0;
 }
