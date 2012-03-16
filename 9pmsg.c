@@ -118,13 +118,13 @@ p9_unpack_msg(int bytes, char *buf, struct p9_msg *m)
       break;
 
     case P9_RREAD:
-      m->data = read_data(&s, &m->data_len, &err);
+      m->data = read_data(&s, &m->count, &err);
       break;
 
     case P9_TWRITE:
       m->fid = read_uint4(&s, &err);
       m->offset = read_uint8(&s, &err);
-      m->data = read_data(&s, &m->data_len, &err);
+      m->data = read_data(&s, &m->count, &err);
       break;
 
     case P9_RWRITE:
@@ -138,11 +138,13 @@ p9_unpack_msg(int bytes, char *buf, struct p9_msg *m)
       break;
 
     case P9_RSTAT:
+      i = read_uint2(&s, &err);
       read_stat(&s, &m->stat, &err);
       break;
 
     case P9_TWSTAT:
       m->fid = read_uint4(&s, &err);
+      i = read_uint2(&s, &err);
       read_stat(&s, &m->stat, &err);
       break;
     default: err = -1;
@@ -269,17 +271,17 @@ p9_pack_msg(int bytes, char *buf, struct p9_msg *m)
       break;
 
     case P9_RREAD:
-      if (s.off + 4 + m->data_len >= s.size)
+      if (s.off + 4 + m->count >= s.size)
         return -1;
-      write_data(&s, m->data_len, m->data);
+      write_data(&s, m->count, m->data);
       break;
 
     case P9_TWRITE:
-      if (s.off + 4 + 8 + m->data_len >= s.size)
+      if (s.off + 4 + 8 + m->count >= s.size)
         return -1;
       write_uint4(&s, m->fid);
       write_uint8(&s, m->offset);
-      write_data(&s, m->data_len, m->data);
+      write_data(&s, m->count, m->data);
       break;
 
     case P9_RWRITE:
@@ -297,15 +299,19 @@ p9_pack_msg(int bytes, char *buf, struct p9_msg *m)
       break;
 
     case P9_RSTAT:
-      if (s.off + 2 + m->stat.size >= s.size)
+      m->stat.size = p9_stat_size(&m->stat);
+      if (s.off + 2 + 2 + m->stat.size >= s.size)
         return -1;
+      write_uint2(&s, m->stat.size + 2);
       write_stat(&s, &m->stat);
       break;
 
     case P9_TWSTAT:
-      if (s.off + 4 + 2 + m->stat.size >= s.size)
+      m->stat.size = p9_stat_size(&m->stat);
+      if (s.off + 4 + 2 + 2 + m->stat.size >= s.size)
         return -1;
       write_uint4(&s, m->fid);
+      write_uint2(&s, m->stat.size + 2);
       write_stat(&s, &m->stat);
       break;
 
@@ -381,6 +387,7 @@ static void
 write_stat(struct p9_stream *s, struct p9_stat *stat)
 {
   p9_pack_stat(s->size - s->off, (char *)s->buf + s->off, stat);
+  s->off += stat->size + 2;
 }
 
 static unsigned char
@@ -428,7 +435,7 @@ read_uint8(struct p9_stream *s, int *err)
     return 0;
 
   x = read_uint4(s, err);
-  if (err)
+  if (*err)
     return 0;
   x |= ((unsigned long long)read_uint4(s, err)) << 32;
   return x;
@@ -482,13 +489,14 @@ static void
 read_stat(struct p9_stream *s, struct p9_stat *stat, int *err)
 {
   *err |= p9_unpack_stat(s->size - s->off, (char *)s->buf + s->off, stat);
+  s->off += s->size;
 }
 
 int
 p9_stat_size(struct p9_stat *stat)
 {
-  return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + stat->name_len + 2
-      + stat->uid_len + 2 + stat->gid_len + 2 + stat->muid_len;
+  return 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + stat->name_len + 2 + stat->uid_len
+      + 2 + stat->gid_len + 2 + stat->muid_len;
 }
 
 int
@@ -499,7 +507,6 @@ p9_pack_stat(int bytes, char *buf, struct p9_stat *stat)
   s.size = bytes;
   s.buf = (unsigned char *)buf;
 
-  stat->size = p9_stat_size(stat) - 2;
   if (s.off + 2 + stat->size >= s.size)
     return 1;
 

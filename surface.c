@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "util.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
 #include "surface.h"
-#include "util.h"
 
 static struct surface *
 get_surface(struct p9_connection *c)
@@ -100,15 +100,11 @@ rm_surface(struct file *f)
   /* TODO: free surface */
 }
 
-struct surface *
-mk_surface(int w, int h)
+int
+init_surface(struct surface *s, int w, int h)
 {
-  struct surface *s;
   int pixelsize = 4;
 
-  s = (struct surface *)malloc(sizeof(struct surface));
-  if (!s)
-    die("cannot allocate memory");
   memset(s, 0, sizeof(*s));
   s->w = w;
   s->h = h;
@@ -117,25 +113,40 @@ mk_surface(int w, int h)
     die("cannot allocate memory");
   /* TODO: create imlib surface */
 
-  s->f.mode = P9_DMDIR | 0500;
-  s->f.qpath = ++qid_cnt;
-  s->f.context.p = s;
-  s->f.rm = rm_surface;
+  s->fs.mode = P9_DMDIR | 0500;
+  s->fs.qpath = ++qid_cnt;
+  s->fs.context.p = s;
+  s->fs.rm = rm_surface;
 
-  s->fsize.name = "size";
-  s->fsize.mode = 0600;
-  s->fsize.qpath = ++qid_cnt;
-  s->fsize.fs = &surface_size_fs;
-  s->fsize.context.p = s;
-  add_file(&s->fsize, &s->f);
+  s->fs_size.name = "size";
+  s->fs_size.mode = 0600;
+  s->fs_size.qpath = ++qid_cnt;
+  s->fs_size.fs = &surface_size_fs;
+  s->fs_size.context.p = s;
+  add_file(&s->fs, &s->fs_size);
 
-  s->fpixels.name = "pixels";
-  s->fpixels.mode = 0600;
-  s->fpixels.qpath = ++qid_cnt;
-  s->fpixels.fs = &surface_pixels_fs;
-  s->fpixels.context.p = s;
-  s->fpixels.length = w * h * pixelsize;
-  add_file(&s->fpixels, &s->f);
+  s->fs_pixels.name = "pixels";
+  s->fs_pixels.mode = 0600;
+  s->fs_pixels.qpath = ++qid_cnt;
+  s->fs_pixels.fs = &surface_pixels_fs;
+  s->fs_pixels.context.p = s;
+  s->fs_pixels.length = w * h * pixelsize;
+  add_file(&s->fs, &s->fs_pixels);
 
+  return 0;
+}
+
+struct surface *
+mk_surface(int w, int h)
+{
+  struct surface *s;
+
+  s = (struct surface *)malloc(sizeof(struct surface));
+  if (!s)
+    die("cannot allocate memory");
+  if (init_surface(s, w, h)) {
+    free(s);
+    return 0;
+  }
   return s;
 }

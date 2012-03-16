@@ -10,6 +10,7 @@ struct client {
   int msize;
   char *inbuf;
   char *outbuf;
+  char *buf;
 
   struct file fs;
   struct file fs_event;

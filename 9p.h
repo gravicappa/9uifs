@@ -134,7 +134,6 @@ struct p9_msg {
   unsigned int name_len;
   char *name;
 
-  unsigned int data_len;
   char *data;
 
   struct p9_stat stat;

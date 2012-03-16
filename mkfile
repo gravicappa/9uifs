@@ -1,13 +1,14 @@
-name = devyat
+name = uifs
 
-CC = pcc
+CC = gcc
 CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
 
 CFLAGS = $CFLAGS `{sdl-config --cflags}
 #LDFLAGS = $LDFLAGS -static
 LDFLAGS = $LDFLAGS `{sdl-config --static-libs} 
 
-obj = 9pmsg.o 9pio.o fs.o main.o util.o net.o client.o
+obj = 9pmsg.o 9pio.o fs.o main.o util.o net.o client.o fsutil.o fs.o \
+      surface.c view.c
 
 all:V: $name
 

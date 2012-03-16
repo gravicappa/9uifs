@@ -1,8 +1,8 @@
 struct surface {
-  struct file f;
-  struct file fsize;
-  struct file fpixels;
-  struct file fformat;
+  struct file fs;
+  struct file fs_size;
+  struct file fs_pixels;
+  struct file fs_format;
   char size_buf[32];
   unsigned int w;
   unsigned int h;
@@ -11,3 +11,4 @@ struct surface {
 };
 
 struct surface *mk_surface(int w, int h);
+int init_surface(struct surface *s, int w, int h);

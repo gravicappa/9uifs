@@ -12,6 +12,7 @@
 #include "9p.h"
 #include "net.h"
 #include "util.h"
+#include "fs.h"
 #include "client.h"
 
 int server_fd = -1;

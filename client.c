@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -18,15 +19,6 @@
 #include "client.h"
 #include "net.h"
 
-struct fs_entry *fs_client[] = {
-  {".", P9_QTDIR, 0, 0500, 0},
-  {"ctl", 0, 0, 0600, 0},
-  {"event", 0, 0, 0600, 0},
-  {"views", P9_QTDIR, 0, 0500, 0},
-  {"images", P9_QTDIR, 0, 0500, 0},
-  {0}
-};
-
 struct buf clients = {16 * sizeof(struct client)};
 
 struct client *
@@ -41,7 +33,7 @@ add_client(int server_fd, int msize)
   fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
   if (fd < 0)
     return 0;
-  log_printf(3, "; Incoming connection\n");
+  log_printf(3, "; Incoming connection (fd: %d)\n", fd);
   off = add_data(&clients, sizeof(struct client), 0);
   if (off < 0)
     die("Cannot allocate memory\n");
@@ -54,40 +46,45 @@ add_client(int server_fd, int msize)
   c->msize = msize;
   c->inbuf = (char *)malloc(msize);
   c->outbuf = (char *)malloc(msize);
+  c->buf = (char *)malloc(msize);
 
+  if (!(c->inbuf && c->outbuf && c->buf))
+    die("Cannot allocate memory\n");
+
+  c->fs.name = "/";
   c->fs.mode = P9_DMDIR | 0500;
   c->fs.qpath = ++qid_cnt;
-  c->fs.context = c;
+  c->fs.context.p = c;
 
   c->fs_event.name = "event";
   c->fs_event.mode = 0400;
   c->fs_event.qpath = ++qid_cnt;
-  c->fs_event.context = c;
-  add_file(&c->fs_event, &c->fs);
+  c->fs_event.context.p = c;
+  add_file(&c->fs, &c->fs_event);
 
   c->fs_views.name = "views";
   c->fs_views.mode = P9_DMDIR | 0700;
   c->fs_views.qpath = ++qid_cnt;
-  c->fs_views.context = c;
-  add_file(&c->fs_views, &c->fs);
+  c->fs_views.context.p = c;
+  add_file(&c->fs, &c->fs_views);
 
   c->fs_images.name = "images";
   c->fs_images.mode = P9_DMDIR | 0700;
   c->fs_images.qpath = ++qid_cnt;
-  c->fs_images.context = c;
-  add_file(&c->fs_images, &c->fs);
+  c->fs_images.context.p = c;
+  add_file(&c->fs, &c->fs_images);
 
   c->fs_fonts.name = "fonts";
   c->fs_fonts.mode = P9_DMDIR | 0700;
   c->fs_fonts.qpath = ++qid_cnt;
-  c->fs_fonts.context = c;
-  add_file(&c->fs_fonts, &c->fs);
+  c->fs_fonts.context.p = c;
+  add_file(&c->fs, &c->fs_fonts);
 
   c->fs_comm.name = "comm";
   c->fs_comm.mode = P9_DMDIR | 0700;
   c->fs_comm.qpath = ++qid_cnt;
-  c->fs_comm.context = c;
-  add_file(&c->fs_comm, &c->fs);
+  c->fs_comm.context.p = c;
+  add_file(&c->fs, &c->fs_comm);
 
   return c;
 }
@@ -95,8 +92,6 @@ add_client(int server_fd, int msize)
 void
 rm_client(struct client *c)
 {
-  int off, end;
-
   log_printf(3, "; rm_client %p\n", c);
 
   if (!c)
@@ -107,9 +102,11 @@ rm_client(struct client *c)
     free(c->inbuf);
   if (c->outbuf)
     free(c->outbuf);
+  if (c->buf)
+    free(c->buf);
   if (c->fids.b)
     free(c->fids.b);
-  rm_buf(&clients, sizeof(struct client), c);
+  rm_data(&clients, sizeof(struct client), c);
 }
 
 unsigned int
@@ -143,6 +140,8 @@ process_client(struct client *c)
       return 0;
     if (p9_process_srv(msize, c->inbuf, msize, c->outbuf, &c->c, &fs))
       return -1;
+    log_printf(3, "; in type: %d\n", c->c.t.type);
+    log_printf(3, "; out type: %d\n", c->c.r.type);
     outsize = unpack_uint4((unsigned char *)c->outbuf);
     log_printf(3, "; -> ");
     log_print_data(3, outsize, (unsigned char *)outbuf);
@@ -151,6 +150,7 @@ process_client(struct client *c)
     memmove(inbuf, inbuf + size, msize - size);
     c->read -= size;
   } while (c->read);
+  return 0;
 }
 
 void
@@ -167,7 +167,7 @@ reset_fids(struct client *c)
   int i, n = c->fids.used / sizeof(struct p9_fid);
 
   for (i = 0; i < n; ++i)
-    free_fid(fids[i]);
+    free_fid(&fids[i]);
   c->fids.used = 0;
 }
 

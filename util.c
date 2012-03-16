@@ -65,12 +65,12 @@ add_data(struct buf *buf, int size, const void *data)
 int
 rm_data(struct buf *buf, int size, void *ptr)
 {
-  int off;
+  int off, end;
 
-  if (ptr < buf->b || ptr + size > buf->b + buf->used)
+  if ((char *)ptr < buf->b || (char *)ptr + size > buf->b + buf->used)
     return -1;
 
-  off = ptr - buf->b;
+  off = (char *)ptr - buf->b;
   end = off + size;
   memmove(buf->b + off, buf->b + end, buf->used - end);
   buf->used -= size;

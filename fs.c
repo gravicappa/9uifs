@@ -1,8 +1,9 @@
 #include <string.h>
+#include <stdlib.h>
 #include "9p.h"
 #include "util.h"
-#include "client.h"
 #include "fs.h"
+#include "client.h"
 
 unsigned long long qid_cnt = 0;
 
@@ -48,8 +49,11 @@ struct file *
 find_file(struct file *root, int size, char *name)
 {
   struct file *t;
-  for (t = root->child; t && strncmp(t->name, name, size); t = t->next) {}
-  return t;
+
+  for (t = root->child; t; t = t->next)
+    if (!strncmp(t->name, name, size) && !t->name[size])
+      return t;
+  return 0;
 }
 
 static void
@@ -104,6 +108,7 @@ fs_walk(struct p9_connection *c)
   struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0, *newfid = 0;
   struct file *f, *t;
+  int i;
 
   if (get_req_fid(c, &fid))
     return;
@@ -119,27 +124,32 @@ fs_walk(struct p9_connection *c)
     newfid->context = fid->context;
     return;
   }
-  if (!f->mode & P9_DMDIR) {
+  if (!(f->mode & P9_DMDIR)) {
     c->r.ename = "not a directory";
     c->r.ename_len = strlen(c->r.ename);
     return;
   }
+  log_printf(3, ";fs_walk nwname: %u\n", c->t.nwname);
   t = f;
   for (i = 0; i < c->t.nwname; ++i) {
-    t = find_file(t, c->t.nwname_len[i], c->t.nwname[i]);
-    if (!t)
+    t = find_file(t, c->t.wname_len[i], c->t.wname[i]);
+    if (!t) {
+      log_printf(3, ";   file '%.*s' not found\n", c->t.wname_len[i],
+                 c->t.wname[i]);
       break;
+    }
     c->r.wqid[c->r.nwqid].type = t->mode >> 24;
     c->r.wqid[c->r.nwqid].version = t->version;
     c->r.wqid[c->r.nwqid].path = t->qpath;
     ++c->r.nwqid;
   }
+  log_printf(3, ";   nwqid: %u\n", c->r.nwqid);
   if (!c->r.nwqid) {
     c->r.ename = "file not found";
     c->r.ename_len = strlen(c->r.ename);
     return;
   }
-  if (c->r.nwqid == c->t.nwqid) {
+  if (c->r.nwqid == c->t.nwname) {
     newfid = add_fid(c->t.newfid, cl);
     newfid->uid = fid->uid;
     newfid->context = t;
@@ -149,7 +159,6 @@ fs_walk(struct p9_connection *c)
 static void
 fs_open(struct p9_connection *c)
 {
-  struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0;
   struct file *f;
 
@@ -166,7 +175,7 @@ fs_open(struct p9_connection *c)
                                || (c->t.mode & P9_OTRUNC)
                                || (c->t.mode & P9_ORCLOSE))) {
     c->r.ename = "Is a directory";
-    c->r.ename = strlen(c->r.ename);
+    c->r.ename_len = strlen(c->r.ename);
     return;
   }
   /* TODO: check for permissions */
@@ -180,7 +189,6 @@ fs_open(struct p9_connection *c)
 static void
 fs_create(struct p9_connection *c)
 {
-  struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0;
   struct file *f;
 
@@ -206,18 +214,85 @@ fs_create(struct p9_connection *c)
   f->fs->create(c);
 }
 
+void
+file_stat(struct file *f, struct p9_stat *s, char *uid)
+{
+  s->qid.type = f->mode >> 24;
+  s->qid.version = f->version;
+  s->qid.path = f->qpath;
+  s->mode = f->mode;
+  s->atime = 0;
+  s->mtime = 0;
+  s->length = f->length;
+  s->name = f->name;
+  s->name_len = strlen(f->name);
+  s->uid = uid;
+  s->uid_len = strlen(s->uid);
+  s->gid = "";
+  s->gid_len = strlen(s->gid);
+  s->muid = uid;
+  s->muid_len = strlen(s->muid);
+  s->size = p9_stat_size(s);
+}
+
+static void
+fs_readdir(struct p9_fid *fid, struct file *f, struct p9_connection *c)
+{
+  struct client *cl = (struct client *)c;
+  struct file *t;
+  unsigned long off = 0, s, count;
+  struct p9_stat stat;
+
+  log_printf(3, "fs_readdir off: %u count: %u\n", c->t.offset, c->t.count);
+
+  for (t = f->child; t && off < c->t.offset; t = t->next) {
+    log_printf(3, "fs_readdir skipping '%s'\n", t->name);
+    file_stat(t, &stat, fid->uid);
+    s = p9_stat_size(&stat);
+    off += s;
+  }
+  if (!t) {
+    c->r.count = 0;
+    return;
+  }
+  if (off != c->t.offset) {
+    P9_SET_STR(c->r.ename, "Illegal seek");
+    return;
+  }
+  off = 0;
+  count = c->t.count;
+  for (; t; t = t->next) {
+    log_printf(3, "; fs_readdir sub: '%s' next: %p\n", t->name, t->next);
+    file_stat(t, &stat, fid->uid);
+    log_printf(3, ";   stat.size: %u off: %u count: %u\n", stat.size, off,
+               count);
+    if (p9_pack_stat(count, cl->buf + off, &stat))
+      break;
+    log_printf(3, "fs_readdir packed\n");
+    s = stat.size + 2;
+    off += s;
+    if (count < s)
+      break;
+    count -= s;
+  }
+  c->r.data = cl->buf;
+  c->r.count = off;
+  log_printf(3, "fs_readdir packed\n");
+}
+
 static void
 fs_read(struct p9_connection *c)
 {
-  struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0;
   struct file *f;
+
+  log_printf(3, "fs_read off: %u count: %u\n", c->t.offset, c->t.count);
 
   if (get_req_fid(c, &fid))
     return;
   f = (struct file *)fid->context;
   if (f->mode & P9_DMDIR) {
-    fs_readdir(f, c);
+    fs_readdir(fid, f, c);
     return;
   }
   if (!(f->fs && f->fs->read)) {
@@ -232,7 +307,6 @@ fs_read(struct p9_connection *c)
 static void
 fs_write(struct p9_connection *c)
 {
-  struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0;
   struct file *f;
 
@@ -286,28 +360,16 @@ fs_remove(struct p9_connection *c)
 static void
 fs_stat(struct p9_connection *c)
 {
-  struct client *cl = (struct client *)c;
   struct p9_fid *fid = 0;
   struct file *f;
 
   if (get_req_fid(c, &fid))
     return;
 
-  c->r.stat.qid.type = f->mode >> 24;
-  c->r.stat.qid.version = f->version;
-  c->r.stat.qid.path = f->qpath;
-  c->r.stat.mode = f->mode;
-  c->r.stat.atime = 0;
-  c->r.stat.mtime = 0;
-  c->r.stat.length = f->length;
-  c->r.stat.name = f->name;
-  c->r.stat.name_len = strlen(f->name);
-  c->r.stat.uid = fid->uid;
-  c->r.stat.uid_len = strlen(c->r.stat.uid);
-  c->r.stat.gid = "";
-  c->r.stat.gid_len = strlen(c->r.stat.gid);
-  c->r.stat.muid = fid->uid;
-  c->r.stat.muid_len = strlen(c->r.stat.muid);
+  f = (struct file *)fid->context;
+
+  file_stat(f, &c->r.stat, fid->uid);
+  log_printf(3, "; fs_stat: size: %d\n", c->r.stat.size);
 }
 
 static void
