@@ -1,7 +1,10 @@
 struct client {
   struct p9_connection c;
+  struct client *next;
 
-  struct buf fids;
+  struct p9_fid *fids;
+  struct p9_fid *fids_pool;
+
   struct buf flushed;
   struct buf deferred;
   int fd;
@@ -23,7 +26,7 @@ struct client {
   struct view *views;
 };
 
-extern struct buf clients;
+extern struct client *clients;
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
@@ -33,4 +36,4 @@ void reset_fids(struct client *c);
 struct p9_fid *get_fid(unsigned int fid, struct client *c);
 int get_req_fid(struct p9_connection *c, struct p9_fid **fid);
 struct p9_fid *add_fid(unsigned int fid, struct client *c);
-void rm_fid(struct p9_fid *fid, struct client *c);
+void rm_fid(unsigned int fid, struct client *c);

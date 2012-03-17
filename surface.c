@@ -21,12 +21,17 @@ size_open(struct p9_connection *c)
   struct surface *s = get_surface(c);
 
   snprintf(s->size_buf, sizeof(s->size_buf), "%u %u", s->w, s->h);
+
+  log_printf(3, "surface_size_open s: %p buf: '%.*s'\n", s,
+             sizeof(s->size_buf), s->size_buf);
 }
 
 static void
 size_read(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
+  log_printf(3, "surface_size_read s: %p buf: '%.*s'\n", s,
+             sizeof(s->size_buf), s->size_buf);
   read_buf_fn(c, strlen(s->size_buf), s->size_buf);
 }
 
@@ -44,6 +49,8 @@ size_clunk(struct p9_connection *c)
   unsigned int w, h;
   unsigned char *pixels = 0;
 
+  log_printf(3, "surface_size_clunk s: %p buf: '%.*s'\n", s,
+             sizeof(s->size_buf), s->size_buf);
   if (sscanf(s->size_buf, "%u %u", &w, &h) != 2) {
     P9_SET_STR(c->r.ename, "Wrong image file format");
     return;
@@ -113,7 +120,7 @@ init_surface(struct surface *s, int w, int h)
     die("cannot allocate memory");
   /* TODO: create imlib surface */
 
-  s->fs.mode = P9_DMDIR | 0500;
+  s->fs.mode = 0500 | P9_DMDIR;
   s->fs.qpath = ++qid_cnt;
   s->fs.context.p = s;
   s->fs.rm = rm_surface;

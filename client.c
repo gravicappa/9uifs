@@ -18,8 +18,10 @@
 #include "fs.h"
 #include "client.h"
 #include "net.h"
+#include "surface.h"
+#include "view.h"
 
-struct buf clients = {16 * sizeof(struct client)};
+struct client *clients = 0;
 
 struct client *
 add_client(int server_fd, int msize)
@@ -34,13 +36,11 @@ add_client(int server_fd, int msize)
   if (fd < 0)
     return 0;
   log_printf(3, "; Incoming connection (fd: %d)\n", fd);
-  off = add_data(&clients, sizeof(struct client), 0);
-  if (off < 0)
+  c = (struct client *)malloc(sizeof(struct client));
+  if (!c)
     die("Cannot allocate memory\n");
-  c = (struct client *)(clients.b + off);
   memset(c, 0, sizeof(*c));
   c->fd = fd;
-  c->fids.delta = 16 * sizeof(unsigned long);
   c->read = 0;
   c->size = 0;
   c->msize = msize;
@@ -52,7 +52,7 @@ add_client(int server_fd, int msize)
     die("Cannot allocate memory\n");
 
   c->fs.name = "/";
-  c->fs.mode = P9_DMDIR | 0500;
+  c->fs.mode = 0500 | P9_DMDIR;
   c->fs.qpath = ++qid_cnt;
   c->fs.context.p = c;
 
@@ -63,39 +63,55 @@ add_client(int server_fd, int msize)
   add_file(&c->fs, &c->fs_event);
 
   c->fs_views.name = "views";
-  c->fs_views.mode = P9_DMDIR | 0700;
+  c->fs_views.mode = 0700 | P9_DMDIR;
   c->fs_views.qpath = ++qid_cnt;
+  c->fs_views.fs = &fs_views;
   c->fs_views.context.p = c;
   add_file(&c->fs, &c->fs_views);
 
   c->fs_images.name = "images";
-  c->fs_images.mode = P9_DMDIR | 0700;
+  c->fs_images.mode = 0700 | P9_DMDIR;
   c->fs_images.qpath = ++qid_cnt;
   c->fs_images.context.p = c;
   add_file(&c->fs, &c->fs_images);
 
   c->fs_fonts.name = "fonts";
-  c->fs_fonts.mode = P9_DMDIR | 0700;
+  c->fs_fonts.mode = 0700 | P9_DMDIR;
   c->fs_fonts.qpath = ++qid_cnt;
   c->fs_fonts.context.p = c;
   add_file(&c->fs, &c->fs_fonts);
 
   c->fs_comm.name = "comm";
-  c->fs_comm.mode = P9_DMDIR | 0700;
+  c->fs_comm.mode = 0700 | P9_DMDIR;
   c->fs_comm.qpath = ++qid_cnt;
   c->fs_comm.context.p = c;
   add_file(&c->fs, &c->fs_comm);
 
+  c->next = clients;
+  clients = c;
   return c;
+}
+
+void
+free_fids(struct p9_fid *fids)
+{
+  struct p9_fid *f, *fnext;
+  for (f = fids; f; f = fnext) {
+    fnext = f->next;
+    free_fid(f);
+    free(f);
+  }
 }
 
 void
 rm_client(struct client *c)
 {
+  struct client *p;
   log_printf(3, "; rm_client %p\n", c);
 
   if (!c)
     return;
+
   if (c->fd >= 0)
     close(c->fd);
   if (c->inbuf)
@@ -104,9 +120,19 @@ rm_client(struct client *c)
     free(c->outbuf);
   if (c->buf)
     free(c->buf);
-  if (c->fids.b)
-    free(c->fids.b);
-  rm_data(&clients, sizeof(struct client), c);
+  free_fids(c->fids);
+  free_fids(c->fids_pool);
+  if (!clients) {
+    free(c);
+    return;
+  }
+
+  for (p = clients; p != c && p->next; p = p->next) {}
+  if (p == clients)
+    clients = clients->next;
+  else
+    p->next = c->next;
+  free(c);
 }
 
 unsigned int
@@ -158,29 +184,34 @@ free_fid(struct p9_fid *fid)
 {
   if (fid->owns_uid && fid->uid)
     free(fid->uid);
+  fid->fid = ~0;
+  fid->owns_uid = 0;
+  fid->uid = 0;
 }
 
 void
 reset_fids(struct client *c)
 {
-  struct p9_fid *fids = (struct p9_fid *)c->fids.b;
-  int i, n = c->fids.used / sizeof(struct p9_fid);
+  struct p9_fid *f = c->fids, *p = 0;
 
-  for (i = 0; i < n; ++i)
-    free_fid(&fids[i]);
-  c->fids.used = 0;
+  for (f = c->fids; f; f = f->next) {
+    free_fid(f);
+    p = f;
+  }
+  if (p) {
+    p->next = c->fids_pool;
+    c->fids_pool = c->fids;
+    c->fids = 0;
+  }
 }
 
 struct p9_fid *
 get_fid(unsigned int fid, struct client *c)
 {
-  struct p9_fid *fids = (struct p9_fid *)c->fids.b;
-  int i, n = c->fids.used / sizeof(struct p9_fid);
+  struct p9_fid *f;
 
-  for (i = 0; i < n; ++i)
-    if (fids[i].fid == fid)
-      return &fids[i];
-  return 0;
+  for (f = c->fids; f && f->fid != fid; f = f->next) {}
+  return f;
 }
 
 int
@@ -199,24 +230,42 @@ get_req_fid(struct p9_connection *c, struct p9_fid **fid)
 struct p9_fid *
 add_fid(unsigned int fid, struct client *c)
 {
-  int off;
   struct p9_fid *f;
-
-  off = add_data(&c->fids, sizeof(struct p9_fid), 0);
-  if (off < 0)
-    die("Cannot allocate memory\n");
-  f = (struct p9_fid *)(c->fids.b + off);
+    
+  if (c->fids_pool) {
+    f = c->fids_pool;
+    c->fids_pool = c->fids_pool->next;
+  } else {
+    f = (struct p9_fid *)malloc(sizeof(struct p9_fid));
+    if (!f)
+      die("Cannot allocate memory\n");
+  }
+  memset(f, 0, sizeof(*f));
   f->fid = fid;
   f->context = c;
   f->iounit = c->msize;
   f->open_mode = 0;
   f->uid = 0;
+  f->next = c->fids;
+  c->fids = f;
   return f;
 }
 
 void
-rm_fid(struct p9_fid *fid, struct client *c)
+rm_fid(unsigned int fid, struct client *c)
 {
-  free_fid(fid);
-  rm_data(&c->fids, sizeof(struct p9_fid), fid);
+  struct p9_fid *prev, *f;
+
+  prev = 0;
+  for (f = c->fids; f && f->fid != fid; f = f->next)
+    prev = f;
+  if (!f)
+    return;
+  if (prev)
+    prev->next = f->next;
+  else
+    c->fids = f->next;
+  free_fid(f);
+  f->next = c->fids_pool;
+  c->fids_pool = f;
 }

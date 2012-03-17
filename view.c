@@ -34,6 +34,7 @@ views_create(struct p9_connection *c)
   v->fs.owns_name = 1;
   v->next = cl->views;
   cl->views = v;
+  add_file(&cl->fs_views, &v->fs);
 }
 
 void
@@ -105,6 +106,7 @@ mk_view(int x, int y, int w, int h)
   v->fs_visible.mode = 0600;
   v->fs_visible.qpath = ++qid_cnt;
   v->fs_visible.context.p = v;
+  v->fs_visible.fs = &fs_view_visible;
   add_file(&v->fs, &v->fs_visible);
 
   v->fs_geometry.name = "geometry";
@@ -113,7 +115,8 @@ mk_view(int x, int y, int w, int h)
   v->fs_geometry.context.p = v;
   add_file(&v->fs, &v->fs_geometry);
 
-  add_file(&v->blit.fs, &v->fs);
+  v->blit.fs.name = "blit";
+  add_file(&v->fs, &v->blit.fs);
 
   v->fs_gl.name = "gl";
   v->fs_gl.mode = 0600;
@@ -128,7 +131,7 @@ mk_view(int x, int y, int w, int h)
   add_file(&v->fs, &v->fs_canvas);
 
   v->fs_ui.name = "ui";
-  v->fs_ui.mode = 0700;
+  v->fs_ui.mode = 0700 | P9_DMDIR;
   v->fs_ui.qpath = ++qid_cnt;
   v->fs_ui.context.p = v;
   add_file(&v->fs, &v->fs_ui);

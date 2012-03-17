@@ -22,20 +22,17 @@ char *server_host = 0;
 int
 update_sock_set(fd_set *fdset, int server_fd)
 {
-  struct client *c = (struct client *)clients.b;
-  int m, i, nclients;
+  struct client *c = clients;
+  int m;
 
   FD_ZERO(fdset);
   FD_SET(server_fd, fdset);
 
-  nclients = clients.used / sizeof(struct client);
   m = server_fd;
-  for (i = 0; i < nclients; ++i) {
-    FD_SET(c[i].fd, fdset);
-    m = (m > c[i].fd) ? m : c[i].fd;
-    log_printf(5, "; client[%d] fd: %d\n", i, c[i].fd);
+  for (c = clients; c; c = c->next) {
+    FD_SET(c->fd, fdset);
+    m = (m > c->fd) ? m : c->fd;
   }
-  log_printf(5, "; fd: %d m: %d\n", server_fd, m);
   return m;
 }
 
@@ -44,8 +41,8 @@ main_loop(int server_fd)
 {
   fd_set fdset;
   SDL_Event ev;
-  int m, i, r, nclients, running = 1;
-  struct client *c;
+  int m, r, running = 1;
+  struct client *c, *cnext;
 
   while (running) {
     while (SDL_PollEvent(&ev)) {
@@ -61,14 +58,11 @@ main_loop(int server_fd)
     if (r > 0) {
       if (FD_ISSET(server_fd, &fdset))
         add_client(server_fd, 65536);
-      nclients = clients.used / sizeof(struct client);
-      c = (struct client *)clients.b;
-      log_printf(9, ";;   c: %p b: %p n: %d\n", c, clients.b, nclients);
-      for (i = 0; i < nclients; ++i) {
-        log_printf(9, ";;   checking fd: %d\n", c[i].fd);
-        if (FD_ISSET(c[i].fd, &fdset))
-          if (process_client(&c[i]))
-            rm_client(&c[i]);
+      for (c = clients; c; c = cnext) {
+        cnext = c->next;
+        if (FD_ISSET(c->fd, &fdset))
+          if (process_client(c))
+            rm_client(c);
       }
     }
   }

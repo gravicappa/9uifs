@@ -8,7 +8,7 @@ CFLAGS = $CFLAGS `{sdl-config --cflags}
 LDFLAGS = $LDFLAGS `{sdl-config --static-libs} 
 
 obj = 9pmsg.o 9pio.o fs.o main.o util.o net.o client.o fsutil.o fs.o \
-      surface.c view.c
+      9pdbg.o surface.c view.c
 
 all:V: $name
 

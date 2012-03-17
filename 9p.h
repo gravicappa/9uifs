@@ -165,6 +165,7 @@ struct p9_fid {
   int owns_uid;
   char *uid;
   void *context;
+  struct p9_fid *next;
 };
 
 struct p9_connection {

@@ -1,2 +1,5 @@
 *~
 *.o
+core
+uifs
+*.log

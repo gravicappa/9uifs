@@ -21,4 +21,6 @@ struct view {
   struct file fs_ui;
 };
 
+extern struct p9_fs fs_views;
+
 struct view *mk_view(int x, int y, int w, int h);

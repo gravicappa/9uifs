@@ -184,6 +184,8 @@ fs_open(struct p9_connection *c)
   c->r.qid.type = f->mode >> 24;
   c->r.qid.version = f->version;
   c->r.qid.path = f->qpath;
+  if (f->fs && f->fs->open)
+    f->fs->open(c);
 }
 
 static void
@@ -336,7 +338,7 @@ fs_clunk(struct p9_connection *c)
     c->t.context = fid;
     f->fs->clunk(c);
   }
-  rm_fid(fid, cl);
+  rm_fid(c->t.fid, cl);
 }
 
 static void
@@ -354,7 +356,7 @@ fs_remove(struct p9_connection *c)
     f->fs->remove(c);
   }
   rm_file(f);
-  rm_fid(fid, cl);
+  rm_fid(c->t.fid, cl);
 }
 
 static void
