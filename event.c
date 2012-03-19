@@ -7,6 +7,8 @@
 #include "client.h"
 #include "event.h"
 
+static int buf_delta = 512;
+
 void
 put_event(struct client *c, struct file *f, int len, char *ev)
 {
@@ -14,6 +16,8 @@ put_event(struct client *c, struct file *f, int len, char *ev)
   struct ev_listener *lsr;
 
   pool = (struct ev_pool *)f->aux.p;
+  if (!pool)
+    return;
 
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
     if (add_data(&lsr->buf, len, ev))
@@ -68,6 +72,8 @@ event_open(struct p9_connection *c)
     P9_SET_STR(c->r.ename, "out of memory");
     return;
   }
+  memset(lsr, 0, sizeof(*lsr));
+  lsr->buf.delta = buf_delta;
   lsr->next = pool->listeners;
   pool->listeners = lsr;
   lsr->tag = P9_NOTAG;
@@ -81,6 +87,8 @@ event_read(struct p9_connection *c)
   struct ev_listener *lsr = (struct ev_listener *)c->t.pfid->aux;
   struct client *cl = (struct client *)c;
 
+  log_printf(3, "# event_read (buf: %u)\n", lsr->buf.used);
+
   if (!lsr->buf.used) {
     if (lsr->tag != P9_NOTAG) {
       P9_SET_STR(c->r.ename, "fid is already blocked on event");
@@ -88,6 +96,7 @@ event_read(struct p9_connection *c)
     }
     lsr->tag = c->t.tag;
     lsr->count = c->t.count;
+    c->r.deferred = 1;
     return;
   }
   c->r.count = (c->t.count < lsr->buf.used) ? c->t.count : lsr->buf.used;

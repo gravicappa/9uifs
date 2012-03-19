@@ -37,6 +37,7 @@ views_create(struct p9_connection *c)
   v->fs.owns_name = 1;
   v->next = cl->views;
   cl->views = v;
+  cl->selected_view = v;
   add_file(&cl->fs_views, &v->fs);
 }
 
@@ -103,18 +104,21 @@ mk_view(int x, int y, int w, int h)
   v->fs_event.mode = 0400;
   v->fs_event.qpath = ++qid_cnt;
   v->fs_event.aux.p = &v->ev;
+  v->fs_event.fs = &fs_event;
   add_file(&v->fs, &v->fs_event);
 
   v->fs_pointer.name = "pointer";
   v->fs_pointer.mode = 0400;
   v->fs_pointer.qpath = ++qid_cnt;
   v->fs_pointer.aux.p = &v->ev_pointer;
+  v->fs_pointer.fs = &fs_event;
   add_file(&v->fs, &v->fs_pointer);
 
   v->fs_keyboard.name = "keyboard";
   v->fs_keyboard.mode = 0400;
   v->fs_keyboard.qpath = ++qid_cnt;
   v->fs_keyboard.aux.p = &v->ev_keyboard;
+  v->fs_keyboard.fs = &fs_event;
   add_file(&v->fs, &v->fs_keyboard);
 
   v->fs_visible.name = "visible";

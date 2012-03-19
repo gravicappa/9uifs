@@ -29,8 +29,12 @@ extern struct client *clients;
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
-int process_client(struct client *c);
+int process_client_io(struct client *c);
 int client_send_resp(struct client *c);
+
+void client_keyboard(int type, int keysym, int mod, unsigned int unicode);
+void client_pointer_move(int x, int y, int state);
+void client_pointer_click(int type, int x, int y, int btn);
 
 void reset_fids(struct client *c);
 struct p9_fid *get_fid(unsigned int fid, struct client *c);
