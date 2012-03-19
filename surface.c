@@ -7,57 +7,85 @@
 #include "fsutil.h"
 #include "surface.h"
 
+const int size_buf_len = 32;
+
 static struct surface *
 get_surface(struct p9_connection *c)
 {
-  struct p9_fid *fid = (struct p9_fid *)c->t.context;
-  struct file *f = (struct file *)fid->context;
-  return (struct surface *)f->context.p;
+  struct p9_fid *fid = c->t.pfid;
+  struct file *f = (struct file *)fid->file;
+  return (struct surface *)f->aux.p;
+}
+
+static void
+size_fid_rm(struct p9_fid *fid)
+{
+  log_printf(3, "surface_size_fid_rm buf: '%p'\n", fid->aux);
+  if (fid->aux) {
+    free(fid->aux);
+    fid->aux = 0;
+  }
+  fid->rm = 0;
 }
 
 static void
 size_open(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
+  struct p9_fid *fid = c->t.pfid;
 
-  snprintf(s->size_buf, sizeof(s->size_buf), "%u %u", s->w, s->h);
+  fid->aux = malloc(size_buf_len);
+  if (!fid->aux) {
+    P9_SET_STR(c->r.ename, "out of memory");
+    return;
+  }
+  memset(fid->aux, 0, size_buf_len);
+  if (!(c->t.mode & P9_OTRUNC))
+    snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
+  fid->rm = size_fid_rm;
 
-  log_printf(3, "surface_size_open s: %p buf: '%.*s'\n", s,
-             sizeof(s->size_buf), s->size_buf);
+  log_printf(3, "surface_size_open %p buf: '%.*s'\n", fid, size_buf_len,
+             (char *)fid->aux);
 }
 
 static void
 size_read(struct p9_connection *c)
 {
-  struct surface *s = get_surface(c);
-  log_printf(3, "surface_size_read s: %p buf: '%.*s'\n", s,
-             sizeof(s->size_buf), s->size_buf);
-  read_buf_fn(c, strlen(s->size_buf), s->size_buf);
+  struct p9_fid *fid = c->t.pfid;
+  log_printf(3, "surface_size_read %p buf: '%.*s'\n", fid, size_buf_len,
+             (char *)fid->aux);
+  read_buf_fn(c, strlen((char *)fid->aux), (char *)fid->aux);
 }
 
 static void
 size_write(struct p9_connection *c)
 {
-  struct surface *s = get_surface(c);
-  write_buf_fn(c, sizeof(s->size_buf), s->size_buf);
+  struct p9_fid *fid = c->t.pfid;
+  log_printf(3, "surface_size_write %p buf: '%.*s'\n", fid, size_buf_len,
+             (char *)fid->aux);
+  write_buf_fn(c, size_buf_len - 1, (char *)fid->aux);
 }
 
 static void
 size_clunk(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
+  struct p9_fid *fid = c->t.pfid;
   unsigned int w, h;
-  unsigned char *pixels = 0;
+  char *pixels = 0, *buf;
 
-  log_printf(3, "surface_size_clunk s: %p buf: '%.*s'\n", s,
-             sizeof(s->size_buf), s->size_buf);
-  if (sscanf(s->size_buf, "%u %u", &w, &h) != 2) {
+  if (!fid->aux)
+    return;
+
+  if (sscanf((char *)fid->aux, "%u %u", &w, &h) != 2) {
     P9_SET_STR(c->r.ename, "Wrong image file format");
     return;
   }
   if (w == s->w && h == s->h)
     return;
   /* TODO: resize image */
+  s->w = w;
+  s->h = h;
 }
 
 static void
@@ -103,7 +131,7 @@ static struct p9_fs surface_pixels_fs = {
 void
 rm_surface(struct file *f)
 {
-  struct surface *s = (struct surface *)f->context.p;
+  struct surface *s = (struct surface *)f->aux.p;
   /* TODO: free surface */
 }
 
@@ -117,26 +145,26 @@ init_surface(struct surface *s, int w, int h)
   s->h = h;
   s->pixels = (int *)malloc(w * h * pixelsize);
   if (!s->pixels)
-    die("cannot allocate memory");
+    die("Cannot allocate memory");
   /* TODO: create imlib surface */
 
   s->fs.mode = 0500 | P9_DMDIR;
   s->fs.qpath = ++qid_cnt;
-  s->fs.context.p = s;
+  s->fs.aux.p = s;
   s->fs.rm = rm_surface;
 
   s->fs_size.name = "size";
   s->fs_size.mode = 0600;
   s->fs_size.qpath = ++qid_cnt;
   s->fs_size.fs = &surface_size_fs;
-  s->fs_size.context.p = s;
+  s->fs_size.aux.p = s;
   add_file(&s->fs, &s->fs_size);
 
   s->fs_pixels.name = "pixels";
   s->fs_pixels.mode = 0600;
   s->fs_pixels.qpath = ++qid_cnt;
   s->fs_pixels.fs = &surface_pixels_fs;
-  s->fs_pixels.context.p = s;
+  s->fs_pixels.aux.p = s;
   s->fs_pixels.length = w * h * pixelsize;
   add_file(&s->fs, &s->fs_pixels);
 
@@ -150,7 +178,7 @@ mk_surface(int w, int h)
 
   s = (struct surface *)malloc(sizeof(struct surface));
   if (!s)
-    die("cannot allocate memory");
+    die("Cannot allocate memory");
   if (init_surface(s, w, h)) {
     free(s);
     return 0;

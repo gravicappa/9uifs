@@ -23,7 +23,7 @@ struct file {
   union {
     int i;
     void *p;
-  } context;
+  } aux;
 };
 
 struct fs_entry {

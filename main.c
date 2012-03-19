@@ -78,7 +78,7 @@ parse_args(int argc, char **argv)
     if (!strcmp(argv[i], "-d") && i + 1 < argc)
       loglevel = atoi(argv[++i]);
     else
-      die("usage: d [-d loglevel]");
+      die("Usage: d [-d loglevel]");
 }
 
 int

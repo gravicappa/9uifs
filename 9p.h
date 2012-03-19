@@ -1,5 +1,5 @@
 #define P9_VERSION "9P2000"
-#define P9_NOTAG ((ushort)~0)
+#define P9_NOTAG ((unsigned short)~0)
 #define P9_NOFID (~0u)
 
 enum {
@@ -143,7 +143,7 @@ struct p9_msg {
 
   struct p9_qid wqid[P9_MAXWELEM];
   int deferred;
-  void *context;
+  struct p9_fid *pfid;
 };
 
 #define P9_SET_STR(f, str) do { \
@@ -158,14 +158,16 @@ int p9_unpack_msg(int bytes, char *buf, struct p9_msg *m);
 int p9_pack_msg(int bytes, char *buf, struct p9_msg *m);
 
 struct p9_fid {
+  struct p9_fid *next;
   unsigned int fid;
   struct p9_qid qid;
   char open_mode;
   unsigned int iounit;
   int owns_uid;
   char *uid;
-  void *context;
-  struct p9_fid *next;
+  void (*rm)(struct p9_fid *);
+  void *file;
+  void *aux;
 };
 
 struct p9_connection {
@@ -173,7 +175,7 @@ struct p9_connection {
   struct p9_msg t;
   struct p9_msg r;
   void *flushed;
-  void *context;
+  void *aux;
 };
 
 struct p9_fs {

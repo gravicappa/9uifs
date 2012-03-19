@@ -8,6 +8,7 @@
 #include "fsutil.h"
 #include "surface.h"
 #include "client.h"
+#include "event.h"
 #include "view.h"
 
 void
@@ -15,6 +16,8 @@ views_create(struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
   struct view *v;
+
+  log_printf(3, "; views_create '%.*s'\n", c->t.name_len, c->t.name);
 
   if (!(c->t.perm & P9_DMDIR)) {
     P9_SET_STR(c->r.ename, "wrong view create perm");
@@ -40,15 +43,15 @@ views_create(struct p9_connection *c)
 void
 rm_view(struct file *f)
 {
-  struct view *v = (struct view *)f->context.p;
+  struct view *v = (struct view *)f->aux.p;
 }
 
 static struct view *
 get_view(struct p9_connection *c)
 {
-  struct p9_fid *fid = (struct p9_fid *)c->t.context;
-  struct file *f = (struct file *)fid->context;
-  return (struct view *)f->context.p;
+  struct p9_fid *fid = c->t.pfid;
+  struct file *f = (struct file *)fid->file;
+  return (struct view *)f->aux.p;
 }
 
 void
@@ -81,7 +84,7 @@ mk_view(int x, int y, int w, int h)
   
   v = (struct view *)malloc(sizeof(struct view));
   if (!v)
-    die("cannot allocate memory");
+    die("Cannot allocate memory");
   memset(v, 0, sizeof(*v));
   v->g.x = x;
   v->g.y = y;
@@ -93,47 +96,59 @@ mk_view(int x, int y, int w, int h)
   }
   v->fs.mode = 0500 | P9_DMDIR;
   v->fs.qpath = ++qid_cnt;
-  v->fs.context.p = v;
+  v->fs.aux.p = v;
   v->fs.rm = rm_view;
 
   v->fs_event.name = "event";
   v->fs_event.mode = 0400;
   v->fs_event.qpath = ++qid_cnt;
-  v->fs_event.context.p = v;
+  v->fs_event.aux.p = &v->ev;
   add_file(&v->fs, &v->fs_event);
+
+  v->fs_pointer.name = "pointer";
+  v->fs_pointer.mode = 0400;
+  v->fs_pointer.qpath = ++qid_cnt;
+  v->fs_pointer.aux.p = &v->ev_pointer;
+  add_file(&v->fs, &v->fs_pointer);
+
+  v->fs_keyboard.name = "keyboard";
+  v->fs_keyboard.mode = 0400;
+  v->fs_keyboard.qpath = ++qid_cnt;
+  v->fs_keyboard.aux.p = &v->ev_keyboard;
+  add_file(&v->fs, &v->fs_keyboard);
 
   v->fs_visible.name = "visible";
   v->fs_visible.mode = 0600;
   v->fs_visible.qpath = ++qid_cnt;
-  v->fs_visible.context.p = v;
+  v->fs_visible.aux.p = v;
   v->fs_visible.fs = &fs_view_visible;
   add_file(&v->fs, &v->fs_visible);
 
   v->fs_geometry.name = "geometry";
   v->fs_geometry.mode = 0600;
   v->fs_geometry.qpath = ++qid_cnt;
-  v->fs_geometry.context.p = v;
+  v->fs_geometry.aux.p = v;
   add_file(&v->fs, &v->fs_geometry);
 
   v->blit.fs.name = "blit";
   add_file(&v->fs, &v->blit.fs);
 
   v->fs_gl.name = "gl";
-  v->fs_gl.mode = 0600;
+  v->fs_gl.mode = 0700 | P9_DMDIR;
   v->fs_gl.qpath = ++qid_cnt;
-  v->fs_gl.context.p = v;
+  v->fs_gl.aux.p = v;
   add_file(&v->fs, &v->fs_gl);
 
   v->fs_canvas.name = "canvas";
-  v->fs_canvas.mode = 0700;
+  v->fs_canvas.mode = 0700 | P9_DMDIR;
   v->fs_canvas.qpath = ++qid_cnt;
-  v->fs_canvas.context.p = v;
+  v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
 
   v->fs_ui.name = "ui";
   v->fs_ui.mode = 0700 | P9_DMDIR;
   v->fs_ui.qpath = ++qid_cnt;
-  v->fs_ui.context.p = v;
+  v->fs_ui.aux.p = v;
   add_file(&v->fs, &v->fs_ui);
 
   return v;

@@ -2,8 +2,8 @@
 #include "9pdbg.h"
 
 int
-p9_process_srv(int in_size, char *in, int out_size, char *out, 
-               struct p9_connection *c, struct p9_fs *fs)
+p9_process_msg(int in_size, char *in, struct p9_connection *c,
+               struct p9_fs *fs)
 {
   if (p9_unpack_msg(in_size, in, &c->t))
     return -1;

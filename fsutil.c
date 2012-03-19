@@ -4,8 +4,6 @@
 void
 read_buf_fn(struct p9_connection *c, int size, char *buf)
 {
-  unsigned int n;
-
   c->r.count = 0;
   if (c->t.offset < size) {
     c->r.count = c->t.count;
@@ -18,8 +16,6 @@ read_buf_fn(struct p9_connection *c, int size, char *buf)
 void
 write_buf_fn(struct p9_connection *c, int size, char *buf)
 {
-  unsigned int n;
-
   if (c->t.offset >= size) {
     P9_SET_STR(c->r.ename, "Illegal seek");
     return;
@@ -43,13 +39,12 @@ read_bool_fn(struct p9_connection *c, int val)
 int
 write_bool_fn(struct p9_connection *c, int oldval)
 {
-  if (c->t.count == 0)
-    return oldval;
-  if (c->t.count == 1) {
+  switch (c->t.count) {
+  case 0: return oldval;
+  case 1:
     c->r.count = 1;
     return c->t.data[0] != '0';
-  }
-  if (c->t.count > 1) {
+  default:
     c->r.count = c->t.count;
     return !(c->t.data[0] == '0' && strchr("\n\t\r ", c->t.data[1]));
   }

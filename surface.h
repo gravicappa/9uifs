@@ -3,7 +3,6 @@ struct surface {
   struct file fs_size;
   struct file fs_pixels;
   struct file fs_format;
-  char size_buf[32];
   unsigned int w;
   unsigned int h;
   int *pixels;

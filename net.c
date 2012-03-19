@@ -36,11 +36,11 @@ ip_from_str(const char *addr)
   hints.ai_addr = 0;
   hints.ai_next = 0;
   if (getaddrinfo(addr, 0, &hints, &result) != 0)
-    die("Cannot get target host address.\n");
+    die("Cannot get target host address.");
   if (!result || result->ai_addrlen > sizeof(struct sockaddr_in)) {
     if (result)
       freeaddrinfo(result);
-    die("Unsupported target host address.\n");
+    die("Unsupported target host address.");
   }
   ip = (struct sockaddr_in *)result->ai_addr;
   ret = ip->sin_addr.s_addr;
@@ -70,9 +70,9 @@ net_listen(const char *host, int port)
   setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &f, sizeof(f));
 
   if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-    die("Cannot bind address.\n");
+    die("Cannot bind address.");
 
   if (listen(s, 10) == -1)
-    die("Cannot listen for connections\n");
+    die("Cannot listen for connections.");
   return s;
 }

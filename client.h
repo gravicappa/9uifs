@@ -10,7 +10,6 @@ struct client {
   int fd;
   int read;
   int size;
-  int msize;
   char *inbuf;
   char *outbuf;
   char *buf;
@@ -31,9 +30,9 @@ extern struct client *clients;
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
 int process_client(struct client *c);
+int client_send_resp(struct client *c);
 
 void reset_fids(struct client *c);
 struct p9_fid *get_fid(unsigned int fid, struct client *c);
-int get_req_fid(struct p9_connection *c, struct p9_fid **fid);
 struct p9_fid *add_fid(unsigned int fid, struct client *c);
-void rm_fid(unsigned int fid, struct client *c);
+void rm_fid(struct p9_fid *fid, struct client *c);

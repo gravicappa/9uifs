@@ -552,7 +552,7 @@ p9_unpack_stat(int bytes, char *buf, struct p9_stat *stat)
 int
 p9_process_treq(struct p9_connection *c, struct p9_fs *fs)
 {
-  int (*fn)(struct p9_connection *c) = 0;
+  void (*fn)(struct p9_connection *c) = 0;
 
   switch (c->t.type) {
   case P9_TVERSION: fn = fs->version; break;

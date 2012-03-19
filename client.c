@@ -14,20 +14,23 @@
 
 #include "util.h"
 #include "9p.h"
-#include "9pio.h"
+#include "9pdbg.h"
 #include "fs.h"
 #include "client.h"
 #include "net.h"
 #include "surface.h"
+#include "event.h"
 #include "view.h"
 
 struct client *clients = 0;
+
+static void free_fid(struct p9_fid *fid);
 
 struct client *
 add_client(int server_fd, int msize)
 {
   struct client *c;
-  int off, fd;
+  int fd;
   struct sockaddr_in addr;
   socklen_t addr_len;
 
@@ -35,64 +38,66 @@ add_client(int server_fd, int msize)
   fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
   if (fd < 0)
     return 0;
-  log_printf(3, "; Incoming connection (fd: %d)\n", fd);
+  log_printf(3, "# Incoming connection (fd: %d)\n", fd);
   c = (struct client *)malloc(sizeof(struct client));
   if (!c)
-    die("Cannot allocate memory\n");
+    die("Cannot allocate memory");
   memset(c, 0, sizeof(*c));
   c->fd = fd;
   c->read = 0;
   c->size = 0;
-  c->msize = msize;
+  c->c.msize = msize;
   c->inbuf = (char *)malloc(msize);
   c->outbuf = (char *)malloc(msize);
   c->buf = (char *)malloc(msize);
 
   if (!(c->inbuf && c->outbuf && c->buf))
-    die("Cannot allocate memory\n");
+    die("Cannot allocate memory");
 
   c->fs.name = "/";
   c->fs.mode = 0500 | P9_DMDIR;
   c->fs.qpath = ++qid_cnt;
-  c->fs.context.p = c;
+  c->fs.aux.p = c;
 
   c->fs_event.name = "event";
   c->fs_event.mode = 0400;
   c->fs_event.qpath = ++qid_cnt;
-  c->fs_event.context.p = c;
+  c->fs_event.aux.p = c;
   add_file(&c->fs, &c->fs_event);
 
   c->fs_views.name = "views";
   c->fs_views.mode = 0700 | P9_DMDIR;
   c->fs_views.qpath = ++qid_cnt;
   c->fs_views.fs = &fs_views;
-  c->fs_views.context.p = c;
+  c->fs_views.aux.p = c;
   add_file(&c->fs, &c->fs_views);
 
   c->fs_images.name = "images";
   c->fs_images.mode = 0700 | P9_DMDIR;
   c->fs_images.qpath = ++qid_cnt;
-  c->fs_images.context.p = c;
+  c->fs_images.aux.p = c;
   add_file(&c->fs, &c->fs_images);
 
   c->fs_fonts.name = "fonts";
   c->fs_fonts.mode = 0700 | P9_DMDIR;
   c->fs_fonts.qpath = ++qid_cnt;
-  c->fs_fonts.context.p = c;
+  c->fs_fonts.aux.p = c;
   add_file(&c->fs, &c->fs_fonts);
 
   c->fs_comm.name = "comm";
   c->fs_comm.mode = 0700 | P9_DMDIR;
   c->fs_comm.qpath = ++qid_cnt;
-  c->fs_comm.context.p = c;
+  c->fs_comm.aux.p = c;
   add_file(&c->fs, &c->fs_comm);
 
   c->next = clients;
   clients = c;
+
+  log_printf(3, "# Added new client (fd: %d)\n", fd);
   return c;
 }
 
-void
+static void
 free_fids(struct p9_fid *fids)
 {
   struct p9_fid *f, *fnext;
@@ -145,10 +150,9 @@ int
 process_client(struct client *c)
 {
   int r;
-  unsigned int size, outsize, msize = c->msize;
-  char *inbuf = c->inbuf, *outbuf = c->outbuf;
+  unsigned int size;
 
-  r = recv(c->fd, inbuf + c->read, msize - c->read, 0);
+  r = recv(c->fd, c->inbuf + c->read, c->c.msize - c->read, 0);
   if (r <= 0)
     return -1;
   c->read += r;
@@ -156,26 +160,44 @@ process_client(struct client *c)
     return 0;
   do {
     log_printf(3, "; <- ");
-    log_print_data(3, c->read, (unsigned char *)inbuf);
-    size = unpack_uint4((unsigned char *)inbuf);
+    log_print_data(3, c->read, (unsigned char *)c->inbuf);
+    size = unpack_uint4((unsigned char *)c->inbuf);
     log_printf(3, ";   size: %d\n", size);
-    if (size < 7 || size > msize)
+    if (size < 7 || size > c->c.msize)
       return -1;
     log_printf(3, ";   c->read: %d\n", c->read);
     if (size > c->read)
       return 0;
-    if (p9_process_srv(msize, c->inbuf, msize, c->outbuf, &c->c, &fs))
+
+    if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
       return -1;
-    log_printf(3, "; in type: %d\n", c->c.t.type);
-    log_printf(3, "; out type: %d\n", c->c.r.type);
-    outsize = unpack_uint4((unsigned char *)c->outbuf);
-    log_printf(3, "; -> ");
-    log_print_data(3, outsize, (unsigned char *)outbuf);
-    if (send(c->fd, outbuf, outsize, 0) <= 0)
+    p9_print_msg(&c->c.t, ">>");
+
+    c->c.r.deferred = 0;
+    if(p9_process_treq(&c->c, &fs))
       return -1;
-    memmove(inbuf, inbuf + size, msize - size);
+    if (!c->c.r.deferred && client_send_resp(c))
+      return -1;
+
+    memmove(c->inbuf, c->inbuf + size, c->c.msize - size);
     c->read -= size;
   } while (c->read);
+  return 0;
+}
+
+int
+client_send_resp(struct client *c)
+{
+  unsigned int outsize;
+
+  if (p9_pack_msg(c->c.msize, c->outbuf, &c->c.r))
+    return -1;
+  p9_print_msg(&c->c.r, ">>");
+  outsize = unpack_uint4((unsigned char *)c->outbuf);
+  log_printf(3, "; -> ");
+  log_print_data(3, outsize, (unsigned char *)c->outbuf);
+  if (send(c->fd, c->outbuf, outsize, 0) <= 0)
+    return -1;
   return 0;
 }
 
@@ -184,9 +206,12 @@ free_fid(struct p9_fid *fid)
 {
   if (fid->owns_uid && fid->uid)
     free(fid->uid);
-  fid->fid = ~0;
+  fid->fid = P9_NOFID;
   fid->owns_uid = 0;
   fid->uid = 0;
+  if (fid->rm)
+    fid->rm(fid);
+  fid->file = 0;
 }
 
 void
@@ -214,19 +239,6 @@ get_fid(unsigned int fid, struct client *c)
   return f;
 }
 
-int
-get_req_fid(struct p9_connection *c, struct p9_fid **fid)
-{
-  struct client *cl = (struct client *)c;
-
-  *fid = get_fid(c->t.fid, cl);
-  if (!*fid) {
-    P9_SET_STR(c->r.ename, "fid unknown or out of range");
-    return -1;
-  }
-  return 0;
-}
-
 struct p9_fid *
 add_fid(unsigned int fid, struct client *c)
 {
@@ -238,12 +250,11 @@ add_fid(unsigned int fid, struct client *c)
   } else {
     f = (struct p9_fid *)malloc(sizeof(struct p9_fid));
     if (!f)
-      die("Cannot allocate memory\n");
+      die("Cannot allocate memory");
   }
   memset(f, 0, sizeof(*f));
   f->fid = fid;
-  f->context = c;
-  f->iounit = c->msize;
+  f->iounit = c->c.msize - 23;
   f->open_mode = 0;
   f->uid = 0;
   f->next = c->fids;
@@ -252,20 +263,20 @@ add_fid(unsigned int fid, struct client *c)
 }
 
 void
-rm_fid(unsigned int fid, struct client *c)
+rm_fid(struct p9_fid *fid, struct client *c)
 {
   struct p9_fid *prev, *f;
 
   prev = 0;
-  for (f = c->fids; f && f->fid != fid; f = f->next)
+  for (f = c->fids; f && f != fid; f = f->next)
     prev = f;
-  if (!f)
-    return;
-  if (prev)
-    prev->next = f->next;
-  else
-    c->fids = f->next;
-  free_fid(f);
-  f->next = c->fids_pool;
-  c->fids_pool = f;
+  if (f) {
+    if (prev)
+      prev->next = f->next;
+    else
+      c->fids = f->next;
+  }
+  free_fid(fid);
+  fid->next = c->fids_pool;
+  c->fids_pool = fid;
 }

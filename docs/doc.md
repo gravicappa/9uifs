@@ -2,7 +2,7 @@
 
     root/
       event
-      windows/
+      views/
         0/
           ctl
           title
@@ -18,26 +18,28 @@
 ## Application FS structure
 
     root/
-      event -> [keyboard mouse joystick ... create destroy]
+      event -> [? create destroy]
       views/
-        0/
+        <viewname>/
           event
+          pointer -> [<idx> <x> <y>]
+          kbd -> [<key1> <key2> ...]
+          joystick -> []
           geometry
           blit/
           gl/
           canvas/
           ui/
       images/
-        ctl
-        pic0/
+        <picname>/
           format
           data
           size
       fonts/
         ctl
-        sans/
-        sans-serif/
-        monotype/
+        0/
+        1/
+        2/
         ...
       store/
       comm/
@@ -85,27 +87,31 @@
       ui/
         uievent
         type -> panel
+        g -> x y w h
         placement -> []
-        visible -> true
+        visible -> 0 | 1
         w/
           panel01/
-            uievent
+            evfilter
             type -> panel
-            visible -> true
+            g -> x y w h
+            visible -> 0 | 1
             placement -> x: 0 y: 0 w: 2 h: 1 sticky: nsew
             w/
               text01/
+                evfilter
                 type -> label
+                g -> x y w h
                 text -> "Blahblah"
-                visible -> true
-                uievent
+                visible -> 0 | 1
           ok/
-            uievent
+            evfilter
             type -> button
+            g -> x y w h
             text -> Ok
             font -> sans:10:Bold
             placement -> x: 0 y: 1 w: 1 h: 1 sticky: lrtb
-            visible -> true
+            visible -> 0 | 1
             image/
               pic -> pic0
                      2 0 2 0
@@ -113,8 +119,9 @@
           cancel/
             uievent
             type -> button
+            g -> x y w h
             text -> Cancel
-            visible -> true
+            visible -> 0 | 1
             placement -> x: 1 y: 1 w: 1 h: 1 sticky: nsew
 
 #### ui/uievent
