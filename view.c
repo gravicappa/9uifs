@@ -82,7 +82,7 @@ struct view *
 mk_view(int x, int y, int w, int h)
 {
   struct view *v;
-  
+
   v = (struct view *)malloc(sizeof(struct view));
   if (!v)
     die("Cannot allocate memory");

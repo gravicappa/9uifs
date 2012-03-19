@@ -194,7 +194,7 @@ p9_print_msg(struct p9_msg *m, char *dir)
   case P9_RWSTAT:
     pprint_msg_hdr(m, "Rwstat", dir);
     break;
-  
+
   default:
     fprintf(stderr, ";  %s UNKNOWN MSG %u\n", dir, m->type);
   }

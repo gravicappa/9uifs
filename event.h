@@ -2,7 +2,7 @@ struct ev_listener {
   struct ev_listener *next;
   struct file *file;
   unsigned short tag;
-  unsigned int count; 
+  unsigned int count;
   struct buf buf;
 };
 

@@ -161,19 +161,20 @@ process_client_io(struct client *c)
   if (c->read < 4)
     return 0;
   do {
-    log_printf(3, "; <- ");
-    log_print_data(3, c->read, (unsigned char *)c->inbuf);
+    log_printf(10, "; <- ");
+    log_print_data(10, c->read, (unsigned char *)c->inbuf);
     size = unpack_uint4((unsigned char *)c->inbuf);
-    log_printf(3, ";   size: %d\n", size);
+    log_printf(10, ";   size: %d\n", size);
     if (size < 7 || size > c->c.msize)
       return -1;
-    log_printf(3, ";   c->read: %d\n", c->read);
+    log_printf(10, ";   c->read: %d\n", c->read);
     if (size > c->read)
       return 0;
 
     if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
       return -1;
-    p9_print_msg(&c->c.t, ">>");
+    if (loglevel >= 9)
+      p9_print_msg(&c->c.t, ">>");
 
     c->c.r.deferred = 0;
     if(p9_process_treq(&c->c, &fs))
@@ -194,10 +195,11 @@ client_send_resp(struct client *c)
 
   if (p9_pack_msg(c->c.msize, c->outbuf, &c->c.r))
     return -1;
-  p9_print_msg(&c->c.r, ">>");
+  if (loglevel >= 9)
+    p9_print_msg(&c->c.r, ">>");
   outsize = unpack_uint4((unsigned char *)c->outbuf);
-  log_printf(3, "; -> ");
-  log_print_data(3, outsize, (unsigned char *)c->outbuf);
+  log_printf(10, "; -> ");
+  log_print_data(10, outsize, (unsigned char *)c->outbuf);
   if (send(c->fd, c->outbuf, outsize, 0) <= 0)
     return -1;
   return 0;
@@ -245,7 +247,7 @@ struct p9_fid *
 add_fid(unsigned int fid, struct client *c)
 {
   struct p9_fid *f;
-    
+
   if (c->fids_pool) {
     f = c->fids_pool;
     c->fids_pool = c->fids_pool->next;
