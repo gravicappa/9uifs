@@ -112,7 +112,13 @@ fs_attach(struct p9_connection *c)
 static void
 fs_flush(struct p9_connection *c)
 {
-  /* TODO: mark deferred requests as flushed */
+  struct file *f;
+
+  if (get_req_fid(c))
+    return;
+  f = (struct file *)c->t.pfid->file;
+  if (f->fs && f->fs->flush)
+    f->fs->flush(c);
 }
 
 static void

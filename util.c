@@ -76,3 +76,25 @@ rm_data(struct buf *buf, int size, void *ptr)
   buf->used -= size;
   return 0;
 }
+
+char *
+strnchr(const char *s, unsigned int len, char c)
+{
+  for (; len && *s && *s != c; --len, ++s) {}
+  return (char *)((len > 0 && *s == c) ? s : 0);
+}
+
+char *
+next_arg(char **s)
+{
+  char *b = *s;
+
+  if (b) {
+    *s = strchr(b, ' ');
+    if (*s)
+      *(*s)++ = 0;
+  }
+  return b;
+}
+
+

@@ -13,3 +13,5 @@ struct buf {
 
 int add_data(struct buf *buf, int size, const void *data);
 int rm_data(struct buf *buf, int size, void *ptr);
+char *strnchr(const char *s, unsigned int len, char c);
+char *next_arg(char **s);

@@ -22,7 +22,7 @@ int scr_h = 200;
 char *server_host = 0;
 
 SDL_Surface *screen = 0;
-SDL_Surface *back_screen = 0;
+SDL_Surface *blit_screen = 0;
 
 int
 update_sock_set(fd_set *fdset, int server_fd)
@@ -47,7 +47,6 @@ main_loop(int server_fd)
   fd_set fdset;
   SDL_Event ev;
   int m, r, running = 1;
-  unsigned int key;
   struct client *c, *cnext;
   struct timeval tv;
 
@@ -106,7 +105,6 @@ sdl_init(int w, int h)
     SDL_DOUBLEBUF,
     0
   };
-  int i;
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0)
     return -1;

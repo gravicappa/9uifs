@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <Imlib2.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -18,6 +19,7 @@
 #include "fs.h"
 #include "client.h"
 #include "net.h"
+#include "ctl.h"
 #include "surface.h"
 #include "event.h"
 #include "view.h"
@@ -310,7 +312,7 @@ client_pointer_move(int x, int y, int state)
   if (!(selected_client && selected_client->selected_view))
     return;
   v = selected_client->selected_view;
-  len = snprintf(buf, sizeof(buf), "m %u %u %u\n", x, y, state);
+  len = snprintf(buf, sizeof(buf), "m %u %u %u %u\n", 0, x, y, state);
   put_event(selected_client, &v->fs_pointer, len, buf);
 }
 
@@ -324,6 +326,6 @@ client_pointer_click(int type, int x, int y, int btn)
   if (!(selected_client && selected_client->selected_view))
     return;
   v = selected_client->selected_view;
-  len = snprintf(buf, sizeof(buf), "%c %u %u %u\n", type, x, y, btn);
+  len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, 0, x, y, btn);
   put_event(selected_client, &v->fs_pointer, len, buf);
 }

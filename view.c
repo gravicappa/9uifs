@@ -1,11 +1,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <Imlib2.h>
 
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "ctl.h"
 #include "surface.h"
 #include "client.h"
 #include "event.h"

@@ -105,7 +105,19 @@ event_read(struct p9_connection *c)
   rm_data(&lsr->buf, c->r.count, lsr->buf.b);
 }
 
+void
+event_flush(struct p9_connection *c)
+{
+  struct ev_listener *lsr = (struct ev_listener *)c->t.pfid->aux;
+  if (!lsr)
+    return;
+  if (lsr->tag != c->t.oldtag)
+    return;
+  lsr->tag = P9_NOTAG;
+}
+
 struct p9_fs fs_event = {
   .open = event_open,
-  .read = event_read
+  .read = event_read,
+  .flush = event_flush
 };

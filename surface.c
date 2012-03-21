@@ -1,13 +1,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <Imlib2.h>
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "ctl.h"
 #include "surface.h"
 
 const int size_buf_len = 32;
+
+static void cmd_blit(struct file *f, char *cmd);
+
+static struct ctl_cmd ctl_cmd[] = {
+  {"blit", cmd_blit},
+  {0, 0}
+};
 
 static struct surface *
 get_surface(struct p9_connection *c)
@@ -34,6 +43,11 @@ size_open(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
 
+  if (s->pixels_opened) {
+    P9_SET_STR(c->r.ename, "cannot resize image in use");
+    return;
+  }
+  s->size_opened++;
   fid->aux = malloc(size_buf_len);
   if (!fid->aux) {
     P9_SET_STR(c->r.ename, "out of memory");
@@ -72,9 +86,9 @@ size_clunk(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
   unsigned int w, h;
-  char *pixels = 0, *buf;
+  Imlib_Image newimg;
 
-  if (!fid->aux)
+  if (!(fid->aux && s->img))
     return;
 
   if (sscanf((char *)fid->aux, "%u %u", &w, &h) != 2) {
@@ -83,42 +97,73 @@ size_clunk(struct p9_connection *c)
   }
   if (w == s->w && h == s->h)
     return;
-  /* TODO: resize image */
+  imlib_context_set_image(s->img);
+  newimg = imlib_create_cropped_image(0, 0, w, h);
+  if (!newimg) {
+    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+    return;
+  }
+  imlib_free_image();
+  s->img = newimg;
   s->w = w;
   s->h = h;
+  s->size_opened--;
 }
 
 static void
 pixels_open(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
+
+  if (s->size_opened) {
+    P9_SET_STR(c->r.ename, "cannot open image being resized");
+    return;
+  }
+  s->pixels_opened++;
+  if (!s->img) {
+    P9_SET_STR(c->r.ename, "no image");
+    return;
+  }
+  imlib_context_set_image(s->img);
+  c->t.pfid->aux = imlib_image_get_data();
 }
 
 static void
 pixels_read(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  read_buf_fn(c, s->w * s->h * 4, (char *)s->pixels);
+  if (!c->t.pfid->aux)
+    return;
+  read_buf_fn(c, s->w * s->h * 4, (char *)c->t.pfid->aux);
 }
 
 static void
 pixels_write(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  write_buf_fn(c, s->w * s->h * 4, (char *)s->pixels);
+  if (!c->t.pfid->aux)
+    return;
+  write_buf_fn(c, s->w * s->h * 4, (char *)c->t.pfid->aux);
 }
 
 static void
 pixels_clunk(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
+  if (!c->t.pfid->aux)
+    return;
+  imlib_context_set_image(s->img);
+  imlib_image_put_back_data(c->t.pfid->aux);
+  c->t.pfid->aux = 0;
+  s->pixels_opened--;
 }
 
 static struct p9_fs surface_size_fs = {
   .open = size_open,
   .read = size_read,
   .write = size_write,
-  .clunk = size_clunk
+  .clunk = size_clunk,
+  .remove = size_clunk,
 };
 
 static struct p9_fs surface_pixels_fs = {
@@ -126,13 +171,18 @@ static struct p9_fs surface_pixels_fs = {
   .read = pixels_read,
   .write = pixels_write,
   .clunk = pixels_clunk,
+  .remove = pixels_clunk,
 };
 
 void
 rm_surface(struct file *f)
 {
   struct surface *s = (struct surface *)f->aux.p;
-  /* TODO: free surface */
+  if (s->img) {
+    imlib_context_set_image(s->img);
+    imlib_free_image();
+  }
+  s->img = 0;
 }
 
 int
@@ -143,15 +193,22 @@ init_surface(struct surface *s, int w, int h)
   memset(s, 0, sizeof(*s));
   s->w = w;
   s->h = h;
-  s->pixels = (int *)malloc(w * h * pixelsize);
-  if (!s->pixels)
+
+  s->img = imlib_create_image(w, h);
+  if (!s->img)
     die("Cannot allocate memory");
-  /* TODO: create imlib surface */
 
   s->fs.mode = 0500 | P9_DMDIR;
   s->fs.qpath = ++qid_cnt;
   s->fs.aux.p = s;
   s->fs.rm = rm_surface;
+
+  s->fs_ctl.file.name = "ctl";
+  s->fs_ctl.file.mode = 0400 | P9_DMAPPEND;
+  s->fs_ctl.file.qpath = ++qid_cnt;
+  s->fs_ctl.file.fs = &ctl_fs;
+  s->fs_ctl.file.aux.p = s;
+  s->fs_ctl.cmd = ctl_cmd;
 
   s->fs_size.name = "size";
   s->fs_size.mode = 0600;
@@ -184,4 +241,10 @@ mk_surface(int w, int h)
     return 0;
   }
   return s;
+}
+
+static void
+cmd_blit(struct file *f, char *cmd)
+{
+  log_printf(3, "#surface/ctl blit\n");
 }
