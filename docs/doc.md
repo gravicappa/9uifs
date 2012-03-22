@@ -1,35 +1,10 @@
-## WM FS structure
-
-    root/
-      event
-      views/
-        0/
-          ctl
-          title
-          appname
-          g -> x y w h
-          fullscreen
-          managed
-          pixels
-        1/
-        ...
-        N/
-
-## Application FS structure
+# Application FS structure
 
     root/
       event -> [? create destroy]
       views/
-        <viewname>/
-          event
-          pointer -> [<idx> <x> <y>]
-          kbd -> [<key1> <key2> ...]
-          joystick -> []
-          geometry
-          blit/
-          gl/
-          canvas/
-          ui/
+        <viewname-1>/
+        <viewname-2>/
       images/
         <picname>/
           format
@@ -44,9 +19,50 @@
       store/
       comm/
 
-### event
+## event
 
-### blit
+*to be defined*
+
+## view
+    /
+      event
+      pointer -> [<idx> <x> <y>]
+      kbd -> [<key1> <key2> ...]
+      joystick -> []
+      geometry
+      blit/
+      gl/
+      canvas/
+      ui/
+
+### view/event
+
+*to be defined*
+
+### view/pointer
+
+Move pointer
+
+    m <i> <x> <y> <btn-bitmask>
+
+Press pointer
+
+    d <i> <x> <y> <btn>
+
+Release pointer
+
+    u <i> <x> <y> <btn>
+  
+### view/kbd
+
+    d <keysym> <mod-bitmask> <unicode>
+    u <keysym> <mod-bitmask> <unicode>
+
+### view/geometry
+
+*to be defined*
+
+## blit
 
     /
       ctl
@@ -59,7 +75,15 @@
 - *pixels*: contains `width × height × bytes-per-pixel` bytes of pixel data.
 - *format*: `RGBA8`, probably optional
 
+### blit/ctl
+
+    blit img x y
+    blit img srcx srcy srcw srch dstx dsty dstw dsth
+
 ### gl
+
+*to be defined*
+
 ### canvas
 
     /
@@ -81,7 +105,13 @@
         objM/
 
 ### images
+
+*to be defined*
+
 ### fonts
+
+*to be defined*
+
 ### ui
 
       ui/
@@ -125,6 +155,17 @@
             placement -> x: 1 y: 1 w: 1 h: 1 sticky: nsew
 
 #### ui/uievent
+
+*to be defined*
+
 #### ui/type
+
+*to be defined*
+
 #### ui/placement
+
+*to be defined*
+
 #### ui/visible
+
+*to be defined*
