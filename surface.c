@@ -43,11 +43,6 @@ size_open(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
 
-  if (s->pixels_opened) {
-    P9_SET_STR(c->r.ename, "cannot resize image in use");
-    return;
-  }
-  s->size_opened++;
   fid->aux = malloc(size_buf_len);
   if (!fid->aux) {
     P9_SET_STR(c->r.ename, "out of memory");
@@ -66,8 +61,6 @@ static void
 size_read(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  log_printf(3, "surface_size_read %p buf: '%.*s'\n", fid, size_buf_len,
-             (char *)fid->aux);
   read_buf_fn(c, strlen((char *)fid->aux), (char *)fid->aux);
 }
 
@@ -75,8 +68,6 @@ static void
 size_write(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  log_printf(3, "surface_size_write %p buf: '%.*s'\n", fid, size_buf_len,
-             (char *)fid->aux);
   write_buf_fn(c, size_buf_len - 1, (char *)fid->aux);
 }
 
@@ -107,7 +98,6 @@ size_clunk(struct p9_connection *c)
   s->img = newimg;
   s->w = w;
   s->h = h;
-  s->size_opened--;
 }
 
 static void
@@ -115,47 +105,42 @@ pixels_open(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
 
-  if (s->size_opened) {
-    P9_SET_STR(c->r.ename, "cannot open image being resized");
-    return;
-  }
-  s->pixels_opened++;
   if (!s->img) {
     P9_SET_STR(c->r.ename, "no image");
     return;
   }
-  imlib_context_set_image(s->img);
-  c->t.pfid->aux = imlib_image_get_data();
 }
 
 static void
 pixels_read(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  if (!c->t.pfid->aux)
+  char *pix;
+
+  if (!s->img)
     return;
-  read_buf_fn(c, s->w * s->h * 4, (char *)c->t.pfid->aux);
+  imlib_context_set_image(s->img);
+  pix = (char *)imlib_image_get_data_for_reading_only();
+  read_buf_fn(c, s->w * s->h * 4, pix);
 }
 
 static void
 pixels_write(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  if (!c->t.pfid->aux)
+  char *pix;
+
+  if (!s->img)
     return;
-  write_buf_fn(c, s->w * s->h * 4, (char *)c->t.pfid->aux);
+  imlib_context_set_image(s->img);
+  pix = (char *)imlib_image_get_data();
+  write_buf_fn(c, s->w * s->h * 4, pix);
+  imlib_image_put_back_data((DATA32 *)pix);
 }
 
 static void
 pixels_clunk(struct p9_connection *c)
 {
-  struct surface *s = get_surface(c);
-  if (!c->t.pfid->aux)
-    return;
-  imlib_context_set_image(s->img);
-  imlib_image_put_back_data(c->t.pfid->aux);
-  c->t.pfid->aux = 0;
-  s->pixels_opened--;
 }
 
 static struct p9_fs surface_size_fs = {
@@ -163,7 +148,7 @@ static struct p9_fs surface_size_fs = {
   .read = size_read,
   .write = size_write,
   .clunk = size_clunk,
-  .remove = size_clunk,
+  .remove = size_clunk
 };
 
 static struct p9_fs surface_pixels_fs = {
@@ -171,7 +156,6 @@ static struct p9_fs surface_pixels_fs = {
   .read = pixels_read,
   .write = pixels_write,
   .clunk = pixels_clunk,
-  .remove = pixels_clunk,
 };
 
 void

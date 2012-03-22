@@ -7,8 +7,6 @@ struct surface {
   unsigned int w;
   unsigned int h;
   Imlib_Image img;
-  int size_opened;
-  int pixels_opened;
 };
 
 struct surface *mk_surface(int w, int h);
