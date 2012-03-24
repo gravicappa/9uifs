@@ -172,9 +172,15 @@ mk_view(int x, int y, int w, int h)
 void
 moveresize_view(struct view *v, int x, int y, int w, int h)
 {
+  char buf[64];
+  int len;
+
   v->g.x = x;
   v->g.y = y;
   v->g.w = w;
   v->g.h = h;
   resize_surface(&v->blit, w, h);
+
+  len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
+  put_event(v->c, &v->fs_event, len, buf);
 }
