@@ -13,6 +13,15 @@
 #define OUT_STR(m, name) OUT_STR1(m, name##_len, name)
 
 static void
+print_data_hex(const char *name, int len, char *data)
+{
+  fprintf(stderr, ";       %s:", name);
+  for (; len > 0; --len, ++data)
+    fprintf(stderr, " %02x", *data);
+  fprintf(stderr, "\n");
+}
+
+static void
 pprint_msg_hdr(struct p9_msg *m, const char *type, char *dir)
 {
   fprintf(stderr, "\n;  %s MSG\n", dir);
@@ -145,6 +154,7 @@ p9_print_msg(struct p9_msg *m, char *dir)
   case P9_RREAD:
     pprint_msg_hdr(m, "rread", dir);
     OUT_UINT(m, count);
+    print_data_hex("data", m->count, m->data);
     break;
 
   case P9_TWRITE:
@@ -152,6 +162,7 @@ p9_print_msg(struct p9_msg *m, char *dir)
     OUT_UINT(m, fid);
     OUT_UINT8(m, offset);
     OUT_UINT(m, count);
+    print_data_hex("data", m->count, m->data);
     break;
 
   case P9_RWRITE:
