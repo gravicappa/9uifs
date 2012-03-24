@@ -27,6 +27,7 @@
 
 struct client *clients = 0;
 struct client *selected_client = 0;
+struct view *selected_view = 0;
 
 static void free_fid(struct p9_fid *fid);
 
@@ -98,7 +99,6 @@ add_client(int server_fd, int msize)
   clients = c;
 
   log_printf(3, "# Added new client (fd: %d)\n", fd);
-  selected_client = c;
   return c;
 }
 
@@ -291,42 +291,36 @@ rm_fid(struct p9_fid *fid, struct client *c)
 void
 client_keyboard(int type, int keysym, int mod, unsigned int unicode)
 {
-  struct view *v;
   char buf[64];
   int len;
 
-  if (!(selected_client && selected_client->selected_view))
+  if (!selected_view)
     return;
-  v = selected_client->selected_view;
   len = snprintf(buf, sizeof(buf), "%c %u %u %u\n", type, keysym, mod,
                  unicode);
-  put_event(selected_client, &v->fs_keyboard, len, buf);
+  put_event(selected_view->c, &selected_view->fs_keyboard, len, buf);
 }
 
 void
 client_pointer_move(int x, int y, int state)
 {
-  struct view *v;
   char buf[48];
   int len;
 
-  if (!(selected_client && selected_client->selected_view))
+  if (!selected_view)
     return;
-  v = selected_client->selected_view;
   len = snprintf(buf, sizeof(buf), "m %u %u %u %u\n", 0, x, y, state);
-  put_event(selected_client, &v->fs_pointer, len, buf);
+  put_event(selected_view->c, &selected_view->fs_pointer, len, buf);
 }
 
 void
 client_pointer_click(int type, int x, int y, int btn)
 {
-  struct view *v;
   char buf[48];
   int len;
 
-  if (!(selected_client && selected_client->selected_view))
+  if (!selected_view)
     return;
-  v = selected_client->selected_view;
   len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, 0, x, y, btn);
-  put_event(selected_client, &v->fs_pointer, len, buf);
+  put_event(selected_view->c, &selected_view->fs_pointer, len, buf);
 }

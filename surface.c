@@ -77,7 +77,6 @@ size_clunk(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
   unsigned int w, h;
-  Imlib_Image newimg;
 
   if (!(fid->aux && s->img))
     return;
@@ -86,18 +85,10 @@ size_clunk(struct p9_connection *c)
     P9_SET_STR(c->r.ename, "Wrong image file format");
     return;
   }
-  if (w == s->w && h == s->h)
-    return;
-  imlib_context_set_image(s->img);
-  newimg = imlib_create_cropped_image(0, 0, w, h);
-  if (!newimg) {
-    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+  if (resize_surface(s, w, h)) {
+    P9_SET_STR(c->r.ename, "Cannot resize blit surface");
     return;
   }
-  imlib_free_image();
-  s->img = newimg;
-  s->w = w;
-  s->h = h;
 }
 
 static void
@@ -188,11 +179,12 @@ init_surface(struct surface *s, int w, int h)
   s->fs.rm = rm_surface;
 
   s->fs_ctl.file.name = "ctl";
-  s->fs_ctl.file.mode = 0400 | P9_DMAPPEND;
+  s->fs_ctl.file.mode = 0200 | P9_DMAPPEND;
   s->fs_ctl.file.qpath = ++qid_cnt;
   s->fs_ctl.file.fs = &ctl_fs;
   s->fs_ctl.file.aux.p = s;
   s->fs_ctl.cmd = ctl_cmd;
+  add_file(&s->fs, &s->fs_ctl.file);
 
   s->fs_size.name = "size";
   s->fs_size.mode = 0600;
@@ -231,4 +223,22 @@ static void
 cmd_blit(struct file *f, char *cmd)
 {
   log_printf(3, "#surface/ctl blit\n");
+}
+
+int
+resize_surface(struct surface *s, int w, int h)
+{
+  Imlib_Image newimg;
+
+  if (w == s->w && h == s->h)
+    return 0;
+  imlib_context_set_image(s->img);
+  newimg = imlib_create_cropped_image(0, 0, w, h);
+  if (!newimg)
+    return -1;
+  imlib_free_image();
+  s->img = newimg;
+  s->w = w;
+  s->h = h;
+  return 0;
 }

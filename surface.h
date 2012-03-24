@@ -11,3 +11,4 @@ struct surface {
 
 struct surface *mk_surface(int w, int h);
 int init_surface(struct surface *s, int w, int h);
+int resize_surface(struct surface *s, int w, int h);

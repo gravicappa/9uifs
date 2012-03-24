@@ -12,12 +12,25 @@
 #include "client.h"
 #include "event.h"
 #include "view.h"
+#include "wm.h"
+
+extern int scr_w;
+extern int scr_h;
+
+void
+rm_view(struct file *f)
+{
+  struct view *v = (struct view *)f->aux.p;
+  wm_on_rm_view(v);
+  free(v);
+}
 
 void
 views_create(struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
   struct view *v;
+  struct rect r;
 
   log_printf(3, "; views_create '%.*s'\n", c->t.name_len, c->t.name);
 
@@ -25,28 +38,24 @@ views_create(struct p9_connection *c)
     P9_SET_STR(c->r.ename, "wrong view create perm");
     return;
   }
-  v = mk_view(0, 0, 16, 16);
+  wm_new_view_geom(&r);
+  v = mk_view(r.x, r.y, r.w, r.h);
   if (!v) {
     P9_SET_STR(c->r.ename, "cannot create view");
     return;
   }
+  v->c = cl;
   v->fs.name = strndup(c->t.name, c->t.name_len);
   if (!v->fs.name) {
     P9_SET_STR(c->r.ename, "cannot create view");
-    /* TODO: free created view */
+    rm_view(&v->fs);
     return;
   }
   v->fs.owns_name = 1;
   v->next = cl->views;
   cl->views = v;
-  cl->selected_view = v;
   add_file(&cl->fs_views, &v->fs);
-}
-
-void
-rm_view(struct file *f)
-{
-  struct view *v = (struct view *)f->aux.p;
+  wm_on_create_view(v);
 }
 
 static struct view *
@@ -158,4 +167,14 @@ mk_view(int x, int y, int w, int h)
   add_file(&v->fs, &v->fs_ui);
 
   return v;
+}
+
+void
+moveresize_view(struct view *v, int x, int y, int w, int h)
+{
+  v->g.x = x;
+  v->g.y = y;
+  v->g.w = w;
+  v->g.h = h;
+  resize_surface(&v->blit, w, h);
 }

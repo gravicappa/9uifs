@@ -26,6 +26,7 @@ struct client {
 };
 
 extern struct client *clients;
+extern struct view *selected_view;
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
