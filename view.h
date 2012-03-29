@@ -1,12 +1,5 @@
 #define VIEW_TYPE_SIZE 32
 
-struct rect {
-  int x;
-  int y;
-  int w;
-  int h;
-};
-
 struct view {
   struct client *c;
   struct rect g;
@@ -35,3 +28,4 @@ extern struct p9_fs fs_views;
 
 struct view *mk_view(int x, int y, int w, int h);
 void moveresize_view(struct view *v, int x, int y, int w, int h);
+void draw_view(struct view *v);

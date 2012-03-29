@@ -18,6 +18,7 @@
 #include "9p.h"
 #include "9pdbg.h"
 #include "fs.h"
+#include "geom.h"
 #include "client.h"
 #include "net.h"
 #include "ctl.h"
@@ -28,8 +29,6 @@
 struct client *clients = 0;
 struct client *selected_client = 0;
 struct view *selected_view = 0;
-
-static void free_fid(struct p9_fid *fid);
 
 struct client *
 add_client(int server_fd, int msize)
@@ -102,17 +101,6 @@ add_client(int server_fd, int msize)
   return c;
 }
 
-static void
-free_fids(struct p9_fid *fids)
-{
-  struct p9_fid *f, *fnext;
-  for (f = fids; f; f = fnext) {
-    fnext = f->next;
-    free_fid(f);
-    free(f);
-  }
-}
-
 void
 rm_client(struct client *c)
 {
@@ -130,13 +118,11 @@ rm_client(struct client *c)
     free(c->outbuf);
   if (c->buf)
     free(c->buf);
-  free_fids(c->fids);
-  free_fids(c->fids_pool);
+  free_fids(&c->fids);
   if (!clients) {
     free(c);
     return;
   }
-
   for (p = clients; p != c && p->next; p = p->next) {}
   if (p == clients)
     clients = clients->next;
@@ -209,86 +195,6 @@ client_send_resp(struct client *c)
 }
 
 void
-free_fid(struct p9_fid *fid)
-{
-  if (fid->owns_uid && fid->uid)
-    free(fid->uid);
-  fid->fid = P9_NOFID;
-  fid->owns_uid = 0;
-  fid->uid = 0;
-  if (fid->rm)
-    fid->rm(fid);
-  fid->file = 0;
-}
-
-void
-reset_fids(struct client *c)
-{
-  struct p9_fid *f = c->fids, *p = 0;
-
-  for (f = c->fids; f; f = f->next) {
-    free_fid(f);
-    p = f;
-  }
-  if (p) {
-    p->next = c->fids_pool;
-    c->fids_pool = c->fids;
-    c->fids = 0;
-  }
-}
-
-struct p9_fid *
-get_fid(unsigned int fid, struct client *c)
-{
-  struct p9_fid *f;
-
-  for (f = c->fids; f && f->fid != fid; f = f->next) {}
-  return f;
-}
-
-struct p9_fid *
-add_fid(unsigned int fid, struct client *c)
-{
-  struct p9_fid *f;
-
-  if (c->fids_pool) {
-    f = c->fids_pool;
-    c->fids_pool = c->fids_pool->next;
-  } else {
-    f = (struct p9_fid *)malloc(sizeof(struct p9_fid));
-    if (!f)
-      die("Cannot allocate memory");
-  }
-  memset(f, 0, sizeof(*f));
-  f->fid = fid;
-  f->iounit = c->c.msize - 23;
-  f->open_mode = 0;
-  f->uid = 0;
-  f->next = c->fids;
-  c->fids = f;
-  return f;
-}
-
-void
-rm_fid(struct p9_fid *fid, struct client *c)
-{
-  struct p9_fid *prev, *f;
-
-  prev = 0;
-  for (f = c->fids; f && f != fid; f = f->next)
-    prev = f;
-  if (f) {
-    if (prev)
-      prev->next = f->next;
-    else
-      c->fids = f->next;
-  }
-  free_fid(fid);
-  fid->next = c->fids_pool;
-  c->fids_pool = fid;
-}
-
-void
 client_keyboard(int type, int keysym, int mod, unsigned int unicode)
 {
   char buf[64];
@@ -323,4 +229,13 @@ client_pointer_click(int type, int x, int y, int btn)
     return;
   len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, 0, x, y, btn);
   put_event(selected_view->c, &selected_view->fs_pointer, len, buf);
+}
+
+void
+draw_views(struct client *c)
+{
+  struct view *v;
+
+  for (v = c->views; v; v = v->next)
+    draw_view(v);
 }

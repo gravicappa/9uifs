@@ -22,6 +22,10 @@ rm_file(struct file *f)
 {
   struct file *t, *c;
 
+  if (!f)
+    return;
+
+  detach_file_fids(f);
   if (f->owns_name && f->name) {
     free(f->name);
     f->name = 0;
@@ -56,14 +60,177 @@ find_file(struct file *root, int size, char *name)
   return 0;
 }
 
+void
+free_fid(struct p9_fid *fid)
+{
+  if (fid->owns_uid && fid->uid)
+    free(fid->uid);
+  fid->fid = P9_NOFID;
+  fid->owns_uid = 0;
+  fid->uid = 0;
+  if (fid->rm)
+    fid->rm(fid);
+  fid->file = 0;
+}
+
+static void
+free_fid_list(struct fid *fids)
+{
+  struct fid *f, *fnext;
+  for (f = fids; f; f = fnext) {
+    fnext = f->next;
+    free_fid(&f->f);
+    free(f);
+  }
+}
+
+void
+free_fids(struct fid_pool *pool)
+{
+  int i;
+
+  for (i = 0; i < 256; ++i)
+    free_fid_list(pool->fids[i]);
+  free_fid_list(pool->free);
+}
+
+void
+reset_fids(struct fid_pool *pool)
+{
+  struct fid *f, *p = 0;
+  int i;
+
+  for (i = 0; i < 256; ++i) {
+    for (f = pool->fids[i]; f; f = f->next) {
+      free_fid(&f->f);
+      p = f;
+    }
+    if (p) {
+      p->next = pool->free;
+      pool->free = pool->fids[i];
+      pool->fids[i] = 0;
+    }
+  }
+}
+
+struct p9_fid *
+get_fid(unsigned int fid, struct fid_pool *pool)
+{
+  struct fid *f;
+  unsigned int i = fid & 0xff;
+
+  for (f = pool->fids[i]; f && f->f.fid != fid; f = f->next) {}
+  return f ? &f->f : 0;
+}
+
+struct p9_fid *
+add_fid(unsigned int fid, struct fid_pool *pool, int msize)
+{
+  struct fid *f;
+  unsigned int i = fid & 0xff;
+
+  if (pool->free) {
+    f = pool->free;
+    pool->free = pool->free->next;
+  } else {
+    f = (struct fid *)malloc(sizeof(struct fid));
+    if (!f)
+      die("Cannot allocate memory");
+  }
+  memset(f, 0, sizeof(*f));
+  f->f.fid = fid;
+  f->f.iounit = msize - 23;
+  f->f.open_mode = 0;
+  f->f.uid = 0;
+  f->fprev = f->fnext = 0;
+  f->prev = 0;
+  f->next = pool->fids[i];
+  if (pool->fids[i])
+    pool->fids[i]->prev = f;
+  pool->fids[i] = f;
+  return &f->f;
+}
+
+void
+rm_fid(struct p9_fid *fid, struct fid_pool *pool)
+{
+  struct fid *f = (struct fid *)fid;
+  unsigned int i;
+
+  if (!fid)
+    return;
+
+  i = fid->fid & 0xff;
+
+  if (f == pool->fids[i])
+    pool->fids[i] = pool->fids[i]->next;
+  else {
+    if (f->prev)
+      f->prev->next = f->next;
+    if (f->next)
+      f->next->prev = f->prev;
+  }
+  free_fid(fid);
+  f->next = pool->free;
+  pool->free = f;
+}
+
+void
+detach_fid(struct p9_fid *fid)
+{
+  struct file *file;
+  struct fid *f = (struct fid *)fid;
+
+  file = (struct file *)fid->file;
+
+  if (!file)
+    return;
+  if (f == file->fids)
+    file->fids = file->fids->fnext;
+  if (f->fprev)
+    f->fprev->fnext = f->fnext;
+  if (f->fnext)
+    f->fnext->fprev = f->fprev;
+  fid->file = 0;
+}
+
+void
+detach_file_fids(struct file *file)
+{
+  struct fid *f;
+
+  for (f = file->fids; f; f = f->fnext)
+    f->f.file = 0;
+}
+
+void
+attach_fid(struct p9_fid *fid, struct file *file)
+{
+  struct fid *f = (struct fid *)fid;
+
+  if (!fid)
+    return;
+
+  fid->file = file;
+  f->fprev = 0;
+  f->fnext = file->fids;
+  if (file->fids)
+    file->fids->fprev = f;
+  file->fids = f;
+}
+
 int
 get_req_fid(struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
 
-  c->t.pfid = get_fid(c->t.fid, cl);
+  c->t.pfid = get_fid(c->t.fid, &cl->fids);
   if (!c->t.pfid) {
     P9_SET_STR(c->r.ename, "fid unknown or out of range");
+    return -1;
+  }
+  if (!c->t.pfid->file) {
+    P9_SET_STR(c->r.ename, "file has been removed");
     return -1;
   }
   return 0;
@@ -84,7 +251,7 @@ fs_version(struct p9_connection *c)
   c->r.msize = c->msize;
   c->r.version = P9_VERSION;
   c->r.version_len = strlen(c->r.version);
-  reset_fids(cl);
+  reset_fids(&cl->fids);
 }
 
 static void
@@ -98,15 +265,15 @@ fs_attach(struct p9_connection *c)
     c->r.ename_len = strlen(c->r.ename);
     return;
   }
-  if (get_fid(c->t.fid, cl)) {
+  if (get_fid(c->t.fid, &cl->fids)) {
     c->r.ename = "fid already in use";
     c->r.ename_len = strlen(c->r.ename);
     return;
   }
-  fid = add_fid(c->t.fid, cl);
+  fid = add_fid(c->t.fid, &cl->fids, c->msize);
   fid->owns_uid = 1;
   fid->uid = strndup(c->t.uname, c->t.uname_len);
-  fid->file = &cl->fs;
+  attach_fid(fid, &cl->fs);
 }
 
 static void
@@ -131,16 +298,23 @@ fs_walk(struct p9_connection *c)
 
   if (get_req_fid(c))
     return;
-  if (get_fid(c->t.newfid, cl)) {
+  if (get_fid(c->t.newfid, &cl->fids) && c->t.newfid != c->t.fid) {
     c->r.ename = "fid already in use";
     c->r.ename_len = strlen(c->r.ename);
     return;
   }
+
   f = (struct file *)c->t.pfid->file;
+  if (c->t.newfid == c->t.fid)
+    detach_fid(c->t.pfid);
+
   if (c->t.nwname == 0) {
-    newfid = add_fid(c->t.newfid, cl);
+    if (c->t.newfid == c->t.fid)
+      newfid = c->t.pfid;
+    else
+      newfid = add_fid(c->t.newfid, &cl->fids, c->msize);
     newfid->uid = c->t.pfid->uid;
-    newfid->file = c->t.pfid->file;
+    attach_fid(newfid, f);
     return;
   }
   if (!(f->mode & P9_DMDIR)) {
@@ -164,9 +338,12 @@ fs_walk(struct p9_connection *c)
     return;
   }
   if (c->r.nwqid == c->t.nwname) {
-    newfid = add_fid(c->t.newfid, cl);
+    if (c->t.newfid == c->t.fid)
+      newfid = c->t.pfid;
+    else
+      newfid = add_fid(c->t.newfid, &cl->fids, c->msize);
     newfid->uid = c->t.pfid->uid;
-    newfid->file = t;
+    attach_fid(newfid, t);
   }
 }
 
@@ -334,7 +511,7 @@ fs_clunk(struct p9_connection *c)
   f = (struct file *)c->t.pfid->file;
   if (f->fs && f->fs->clunk)
     f->fs->clunk(c);
-  rm_fid(c->t.pfid, cl);
+  rm_fid(c->t.pfid, &cl->fids);
 }
 
 static void
@@ -349,7 +526,7 @@ fs_remove(struct p9_connection *c)
   if (f->fs && f->fs->remove)
     f->fs->remove(c);
   rm_file(f);
-  rm_fid(c->t.pfid, cl);
+  rm_fid(c->t.pfid, &cl->fids);
 }
 
 static void
@@ -385,3 +562,4 @@ struct p9_fs fs = {
   .stat = fs_stat,
   .wstat = fs_wstat
 };
+

@@ -2,8 +2,7 @@ struct client {
   struct p9_connection c;
   struct client *next;
 
-  struct p9_fid *fids;
-  struct p9_fid *fids_pool;
+  struct fid_pool fids;
 
   struct buf flushed;
   struct buf deferred;
@@ -37,7 +36,4 @@ void client_keyboard(int type, int keysym, int mod, unsigned int unicode);
 void client_pointer_move(int x, int y, int state);
 void client_pointer_click(int type, int x, int y, int btn);
 
-void reset_fids(struct client *c);
-struct p9_fid *get_fid(unsigned int fid, struct client *c);
-struct p9_fid *add_fid(unsigned int fid, struct client *c);
-void rm_fid(struct p9_fid *fid, struct client *c);
+void draw_views(struct client *c);

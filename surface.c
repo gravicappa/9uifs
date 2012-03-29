@@ -233,6 +233,7 @@ resize_surface(struct surface *s, int w, int h)
   if (w == s->w && h == s->h)
     return 0;
   imlib_context_set_image(s->img);
+  imlib_context_set_anti_alias(0);
   newimg = imlib_create_cropped_image(0, 0, w, h);
   if (!newimg)
     return -1;

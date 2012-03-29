@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <SDL/SDL.h>
 #include <Imlib2.h>
 
 #include "util.h"
@@ -8,10 +9,12 @@
 #include "fs.h"
 #include "fsutil.h"
 #include "ctl.h"
+#include "geom.h"
 #include "surface.h"
 #include "client.h"
 #include "event.h"
 #include "view.h"
+#include "screen.h"
 #include "wm.h"
 
 extern int scr_w;
@@ -32,7 +35,7 @@ views_create(struct p9_connection *c)
   struct view *v;
   struct rect r;
 
-  log_printf(3, "; views_create '%.*s'\n", c->t.name_len, c->t.name);
+  log_printf(3, "; views_create '%.*s' %p\n", c->t.name_len, c->t.name, cl);
 
   if (!(c->t.perm & P9_DMDIR)) {
     P9_SET_STR(c->r.ename, "wrong view create perm");
@@ -183,4 +186,14 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
 
   len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
   put_event(v->c, &v->fs_event, len, buf);
+}
+
+void
+draw_view(struct view *v)
+{
+  imlib_context_set_image(screen.imlib);
+  imlib_context_set_anti_alias(1);
+  imlib_context_set_blend(0);
+  imlib_blend_image_onto_image(v->blit.img, 0, 0, 0, v->blit.w, v->blit.h,
+                               v->g.x, v->g.y, v->g.w, v->g.h);
 }

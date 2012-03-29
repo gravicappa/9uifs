@@ -158,7 +158,6 @@ int p9_unpack_msg(int bytes, char *buf, struct p9_msg *m);
 int p9_pack_msg(int bytes, char *buf, struct p9_msg *m);
 
 struct p9_fid {
-  struct p9_fid *next;
   unsigned int fid;
   struct p9_qid qid;
   char open_mode;

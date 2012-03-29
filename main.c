@@ -1,4 +1,5 @@
 #include <SDL/SDL.h>
+#include <Imlib2.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -14,15 +15,13 @@
 #include "util.h"
 #include "fs.h"
 #include "client.h"
+#include "screen.h"
 
 int server_fd = -1;
 int server_port = 5558;
 int scr_w = 320;
 int scr_h = 200;
 char *server_host = 0;
-
-SDL_Surface *screen = 0;
-SDL_Surface *blit_screen = 0;
 
 int
 update_sock_set(fd_set *fdset, int server_fd)
@@ -52,7 +51,7 @@ main_loop(int server_fd)
 
   while (running) {
     while (SDL_PollEvent(&ev)) {
-      log_printf(3, "#SDL ev.type: %d\n", ev.type);
+      /*log_printf(3, "#SDL ev.type: %d\n", ev.type);*/
       switch (ev.type) {
       case SDL_QUIT:
         running = 0;
@@ -76,6 +75,9 @@ main_loop(int server_fd)
         break;
       }
     }
+    for (c = clients; c; c = c->next)
+      draw_views(c);
+    refresh_screen();
     m = update_sock_set(&fdset, server_fd);
     tv.tv_sec = 0;
     tv.tv_usec = 33000;
@@ -99,18 +101,10 @@ main_loop(int server_fd)
 int
 sdl_init(int w, int h)
 {
-  unsigned int flags[] = {
-    SDL_HWSURFACE | SDL_DOUBLEBUF,
-    SDL_HWSURFACE | SDL_ANYFORMAT,
-    SDL_DOUBLEBUF,
-    0
-  };
-
   if (SDL_Init(SDL_INIT_VIDEO) < 0)
     return -1;
 
-  screen = SDL_SetVideoMode(w, h, 0, flags[0]);
-  if (!screen)
+  if (init_screen(w, h))
     return -1;
   return 0;
 }
@@ -141,6 +135,7 @@ main(int argc, char **argv)
   if (sdl_init(scr_w, scr_h))
     die("Cannot init SDL");
   main_loop(fd);
+  release_screen();
   SDL_Quit();
   return 0;
 }
