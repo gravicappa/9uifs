@@ -27,7 +27,7 @@ $name: $obj
 %.o: %.c
 	$CC $CFLAGS -c -o $target $stem.c
 
-test_run:V: $name
+valgrind:V: $name
 	valgrind --alignment=128 --read-var-info=yes --track-origins=yes \
 		--suppressions=xlib.supp \
 	  ./$name -d 10 2>&1 | tee uifs.log

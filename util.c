@@ -48,6 +48,8 @@ add_data(struct buf *buf, int size, const void *data)
 {
   int s = buf->size, off = buf->used;
 
+  if (buf->used + size > buf->size && buf->delta == 0)
+    return -1;
   while (buf->used + size >= s)
     s += buf->delta;
   if (s > buf->size) {

@@ -19,7 +19,6 @@
 static void
 int_free(struct p9_fid *fid)
 {
-  log_printf(4, ";; int-free fid->aux: %p\n", fid->aux);
   if (fid->aux)
     free(fid->aux);
 }
@@ -69,6 +68,45 @@ int_clunk(struct p9_connection *c)
     p->d.i = x;
 }
 
+void
+buf_open(struct p9_connection *c)
+{
+  struct uiprop *p = (struct uiprop *)c->t.pfid->file;
+  if (c->t.mode & P9_OTRUNC) {
+    p->d.buf.used = 0;
+    memset(p->d.buf.b, 0, p->d.buf.size);
+  }
+}
+
+void
+buf_read(struct p9_connection *c)
+{
+  struct uiprop *p = (struct uiprop *)c->t.pfid->file;
+  read_buf_fn(c, strlen(p->d.buf.b), p->d.buf.b);
+}
+
+void
+buf_write(struct p9_connection *c)
+{
+  struct uiprop *p = (struct uiprop *)c->t.pfid->file;
+  write_buf_fn(c, p->d.buf.size - 1, p->d.buf.b);
+}
+
+void
+str_write(struct p9_connection *c)
+{
+  struct uiprop *p = (struct uiprop *)c->t.pfid->file;
+
+  if (c->t.offset + c->t.count > p->d.buf.size - 1) {
+    if (add_data(&p->d.buf, c->t.offset + c->t.count + 1, 0)) {
+      P9_SET_STR(c->r.ename, "Cannot allocate memory");
+      return;
+    }
+    p->d.buf.b[p->d.buf.size - 1] = 0;
+  }
+  write_buf_fn(c, p->d.buf.size, p->d.buf.b);
+}
+
 struct p9_fs int_fs = {
   .open = int_open,
   .read = int_read,
@@ -77,21 +115,15 @@ struct p9_fs int_fs = {
 };
 
 struct p9_fs buf_fs = {
-  /*
-  .open = int_open,
-  .read = int_read,
-  .write = int_write,
-  .clunk = int_clunk
-  */
+  .open = buf_open,
+  .read = buf_read,
+  .write = buf_write,
 };
 
 struct p9_fs str_fs = {
-  /*
-  .open = int_open,
-  .read = int_read,
-  .write = int_write,
-  .clunk = int_clunk
-  */
+  .open = buf_open,
+  .read = buf_read,
+  .write = str_write
 };
 
 static void
@@ -116,12 +148,21 @@ ui_init_prop_int(struct uiobj *u, struct uiprop *p, char *name, int x)
   return 0;
 }
 
-int
-ui_init_prop_ptr(struct uiobj *u, struct uiprop *p, char *name, void *ptr)
+static int
+init_prop_buf(struct uiobj *u, struct uiprop *p, int delta, char *name,
+              int size, char *x)
 {
-  init_prop(u, p, name, UI_PROP_PTR);
-  p->fs.mode = 0400;
-  p->d.p = ptr;
+  init_prop(u, p, name, UI_PROP_BUF);
+  p->d.buf.delta = delta;
+  if (add_data(&p->d.buf, size + 1, 0) < 0)
+    return -1;
+  if (x) {
+    memcpy(p->d.buf.b, name, size);
+    p->d.buf.b[size] = 0;
+  } else
+    memset(p->d.buf.b, 0, size);
+  p->fs.fs = &buf_fs;
+  add_file(&u->fs, &p->fs);
   return 0;
 }
 
@@ -129,18 +170,9 @@ int
 ui_init_prop_buf(struct uiobj *u, struct uiprop *p, char *name, int size,
                  char *x)
 {
-  int off;
-
-  init_prop(u, p, name, UI_PROP_BUF);
-  p->d.buf.delta = size;
-  off = add_data(&p->d.buf, size, x);
-  if (off < 0)
+  if (init_prop_buf(u, p, size + 1, name, size, x))
     return -1;
-  if (!x)
-    memset(p->d.buf.b + off, 0, size);
-  p->d.buf.delta = 0;
-  p->fs.fs = &buf_fs;
-  add_file(&u->fs, &p->fs);
+  p->type = UI_PROP_BUF;
   return 0;
 }
 
@@ -148,17 +180,9 @@ int
 ui_init_prop_str(struct uiobj *u, struct uiprop *p, char *name, int size,
                  char *x)
 {
-  int off;
-
-  init_prop(u, p, name, UI_PROP_STR);
-  p->d.buf.delta = 16;
-  off = add_data(&p->d.buf, size, x);
-  if (off < 0)
+  if (init_prop_buf(u, p, 16, name, size, x))
     return -1;
-  if (!x)
-    memset(p->d.buf.b + off, 0, size);
-  p->fs.fs = &str_fs;
-  add_file(&u->fs, &p->fs);
+  p->type = UI_PROP_STR;
   return 0;
 }
 

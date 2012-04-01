@@ -65,8 +65,6 @@ void update_placement(struct uiobj *u);
 
 int ui_init_prop_colour(struct uiobj *u, struct uiprop *p, char *name, int x);
 int ui_init_prop_int(struct uiobj *u, struct uiprop *p, char *name, int x);
-int ui_init_prop_ptr(struct uiobj *u, struct uiprop *p, char *name,
-                     void *ptr);
 int ui_init_prop_buf(struct uiobj *u, struct uiprop *p, char *name, int size,
                      char *x);
 int ui_init_prop_str(struct uiobj *u, struct uiprop *p, char *name, int size,
