@@ -42,8 +42,9 @@ struct fs_entry {
 extern struct p9_fs fs;
 extern unsigned long long qid_cnt;
 
-void add_file(struct file *f, struct file *root);
+void add_file(struct file *root, struct file *f);
 void rm_file(struct file *f);
+struct file *find_file(struct file *root, int size, char *name);
 
 void reset_fids(struct fid_pool *pool);
 struct p9_fid *get_fid(unsigned int fid, struct fid_pool *pool);

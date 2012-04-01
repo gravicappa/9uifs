@@ -22,6 +22,7 @@ int server_port = 5558;
 int scr_w = 320;
 int scr_h = 200;
 char *server_host = 0;
+static int msize = 1024;
 
 int
 update_sock_set(fd_set *fdset, int server_fd)
@@ -86,7 +87,7 @@ main_loop(int server_fd)
       break;
     if (r > 0) {
       if (FD_ISSET(server_fd, &fdset))
-        add_client(server_fd, 65536);
+        add_client(server_fd, msize);
       for (c = clients; c; c = cnext) {
         cnext = c->next;
         if (FD_ISSET(c->fd, &fdset))

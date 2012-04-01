@@ -10,14 +10,9 @@
 static int buf_delta = 512;
 
 void
-put_event(struct client *c, struct file *f, int len, char *ev)
+put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
 {
-  struct ev_pool *pool;
   struct ev_listener *lsr;
-
-  pool = (struct ev_pool *)f->aux.p;
-  if (!pool)
-    return;
 
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
     if (add_data(&lsr->buf, len, ev))

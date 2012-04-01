@@ -10,7 +10,7 @@ LDFLAGS = $LDFLAGS `{sdl-config --static-libs}
 LDFLAGS = $LDFLAGS -lImlib2
 
 obj = 9pmsg.o fs.o main.o util.o net.o client.o fsutil.o fs.o \
-      9pdbg.o surface.c view.c event.o ctl.o wm.o screen.o
+      9pdbg.o surface.c view.c event.o ctl.o wm.o screen.o ui.o
 
 docs = docs/doc.html
 
@@ -28,7 +28,9 @@ $name: $obj
 	$CC $CFLAGS -c -o $target $stem.c
 
 test_run:V: $name
-	valgrind ./$name -d 10 2>&1 | tee uifs.log
+	valgrind --alignment=128 --read-var-info=yes --track-origins=yes \
+		--suppressions=xlib.supp \
+	  ./$name -d 10 2>&1 | tee uifs.log
 
 %.html: %.md
 	sundown <$prereq >$target

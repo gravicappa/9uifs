@@ -15,6 +15,7 @@
 #include "event.h"
 #include "view.h"
 #include "screen.h"
+#include "ui.h"
 #include "wm.h"
 
 extern int scr_w;
@@ -114,26 +115,26 @@ mk_view(int x, int y, int w, int h)
   v->fs.aux.p = v;
   v->fs.rm = rm_view;
 
-  v->fs_event.name = "event";
-  v->fs_event.mode = 0400;
-  v->fs_event.qpath = ++qid_cnt;
-  v->fs_event.aux.p = &v->ev;
-  v->fs_event.fs = &fs_event;
-  add_file(&v->fs, &v->fs_event);
+  v->ev.f.name = "event";
+  v->ev.f.mode = 0400;
+  v->ev.f.qpath = ++qid_cnt;
+  v->ev.f.aux.p = &v->ev;
+  v->ev.f.fs = &fs_event;
+  add_file(&v->fs, &v->ev.f);
 
-  v->fs_pointer.name = "pointer";
-  v->fs_pointer.mode = 0400;
-  v->fs_pointer.qpath = ++qid_cnt;
-  v->fs_pointer.aux.p = &v->ev_pointer;
-  v->fs_pointer.fs = &fs_event;
-  add_file(&v->fs, &v->fs_pointer);
+  v->ev_pointer.f.name = "pointer";
+  v->ev_pointer.f.mode = 0400;
+  v->ev_pointer.f.qpath = ++qid_cnt;
+  v->ev_pointer.f.aux.p = &v->ev_pointer;
+  v->ev_pointer.f.fs = &fs_event;
+  add_file(&v->fs, &v->ev_pointer.f);
 
-  v->fs_keyboard.name = "keyboard";
-  v->fs_keyboard.mode = 0400;
-  v->fs_keyboard.qpath = ++qid_cnt;
-  v->fs_keyboard.aux.p = &v->ev_keyboard;
-  v->fs_keyboard.fs = &fs_event;
-  add_file(&v->fs, &v->fs_keyboard);
+  v->ev_keyboard.f.name = "keyboard";
+  v->ev_keyboard.f.mode = 0400;
+  v->ev_keyboard.f.qpath = ++qid_cnt;
+  v->ev_keyboard.f.aux.p = &v->ev_keyboard;
+  v->ev_keyboard.f.fs = &fs_event;
+  add_file(&v->fs, &v->ev_keyboard.f);
 
   v->fs_visible.name = "visible";
   v->fs_visible.mode = 0600;
@@ -163,12 +164,7 @@ mk_view(int x, int y, int w, int h)
   v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
 
-  v->fs_ui.name = "ui";
-  v->fs_ui.mode = 0700 | P9_DMDIR;
-  v->fs_ui.qpath = ++qid_cnt;
-  v->fs_ui.aux.p = v;
-  add_file(&v->fs, &v->fs_ui);
-
+  v->ui = mk_ui(&v->fs, "ui", v);
   return v;
 }
 
@@ -185,7 +181,7 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   resize_surface(&v->blit, w, h);
 
   len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
-  put_event(v->c, &v->fs_event, len, buf);
+  put_event(v->c, &v->ev, len, buf);
 }
 
 void

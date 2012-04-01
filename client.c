@@ -55,8 +55,12 @@ add_client(int server_fd, int msize)
   c->outbuf = (char *)malloc(msize);
   c->buf = (char *)malloc(msize);
 
+  log_printf(3, "# client->buf: %p\n", c->buf);
+
   if (!(c->inbuf && c->outbuf && c->buf))
     die("Cannot allocate memory");
+
+  memset(c->buf, 0xff, msize);
 
   c->fs.name = "/";
   c->fs.mode = 0500 | P9_DMDIR;
@@ -204,7 +208,7 @@ client_keyboard(int type, int keysym, int mod, unsigned int unicode)
     return;
   len = snprintf(buf, sizeof(buf), "%c %u %u %u\n", type, keysym, mod,
                  unicode);
-  put_event(selected_view->c, &selected_view->fs_keyboard, len, buf);
+  put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);
 }
 
 void
@@ -216,7 +220,7 @@ client_pointer_move(int x, int y, int state)
   if (!selected_view)
     return;
   len = snprintf(buf, sizeof(buf), "m %u %u %u %u\n", 0, x, y, state);
-  put_event(selected_view->c, &selected_view->fs_pointer, len, buf);
+  put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
 }
 
 void
@@ -228,7 +232,7 @@ client_pointer_click(int type, int x, int y, int btn)
   if (!selected_view)
     return;
   len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, 0, x, y, btn);
-  put_event(selected_view->c, &selected_view->fs_pointer, len, buf);
+  put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
 }
 
 void

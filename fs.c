@@ -409,6 +409,7 @@ fs_create(struct p9_connection *c)
 void
 file_stat(struct file *f, struct p9_stat *s, char *uid)
 {
+  memset(s, 0, sizeof(*s));
   s->qid.type = f->mode >> 24;
   s->qid.version = f->version;
   s->qid.path = f->qpath;
@@ -448,8 +449,8 @@ fs_readdir(struct p9_fid *fid, struct file *f, struct p9_connection *c)
     P9_SET_STR(c->r.ename, "Illegal seek");
     return;
   }
-  off = 0;
   count = c->t.count;
+  off = 0;
   for (; t; t = t->next) {
     file_stat(t, &stat, fid->uid);
     if (p9_pack_stat(count, cl->buf + off, &stat))
@@ -472,6 +473,8 @@ fs_read(struct p9_connection *c)
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
+  if (c->t.count > c->msize - 23)
+    c->t.count = c->msize - 23;
   if (f->mode & P9_DMDIR) {
     fs_readdir(c->t.pfid, f, c);
     return;
@@ -509,6 +512,7 @@ fs_clunk(struct p9_connection *c)
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
+  log_printf(4, ";; clunk '%s'\n", f->name);
   if (f->fs && f->fs->clunk)
     f->fs->clunk(c);
   rm_fid(c->t.pfid, &cl->fids);
@@ -523,6 +527,7 @@ fs_remove(struct p9_connection *c)
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
+  log_printf(4, ";; remove '%s'\n", f->name);
   if (f->fs && f->fs->remove)
     f->fs->remove(c);
   rm_file(f);
@@ -562,4 +567,3 @@ struct p9_fs fs = {
   .stat = fs_stat,
   .wstat = fs_wstat
 };
-

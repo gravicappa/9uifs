@@ -15,9 +15,10 @@
 static void
 print_data_hex(const char *name, int len, char *data)
 {
+  fprintf(stderr, ";       %s_ptr: %p\n", name, data);
   fprintf(stderr, ";       %s:", name);
   for (; len > 0; --len, ++data)
-    fprintf(stderr, " %02x", *data);
+    fprintf(stderr, " %02x", (unsigned char)*data);
   fprintf(stderr, "\n");
 }
 

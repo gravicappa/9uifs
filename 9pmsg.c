@@ -171,7 +171,7 @@ p9_pack_msg(int bytes, char *buf, struct p9_msg *m)
     case P9_RVERSION:
       if (s.off + 4 + 2 + m->version_len >= s.size)
         return -1;
-      write_uint4(&s, m->msize); 
+      write_uint4(&s, m->msize);
       write_str(&s, m->version_len, m->version);
       break;
 

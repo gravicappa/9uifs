@@ -7,9 +7,11 @@ struct ev_listener {
 };
 
 struct ev_pool {
+  struct file f;
   struct ev_listener *listeners;
 };
 
 extern struct p9_fs fs_event;
+struct client;
 
-void put_event(struct client *c, struct file *f, int len, char *ev);
+void put_event(struct client *c, struct ev_pool *pool, int len, char *ev);
