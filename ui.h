@@ -53,8 +53,6 @@ struct uiobj {
   struct file fs_evfilter;
   struct file fs_type;
   struct file fs_g;
-  struct file fs_place;
-  struct file fs_sticky;
   struct file fs_items;
 };
 

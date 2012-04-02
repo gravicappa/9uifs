@@ -19,7 +19,6 @@ struct view {
   struct file fs_geometry;
   struct file fs_gl;
   struct file fs_canvas;
-  struct file fs_ui;
 
   struct uiobj *ui;
 };

@@ -96,15 +96,17 @@ void
 str_write(struct p9_connection *c)
 {
   struct uiprop *p = (struct uiprop *)c->t.pfid->file;
+  int off;
 
-  if (c->t.offset + c->t.count > p->d.buf.size - 1) {
-    if (add_data(&p->d.buf, c->t.offset + c->t.count + 1, 0)) {
+  if (c->t.offset + c->t.count + 1 > p->d.buf.size) {
+    off = add_data(&p->d.buf, c->t.offset + c->t.count + 1, 0);
+    if (off < 0) {
       P9_SET_STR(c->r.ename, "Cannot allocate memory");
       return;
     }
-    p->d.buf.b[p->d.buf.size - 1] = 0;
+    memset(p->d.buf.b + off, 0, p->d.buf.size - off);
   }
-  write_buf_fn(c, p->d.buf.size, p->d.buf.b);
+  write_buf_fn(c, p->d.buf.size - 1, p->d.buf.b);
 }
 
 struct p9_fs int_fs = {
@@ -117,7 +119,7 @@ struct p9_fs int_fs = {
 struct p9_fs buf_fs = {
   .open = buf_open,
   .read = buf_read,
-  .write = buf_write,
+  .write = buf_write
 };
 
 struct p9_fs str_fs = {
@@ -157,10 +159,10 @@ init_prop_buf(struct uiobj *u, struct uiprop *p, int delta, char *name,
   if (add_data(&p->d.buf, size + 1, 0) < 0)
     return -1;
   if (x) {
-    memcpy(p->d.buf.b, name, size);
+    memcpy(p->d.buf.b, x, size);
     p->d.buf.b[size] = 0;
   } else
-    memset(p->d.buf.b, 0, size);
+    memset(p->d.buf.b, 0, p->d.buf.size);
   p->fs.fs = &buf_fs;
   add_file(&u->fs, &p->fs);
   return 0;
@@ -173,6 +175,7 @@ ui_init_prop_buf(struct uiobj *u, struct uiprop *p, char *name, int size,
   if (init_prop_buf(u, p, size + 1, name, size, x))
     return -1;
   p->type = UI_PROP_BUF;
+  p->fs.fs = &buf_fs;
   return 0;
 }
 
@@ -183,6 +186,7 @@ ui_init_prop_str(struct uiobj *u, struct uiprop *p, char *name, int size,
   if (init_prop_buf(u, p, 16, name, size, x))
     return -1;
   p->type = UI_PROP_STR;
+  p->fs.fs = &str_fs;
   return 0;
 }
 
