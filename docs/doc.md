@@ -16,6 +16,7 @@
         1/
         2/
         ...
+      ui/
       store/
       comm/
 
@@ -26,14 +27,14 @@
 ## view
     /
       event
-      pointer -> [<idx> <x> <y>]
-      kbd -> [<key1> <key2> ...]
-      joystick -> []
+      pointer
+      kbd
+      joystick
       geometry
       blit/
       gl/
+      ui_control -> dir/panel01
       canvas/
-      ui/
 
 ### view/event
 
@@ -43,20 +44,37 @@
 
 Move pointer
 
-    m <i> <x> <y> <btn-bitmask>
+    m P X Y Btn-bitmask
+    m P X Y Dx Dy Btn-bitmask (?)
+
+* _P_: pointer index (for multitouch interfaces)
+* _X_, _Y_: pointer coordinates
+* _Dx_, _Dy_: delta from previous coordinates (?)
+* _Btn-bitmask_: bit-mask of button press
+
+> Maybe _Btn-bitmask_ should be a list of pressed buttons
+> Maybe _Dx_, _Dy_ is useful
 
 Press pointer
 
-    d <i> <x> <y> <btn>
+    d P X Y Btn
+
+* _P_: pointer index (for multitouch interfaces)
+* _X_, _Y_: pointer coordinates
+* _Btn_: number of pressed button
 
 Release pointer
 
-    u <i> <x> <y> <btn>
+    u P X Y Btn
+
+* _P_: pointer index (for multitouch interfaces)
+* _X_, _Y_: pointer coordinates
+* _Btn_: number of released button
   
 ### view/kbd
 
-    d <keysym> <mod-bitmask> <unicode>
-    u <keysym> <mod-bitmask> <unicode>
+    d Keysym Mod-bitmask Unicode
+    u Keysym Mod-bitmask Unicode
 
 ### view/geometry
 
@@ -77,8 +95,10 @@ Release pointer
 
 ### blit/ctl
 
-    blit img x y
-    blit img srcx srcy srcw srch dstx dsty dstw dsth
+*Commands:*
+
+    blit Img X Y
+    blit Img Srcx Srcy Srcw Srch Dstx Dsty Dstw Dsth
 
 ### gl
 
@@ -86,23 +106,7 @@ Release pointer
 
 ### canvas
 
-    /
-      ctl
-      tags/
-        tag0/
-          ctl
-          bbox
-          objs
-        ...
-        tagN/
-      objs/
-        obj0/
-          ctl
-          type
-          bbox
-          data
-        ...
-        objM/
+*to be defined*
 
 ### images
 
@@ -112,60 +116,66 @@ Release pointer
 
 *to be defined*
 
-### ui
+## ui
 
-      ui/
+      /
         uievent
-        type -> panel
-        g -> x y w h
-        placement -> []
-        visible -> 0 | 1
-        w/
-          panel01/
-            evfilter
-            type -> panel
-            g -> x y w h
-            visible -> 0 | 1
-            placement -> x: 0 y: 0 w: 2 h: 1 sticky: nsew
-            w/
-              text01/
-                evfilter
-                type -> label
-                g -> x y w h
-                text -> "Blahblah"
-                visible -> 0 | 1
-          ok/
-            evfilter
-            type -> button
-            g -> x y w h
-            text -> Ok
-            font -> sans:10:Bold
-            placement -> x: 0 y: 1 w: 1 h: 1 sticky: lrtb
-            visible -> 0 | 1
-            image/
-              pic -> pic0
-                     2 0 2 0
-              placement -> left
-          cancel/
-            uievent
-            type -> button
-            g -> x y w h
-            text -> Cancel
-            visible -> 0 | 1
-            placement -> x: 1 y: 1 w: 1 h: 1 sticky: nsew
+        items/
+          dir/
+            new01/
+              evfilter
+              type ->
+            panel01/
+              evfilter
+              type -> panel
+              visible -> 0 | 1
+              maxwidth
+              minwidth
+              maxheight
+              minheight
+              items/
+                01/
+                  path -> dir/ok
+                  place -> Row Rowspan Col Colspan
+                  sticky -> tblr
+                  g -> X Y W H
+                02/
+                  path ->
+                  place -> Row Rowspan Col Colspan
+                  sticky ->
+                  g -> X Y W H
+            ok/
+              evfilter
+              type -> button
+              visible -> 0 | 1
+              maxwidth
+              minwidth
+              maxheight
+              minheight
+              text -> Ok
+              font -> sans:10:Bold
+            cancel/
+              evfilter
+              type -> button
+              visible -> 0 | 1
+              maxwidth
+              minwidth
+              maxheight
+              minheight
+              text -> Cancel
 
-#### ui/uievent
-
-*to be defined*
-
-#### ui/type
-
-*to be defined*
-
-#### ui/placement
+### ui/uievent
 
 *to be defined*
 
-#### ui/visible
+### ui/type
+
+*to be defined*
+
+### ui/placement
+
+*to be defined*
+
+### ui/visible
 
 *to be defined*
