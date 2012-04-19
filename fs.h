@@ -30,15 +30,6 @@ struct file {
   } aux;
 };
 
-struct fs_entry {
-  char *name;
-  unsigned char qtype;
-  int type;
-  unsigned char perm;
-  unsigned char flags;
-  void (*set)(struct file *file);
-};
-
 extern struct p9_fs fs;
 extern unsigned long long qid_cnt;
 
@@ -54,3 +45,12 @@ void detach_file_fids(struct file *file);
 void detach_fid(struct p9_fid *fid);
 void attach_fid(struct p9_fid *fid, struct file *file);
 void free_fids(struct fid_pool *pool);
+
+void resp_file_create(struct p9_connection *c, struct file *f);
+
+#define DEFFILE(f, n, m, a) do { \
+    (f).name = (n); \
+    (f).mode = (m); \
+    (f).qpath = ++qid_cnt; \
+    (f).aux.p = (a); \
+  } while (0)

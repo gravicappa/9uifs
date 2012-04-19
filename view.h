@@ -19,8 +19,6 @@ struct view {
   struct file fs_geometry;
   struct file fs_gl;
   struct file fs_canvas;
-
-  struct uiobj *ui;
 };
 
 extern struct p9_fs fs_views;

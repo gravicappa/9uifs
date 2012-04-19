@@ -36,7 +36,8 @@ views_create(struct p9_connection *c)
   struct view *v;
   struct rect r;
 
-  log_printf(3, "; views_create '%.*s' %p\n", c->t.name_len, c->t.name, cl);
+  log_printf(LOG_DBG, "; views_create '%.*s' %p\n", c->t.name_len, c->t.name,
+             cl);
 
   if (!(c->t.perm & P9_DMDIR)) {
     P9_SET_STR(c->r.ename, "wrong view create perm");
@@ -60,6 +61,7 @@ views_create(struct p9_connection *c)
   cl->views = v;
   add_file(&cl->fs_views, &v->fs);
   wm_on_create_view(v);
+  resp_file_create(c, &v->fs);
 }
 
 static struct view *
@@ -163,8 +165,11 @@ mk_view(int x, int y, int w, int h)
   v->fs_canvas.qpath = ++qid_cnt;
   v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
-
-  v->ui = mk_ui(&v->fs, "ui", v);
+#if 0
+  v->ui = mk_ui(&v->fs, "ui");
+  if (v->ui)
+    v->ui->v = v;
+#endif
   return v;
 }
 

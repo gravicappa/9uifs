@@ -29,7 +29,7 @@ get_surface(struct p9_connection *c)
 static void
 size_fid_rm(struct p9_fid *fid)
 {
-  log_printf(3, "surface_size_fid_rm buf: '%p'\n", fid->aux);
+  log_printf(LOG_DBG, "surface_size_fid_rm buf: '%p'\n", fid->aux);
   if (fid->aux) {
     free(fid->aux);
     fid->aux = 0;
@@ -52,9 +52,6 @@ size_open(struct p9_connection *c)
   if (!(c->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
   fid->rm = size_fid_rm;
-
-  log_printf(3, "surface_size_open %p buf: '%.*s'\n", fid, size_buf_len,
-             (char *)fid->aux);
 }
 
 static void
@@ -222,7 +219,7 @@ mk_surface(int w, int h)
 static void
 cmd_blit(struct file *f, char *cmd)
 {
-  log_printf(3, "#surface/ctl blit\n");
+  log_printf(LOG_DBG, "#surface/ctl blit\n");
 }
 
 int

@@ -3,7 +3,7 @@ struct ev_listener {
   struct file *file;
   unsigned short tag;
   unsigned int count;
-  struct buf buf;
+  Arr buf;
 };
 
 struct ev_pool {

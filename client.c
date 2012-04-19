@@ -25,6 +25,7 @@
 #include "surface.h"
 #include "event.h"
 #include "view.h"
+#include "ui.h"
 
 struct client *clients = 0;
 struct client *selected_client = 0;
@@ -34,6 +35,7 @@ struct client *
 add_client(int server_fd, int msize)
 {
   struct client *c;
+  struct file *f;
   int fd;
   struct sockaddr_in addr;
   socklen_t addr_len;
@@ -42,7 +44,7 @@ add_client(int server_fd, int msize)
   fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
   if (fd < 0)
     return 0;
-  log_printf(3, "# Incoming connection (fd: %d)\n", fd);
+  log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
   c = (struct client *)malloc(sizeof(struct client));
   if (!c)
     die("Cannot allocate memory");
@@ -54,8 +56,6 @@ add_client(int server_fd, int msize)
   c->inbuf = (char *)malloc(msize);
   c->outbuf = (char *)malloc(msize);
   c->buf = (char *)malloc(msize);
-
-  log_printf(3, "# client->buf: %p\n", c->buf);
 
   if (!(c->inbuf && c->outbuf && c->buf))
     die("Cannot allocate memory");
@@ -92,16 +92,16 @@ add_client(int server_fd, int msize)
   c->fs_fonts.aux.p = c;
   add_file(&c->fs, &c->fs_fonts);
 
-  c->fs_comm.name = "comm";
-  c->fs_comm.mode = 0700 | P9_DMDIR;
-  c->fs_comm.qpath = ++qid_cnt;
-  c->fs_comm.aux.p = c;
+  DEFFILE(c->fs_comm, "comm", 0700 | P9_DMDIR, c);
   add_file(&c->fs, &c->fs_comm);
+
+  if ((f = mk_ui("ui")))
+    add_file(&c->fs, f);
 
   c->next = clients;
   clients = c;
 
-  log_printf(3, "# Added new client (fd: %d)\n", fd);
+  log_printf(LOG_CLIENT, "# Added new client (fd: %d)\n", fd);
   return c;
 }
 
@@ -109,7 +109,7 @@ void
 rm_client(struct client *c)
 {
   struct client *p;
-  log_printf(3, "; rm_client %p\n", c);
+  log_printf(LOG_CLIENT, "; rm_client %p\n", c);
 
   if (!c)
     return;
@@ -154,20 +154,20 @@ process_client_io(struct client *c)
   if (c->read < 4)
     return 0;
   do {
-    log_printf(10, "; <- ");
+    log_printf(LOG_DATA, "; <- ");
     log_print_data(10, c->read, (unsigned char *)c->inbuf);
     size = unpack_uint4((unsigned char *)c->inbuf);
-    log_printf(10, ";   size: %d\n", size);
+    log_printf(LOG_DATA, ";   size: %d\n", size);
     if (size < 7 || size > c->c.msize)
       return -1;
-    log_printf(10, ";   c->read: %d\n", c->read);
+    log_printf(LOG_DATA, ";   c->read: %d\n", c->read);
     if (size > c->read)
       return 0;
 
     if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
       return -1;
-    if (loglevel >= 9)
-      p9_print_msg(&c->c.t, ">>");
+    if (logmask & LOG_MSG)
+      p9_print_msg(&c->c.t, "<<");
 
     c->c.r.deferred = 0;
     if(p9_process_treq(&c->c, &fs))
@@ -188,11 +188,11 @@ client_send_resp(struct client *c)
 
   if (p9_pack_msg(c->c.msize, c->outbuf, &c->c.r))
     return -1;
-  if (loglevel >= 9)
+  if (logmask & LOG_MSG)
     p9_print_msg(&c->c.r, ">>");
   outsize = unpack_uint4((unsigned char *)c->outbuf);
-  log_printf(10, "; -> ");
-  log_print_data(10, outsize, (unsigned char *)c->outbuf);
+  log_printf(LOG_DATA, "; -> ");
+  log_print_data(LOG_DATA, outsize, (unsigned char *)c->outbuf);
   if (send(c->fd, c->outbuf, outsize, 0) <= 0)
     return -1;
   return 0;

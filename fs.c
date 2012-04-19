@@ -25,7 +25,11 @@ rm_file(struct file *f)
   if (!f)
     return;
 
+  log_printf(LOG_DBG, "# rm_file '%s'\n", f->name);
+  log_printf(LOG_DBG, "#   detach fids\n");
+
   detach_file_fids(f);
+  log_printf(LOG_DBG, "#   done detaching fids\n");
   if (f->owns_name && f->name) {
     free(f->name);
     f->name = 0;
@@ -170,9 +174,22 @@ rm_fid(struct p9_fid *fid, struct fid_pool *pool)
     if (f->next)
       f->next->prev = f->prev;
   }
+  detach_fid(fid);
   free_fid(fid);
   f->next = pool->free;
   pool->free = f;
+}
+
+void
+detach_file_fids(struct file *file)
+{
+  struct fid *f;
+
+  log_printf(LOG_DBG, "detach_file_fids: %s\n", file->name);
+  for (f = file->fids; f; f = f->fnext) {
+    log_printf(LOG_DBG, "  fid: %p\n", f);
+    f->f.file = 0;
+  }
 }
 
 void
@@ -191,16 +208,8 @@ detach_fid(struct p9_fid *fid)
     f->fprev->fnext = f->fnext;
   if (f->fnext)
     f->fnext->fprev = f->fprev;
+  f->fprev = f->fnext = 0;
   fid->file = 0;
-}
-
-void
-detach_file_fids(struct file *file)
-{
-  struct fid *f;
-
-  for (f = file->fids; f; f = f->fnext)
-    f->f.file = 0;
 }
 
 void
@@ -383,7 +392,7 @@ fs_create(struct p9_connection *c)
 {
   struct file *f;
 
-  log_printf(3, "; fs_create '%.*s'\n", c->t.name_len, c->t.name);
+  log_printf(LOG_DBG, "; fs_create '%.*s'\n", c->t.name_len, c->t.name);
 
   if (get_req_fid(c))
     return;
@@ -404,6 +413,16 @@ fs_create(struct p9_connection *c)
     return;
   }
   f->fs->create(c);
+}
+
+void
+resp_file_create(struct p9_connection *c, struct file *f)
+{
+  c->t.pfid->open_mode = c->t.mode;
+  c->r.iounit = c->msize - 23;
+  c->r.qid.type = f->mode >> 24;
+  c->r.qid.version = f->version;
+  c->r.qid.path = f->qpath;
 }
 
 void
@@ -509,11 +528,11 @@ fs_clunk(struct p9_connection *c)
   struct client *cl = (struct client *)c;
   struct file *f;
 
-  if (get_req_fid(c))
+  if (get_req_fid(c) && !c->t.pfid)
     return;
   f = (struct file *)c->t.pfid->file;
-  log_printf(4, ";; clunk '%s'\n", f->name);
-  if (f->fs && f->fs->clunk)
+  log_printf(LOG_DBG, "; fs_clunk '%s'\n", f ? f->name : "(nil)");
+  if (f && f->fs && f->fs->clunk)
     f->fs->clunk(c);
   rm_fid(c->t.pfid, &cl->fids);
 }
@@ -524,13 +543,15 @@ fs_remove(struct p9_connection *c)
   struct client *cl = (struct client *)c;
   struct file *f;
 
-  if (get_req_fid(c))
+  if (get_req_fid(c) && !c->t.pfid)
     return;
   f = (struct file *)c->t.pfid->file;
-  log_printf(4, ";; remove '%s'\n", f->name);
-  if (f->fs && f->fs->remove)
-    f->fs->remove(c);
-  rm_file(f);
+  log_printf(LOG_DBG, "; fs_remove '%s'\n", f ? f->name : "(nil)");
+  if (f) {
+    if (f->fs && f->fs->remove)
+      f->fs->remove(c);
+    rm_file(f);
+  }
   rm_fid(c->t.pfid, &cl->fids);
 }
 

@@ -23,10 +23,8 @@ ip_from_str(const char *addr)
   struct sockaddr_in *ip;
   int ret = INADDR_ANY;
 
-  log_printf(3, "1\n");
   if (!addr || strcmp(addr, "any") == 0)
     return ret;
-  log_printf(3, "2\n");
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;

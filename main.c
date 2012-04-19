@@ -52,7 +52,7 @@ main_loop(int server_fd)
 
   while (running) {
     while (SDL_PollEvent(&ev)) {
-      /*log_printf(3, "#SDL ev.type: %d\n", ev.type);*/
+      /*log_printf(LOG_DBG, "#SDL ev.type: %d\n", ev.type);*/
       switch (ev.type) {
       case SDL_QUIT:
         running = 0;
@@ -113,13 +113,23 @@ sdl_init(int w, int h)
 void
 parse_args(int argc, char **argv)
 {
-  int i;
+  int i, j;
 
   for (i = 1; i < argc; ++i)
     if (!strcmp(argv[i], "-d") && i + 1 < argc)
-      loglevel = atoi(argv[++i]);
+      for (++i, j = 0; argv[i][j]; ++j)
+        switch (argv[i][j]) {
+        case 'c': logmask |= LOG_CLIENT; break;
+        case 'd': logmask |= LOG_DATA; break;
+        case 'g': logmask |= LOG_DBG; break;
+        case 'm': logmask |= LOG_MSG; break;
+        }
     else
-      die("Usage: d [-d loglevel]");
+      die("Usage: d [-d logmask]");
+  log_printf(LOG_CLIENT, "logging: client\n");
+  log_printf(LOG_DATA, "logging: data\n");
+  log_printf(LOG_DBG, "logging: dbg\n");
+  log_printf(LOG_MSG, "logging: msg\n");
 }
 
 int
@@ -127,7 +137,6 @@ main(int argc, char **argv)
 {
   int fd;
 
-  loglevel = 10;
   parse_args(argc, argv);
 
   fd = net_listen(server_host, server_port);

@@ -34,6 +34,11 @@
       blit/
       gl/
       ui_control -> dir/panel01
+      ui_tree/
+        .
+        .
+        .
+        .
       canvas/
 
 ### view/event
@@ -121,30 +126,34 @@ Release pointer
       /
         uievent
         items/
-          dir/
-            new01/
-              evfilter
-              type ->
-            panel01/
-              evfilter
-              type -> panel
-              visible -> 0 | 1
-              maxwidth
-              minwidth
-              maxheight
-              minheight
-              items/
-                01/
-                  path -> dir/ok
-                  place -> Row Rowspan Col Colspan
-                  sticky -> tblr
-                  g -> X Y W H
-                02/
-                  path ->
-                  place -> Row Rowspan Col Colspan
-                  sticky ->
-                  g -> X Y W H
-            ok/
+          _new01/
+            evfilter
+            type ->
+          _panel01/
+            evfilter
+            type -> grid
+            visible -> 0 | 1
+            maxwidth
+            minwidth
+            maxheight
+            minheight
+            parents
+            view
+            items/
+              01/
+                path -> buttons/_ok
+                place -> Row Rowspan Col Colspan
+                sticky -> tblr
+                padx ->
+                pady ->
+              02/
+                path ->
+                place -> Row Rowspan Col Colspan
+                sticky ->
+                padx ->
+                pady ->
+          buttons/
+            _ok/
               evfilter
               type -> button
               visible -> 0 | 1
@@ -154,7 +163,10 @@ Release pointer
               minheight
               text -> Ok
               font -> sans:10:Bold
-            cancel/
+              g -> X Y W H
+              parents
+              view
+            _cancel/
               evfilter
               type -> button
               visible -> 0 | 1
@@ -163,6 +175,8 @@ Release pointer
               maxheight
               minheight
               text -> Cancel
+              parents
+              view
 
 ### ui/uievent
 

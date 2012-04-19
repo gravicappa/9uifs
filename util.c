@@ -6,7 +6,7 @@
 
 #include "util.h"
 
-int loglevel = 0;
+int logmask = 0;
 
 void
 die(char *fmt, ...)
@@ -21,11 +21,11 @@ die(char *fmt, ...)
 }
 
 void
-log_printf(int level, char *fmt, ...)
+log_printf(int mask, char *fmt, ...)
 {
   va_list args;
 
-  if (level <= loglevel) {
+  if (mask & logmask) {
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
@@ -34,48 +34,59 @@ log_printf(int level, char *fmt, ...)
 }
 
 void
-log_print_data(int level, unsigned int size, unsigned char *buf)
+log_print_data(int mask, unsigned int size, unsigned char *buf)
 {
-  if (level <= loglevel) {
+  if (mask & logmask) {
     for (; size > 0; size--, buf++)
-      log_printf(level, "%02x ", *buf);
-    log_printf(level, "\n");
+      fprintf(stderr, "%02x ", *buf);
+    fprintf(stderr, "\n");
+    fflush(stderr);
   }
 }
 
 int
-add_data(struct buf *buf, int size, const void *data)
+arr_memcpy(Arr *a, int delta, int off, int size, const void *data)
 {
-  int s = buf->size, off = buf->used;
+  unsigned int u = 0, s = 0, curused = 0, cursize = 0;
 
-  if (buf->used + size > buf->size && buf->delta == 0)
+  if (*a) {
+    curused = u = (*a)->used;
+    cursize = s = (*a)->size;
+  }
+  if (off < 0)
+    off = u;
+  if (off + size > s && delta == 0)
     return -1;
-  while (buf->used + size >= s)
-    s += buf->delta;
-  if (s > buf->size) {
-    buf->size = s;
-    buf->b = (char *)realloc(buf->b, buf->size);
-    if (!buf->b)
+  for (; off + size >= s; s += delta) {}
+  if (s > cursize) {
+    *a = realloc(*a, sizeof(struct arr) - sizeof(int) + s);
+    if (!*a)
       return -1;
+    (*a)->size = s;
   }
   if (data)
-    memcpy(buf->b + buf->used, data, size);
-  buf->used += size;
-  return off;
+    memcpy((*a)->b + off, data, size);
+  if (off + size > u)
+    (*a)->used = off + size;
+  return curused;
 }
 
 int
-rm_data(struct buf *buf, int size, void *ptr)
+arr_delete(Arr *a, unsigned int off, unsigned int size)
 {
-  int off, end;
+  unsigned int end;
 
-  if ((char *)ptr < buf->b || (char *)ptr + size > buf->b + buf->used)
+  if (!(a && *a))
     return -1;
 
-  off = (char *)ptr - buf->b;
+  if (off > (*a)->used)
+    return -1;
+  if (off + size > (*a)->used)
+    size = (*a)->used - off;
+
   end = off + size;
-  memmove(buf->b + off, buf->b + end, buf->used - end);
-  buf->used -= size;
+  memmove((*a)->b + off, (*a)->b + end, (*a)->used - end);
+  (*a)->used -= size;
   return 0;
 }
 

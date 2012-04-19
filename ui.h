@@ -9,61 +9,91 @@ struct uiplacement {
   enum uisticky sticky;
 };
 
-enum uiprop_type {
-  UI_PROP_INT = 'i',
-  UI_PROP_BUF = 'b',
-  UI_PROP_STR = 's',
-  UI_PROP_PTR = 'p'
+enum uiflags {
+  UI_IS_CONTAINER = 1,
 };
 
 struct uiprop {
   struct file fs;
   struct uiobj *obj;
-  enum uiprop_type type;
-  union {
-    int i;
-    struct buf buf;
-    void *p;
-  } d;
+  void (*update)(struct uiprop * self);
 };
 
-struct uiobj {
-  int type; /* should it be a string? */
-  struct view *v;
-  struct uiobj *parent;
-  struct uiobj *next;
-  struct uiobj *prev;
-  struct uiobj *child;
-  struct uiprop bg;
-  struct uiprop visible;
-  struct uiprop drawable;
-  struct uiprop minwidth;
-  struct uiprop maxwidth;
-  struct uiprop minheight;
-  struct uiprop maxheight;
-  struct uiprop padx;
-  struct uiprop pady;
-  struct uiprop sticky;
-  struct rect g;
+struct uiprop_int {
+  struct uiprop p;
+  long i;
+};
 
-  void (*draw)(struct uiobj *self);
-  void (*update_size)(struct uiobj *self);
+struct uiprop_buf {
+  struct uiprop p;
+  Arr buf;
+};
+
+struct uiobj_place;
+
+struct uiobj {
+  Arr type;
+  struct view *v;
+
+  struct uiobj_place *places;
+
+  struct uiprop_int bg;
+  struct uiprop_int visible;
+  struct uiprop_int drawable;
+  struct uiprop_int minwidth;
+  struct uiprop_int maxwidth;
+  struct uiprop_int minheight;
+  struct uiprop_int maxheight;
 
   struct file fs;
   struct file fs_evfilter;
   struct file fs_type;
   struct file fs_g;
+  struct file fs_parents;
+
+  void (*draw)(struct uiobj * place);
+  void (*resize)(struct uiobj * place);
+  void (*update_size)(struct uiobj * place);
+
+  int flags;
+  struct rect g;
+  int req_w;
+  int req_h;
+  void *data;
+};
+
+struct uiobj_place {
+  struct uiobj_place *next;
+  struct uiobj_place *prev;
+  struct uiobj *obj;
+  struct uiprop_buf item;
+  struct uiprop_int padx;
+  struct uiprop_int pady;
+  struct uiprop_buf sticky;
+
+  struct file fs;
+  struct file fs_place;
+
+  void (*detach)(struct uiobj_place * self);
+
+  /* temporary */
+  struct uiobj_place *parent;
+};
+
+struct uiobj_container {
   struct file fs_items;
 };
 
 struct uiobj *mk_uiobj();
-struct uiobj *mk_ui(struct file *root, char *name, void *aux);
+struct file *mk_ui(char *name);
 
 void update_placement(struct uiobj *u);
 
-int ui_init_prop_colour(struct uiobj *u, struct uiprop *p, char *name, int x);
-int ui_init_prop_int(struct uiobj *u, struct uiprop *p, char *name, int x);
-int ui_init_prop_buf(struct uiobj *u, struct uiprop *p, char *name, int size,
-                     char *x);
-int ui_init_prop_str(struct uiobj *u, struct uiprop *p, char *name, int size,
-                     char *x);
+int ui_init_prop_colour(struct uiobj *u, struct uiprop_int *p, char *name,
+                        unsigned int rgba);
+int ui_init_prop_int(struct uiobj *u, struct uiprop_int *p, char *name,
+                     int x);
+int ui_init_prop_buf(struct uiobj *u, struct uiprop_buf *p, char *name,
+                     int size, char *x);
+int ui_init_prop_str(struct uiobj *u, struct uiprop_buf *p, char *name,
+                     int size, char *x);

@@ -30,9 +30,10 @@ ctl_rm(struct p9_fid *fid)
   if (!cc)
     return;
 
-  if (cc->buf.used)
-    exec_cmd(f, cc->buf.used, (char *)cc->buf.b);
-  free(cc->buf.b);
+  if (cc->buf && cc->buf->used)
+    exec_cmd(f, cc->buf->used, cc->buf->b);
+  if (cc->buf)
+    free(cc->buf);
   free(cc);
   fid->aux = 0;
 }
@@ -48,7 +49,6 @@ ctl_open(struct p9_connection *c)
     return;
   }
   memset(cc, 0, sizeof(*cc));
-  cc->buf.delta = 256;
   c->t.pfid->aux = cc;
   c->t.pfid->rm = ctl_rm;
 }
@@ -66,14 +66,17 @@ ctl_write(struct p9_connection *c)
   if (!cc)
     return;
   p = strnchr(c->t.data, c->t.count, '\n');
-  add_data(&cc->buf, c->t.count, c->t.data);
+  if (arr_memcpy(&cc->buf, 256, -1, c->t.count, c->t.data) < 0) {
+    P9_SET_STR(c->r.ename, "out of memory");
+    return;
+  }
   c->r.count = c->t.count;
   if (!p)
     return;
-  n = cc->buf.used + ((char *)c->t.data - p);
-  cc->buf.b[n] = 0;
-  exec_cmd(f, n, (char *)cc->buf.b);
-  rm_data(&cc->buf, n, cc->buf.b);
+  n = cc->buf->used + ((char *)c->t.data - p);
+  cc->buf->b[n] = 0;
+  exec_cmd(f, n, cc->buf->b);
+  arr_delete(&cc->buf, 0, n);
 }
 
 struct p9_fs ctl_fs = {
