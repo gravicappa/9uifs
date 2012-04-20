@@ -123,6 +123,7 @@ parse_args(int argc, char **argv)
         case 'd': logmask |= LOG_DATA; break;
         case 'g': logmask |= LOG_DBG; break;
         case 'm': logmask |= LOG_MSG; break;
+        case 'u': logmask |= LOG_UI; break;
         }
     else
       die("Usage: d [-d logmask]");
@@ -130,6 +131,7 @@ parse_args(int argc, char **argv)
   log_printf(LOG_DATA, "logging: data\n");
   log_printf(LOG_DBG, "logging: dbg\n");
   log_printf(LOG_MSG, "logging: msg\n");
+  log_printf(LOG_UI, "logging: ui\n");
 }
 
 int

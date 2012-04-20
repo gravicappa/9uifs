@@ -488,6 +488,7 @@ static void
 fs_read(struct p9_connection *c)
 {
   struct file *f;
+  int read_mode;
 
   if (get_req_fid(c))
     return;
@@ -498,7 +499,9 @@ fs_read(struct p9_connection *c)
     fs_readdir(c->t.pfid, f, c);
     return;
   }
-  if (!(f->fs && f->fs->read)) {
+  read_mode = (((c->t.pfid->open_mode & 3) == P9_OREAD)
+               || ((c->t.pfid->open_mode & 3) == P9_ORDWR));
+  if (!(f->fs && f->fs->read && read_mode)) {
     c->r.ename = "Operation not permitted";
     c->r.ename_len = strlen(c->r.ename);
     return;
@@ -510,11 +513,14 @@ static void
 fs_write(struct p9_connection *c)
 {
   struct file *f;
+  int write_mode;
 
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
-  if ((f->mode & P9_DMDIR) || !(f->fs && f->fs->write)) {
+  write_mode = (((c->t.pfid->open_mode & 3) == P9_OWRITE)
+                || ((c->t.pfid->open_mode & 3) == P9_ORDWR));
+  if ((f->mode & P9_DMDIR) || !(f->fs && f->fs->write) || !write_mode) {
     c->r.ename = "Operation not permitted";
     c->r.ename_len = strlen(c->r.ename);
     return;

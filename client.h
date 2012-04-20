@@ -4,8 +4,8 @@ struct client {
 
   struct fid_pool fids;
 
-  Arr flushed;
-  Arr deferred;
+  struct arr *flushed;
+  struct arr *deferred;
   int fd;
   int read;
   int size;

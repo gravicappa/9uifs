@@ -15,6 +15,7 @@
 #include "event.h"
 #include "view.h"
 #include "screen.h"
+#include "prop.h"
 #include "ui.h"
 #include "wm.h"
 

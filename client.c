@@ -25,6 +25,7 @@
 #include "surface.h"
 #include "event.h"
 #include "view.h"
+#include "prop.h"
 #include "ui.h"
 
 struct client *clients = 0;

@@ -4,7 +4,7 @@ struct ctl_cmd {
 };
 
 struct ctl_context {
-  Arr buf;
+  struct arr *buf;
 };
 
 struct ctl_file {

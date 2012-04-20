@@ -13,11 +13,11 @@
 #include "surface.h"
 #include "draw.h"
 #include "view.h"
+#include "prop.h"
 #include "ui.h"
 
 #define UI_NAME_PREFIX '_'
 
-static void items_remove(struct p9_connection *c);
 static void items_create(struct p9_connection *c);
 
 struct p9_fs items_fs = {
@@ -33,14 +33,6 @@ rm_dir(struct file *dir)
 {
   if (dir)
     free(dir);
-}
-
-static void
-items_remove(struct p9_connection *c)
-{
-  struct file *f = (struct file *)c->t.pfid->file;
-  if (f && f->rm)
-    f->rm(f);
 }
 
 static struct file *
@@ -98,17 +90,3 @@ mk_ui(char *name)
   f->fs = &root_items_fs;
   return f;
 }
-
-struct uiobj_maker {
-  char *type;
-  int (*init)(struct uiobj *);
-} uitypes[] = {
-  /*
-  {"grid", mk_uigrid},
-  {"button", mk_uibutton},
-  {"label", mk_uilabel},
-  {"entry", mk_uientry},
-  {"blit", mk_uientry},
-  */
-  {0, 0}
-};

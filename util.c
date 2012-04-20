@@ -45,7 +45,7 @@ log_print_data(int mask, unsigned int size, unsigned char *buf)
 }
 
 int
-arr_memcpy(Arr *a, int delta, int off, int size, const void *data)
+arr_memcpy(struct arr **a, int delta, int off, int size, const void *data)
 {
   unsigned int u = 0, s = 0, curused = 0, cursize = 0;
 
@@ -72,7 +72,7 @@ arr_memcpy(Arr *a, int delta, int off, int size, const void *data)
 }
 
 int
-arr_delete(Arr *a, unsigned int off, unsigned int size)
+arr_delete(struct arr **a, unsigned int off, unsigned int size)
 {
   unsigned int end;
 
@@ -110,4 +110,12 @@ next_arg(char **s)
   return b;
 }
 
-
+char *
+trim_string_right(char *s, char *chars)
+{
+  int len = strlen(s), i;
+  for (i = len; i >= 0 && strchr(chars, s[i]); --i) {}
+  if (i >= 0 && i < len)
+    s[i + 1] = 0;
+  return s;
+}
