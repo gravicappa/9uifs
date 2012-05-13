@@ -12,8 +12,8 @@ struct fid_pool {
 };
 
 struct file {
-  struct file *parent;
   struct file *next;
+  struct file *parent;
   struct file *child;
   int owns_name;
   char *name;
@@ -31,7 +31,9 @@ struct file {
 };
 
 extern struct p9_fs fs;
-extern unsigned long long qid_cnt;
+
+unsigned long long new_qid(unsigned char type);
+#define FSTYPE(f) (((f).qpath) & 0xff)
 
 void add_file(struct file *root, struct file *f);
 void rm_file(struct file *f);
@@ -51,6 +53,6 @@ void resp_file_create(struct p9_connection *c, struct file *f);
 #define DEFFILE(f, n, m, a) do { \
     (f).name = (n); \
     (f).mode = (m); \
-    (f).qpath = ++qid_cnt; \
+    (f).qpath = new_qid(0); \
     (f).aux.p = (a); \
   } while (0)

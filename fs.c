@@ -594,3 +594,9 @@ struct p9_fs fs = {
   .stat = fs_stat,
   .wstat = fs_wstat
 };
+
+unsigned long long
+new_qid(unsigned char type)
+{
+  return ((++qid_cnt) << 8) | type;
+}

@@ -1,0 +1,14 @@
+enum {
+  FS_NONE = 0,
+  FS_ROOT,
+  FS_EVENT,
+  FS_VIEW,
+  FS_VIEWS,
+  FS_IMAGES,
+  FS_CTL,
+  FS_UIOBJ,
+  FS_UIDIR,
+  FS_UIPLACE,
+  FS_UIPLACE_DIR,
+  FS_PROP
+};

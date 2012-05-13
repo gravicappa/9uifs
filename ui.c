@@ -7,6 +7,7 @@
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "fstypes.h"
 #include "geom.h"
 #include "event.h"
 #include "ctl.h"
@@ -45,7 +46,7 @@ items_mkdir(char *name)
   memset(f, 0, sizeof(*f));
   f->name = name;
   f->mode = 0700 | P9_DMDIR;
-  f->qpath = ++qid_cnt;
+  f->qpath = new_qid(FS_UIDIR);
   f->fs = &items_fs;
   f->rm = rm_dir;
   return f;
@@ -70,23 +71,25 @@ items_create(struct p9_connection *c)
   }
   if (name[0] == UI_NAME_PREFIX) {
     u = mk_uiobj();
-    u->v = (struct view *)f->aux.p;
     u->fs.name = name;
     u->fs.owns_name = 1;
     resp_file_create(c, &u->fs);
+    u->fs.aux.p = f->aux.p;
     add_file(f, &u->fs);
   } else {
     d = items_mkdir(name);
     d->owns_name = 1;
+    d->aux.p = f->aux.p;
     add_file(f, d);
   }
 }
 
 struct file *
-mk_ui(char *name)
+mk_ui(char *name, void *aux)
 {
   struct file *f;
   f = items_mkdir(name);
   f->fs = &root_items_fs;
+  f->aux.p = aux;
   return f;
 }

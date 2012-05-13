@@ -8,6 +8,7 @@
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "fstypes.h"
 #include "ctl.h"
 #include "geom.h"
 #include "surface.h"
@@ -77,14 +78,17 @@ void
 view_visible_write(struct p9_connection *c)
 {
   struct view *v = get_view(c);
-  v->visible = write_bool_fn(c, v->visible);
+  if (write_bool_fn(c, v->flags & VIEW_IS_VISIBLE))
+    v->flags |= VIEW_IS_VISIBLE;
+  else
+    v->flags &= ~VIEW_IS_VISIBLE;
 }
 
 void
 view_visible_read(struct p9_connection *c)
 {
   struct view *v = get_view(c);
-  read_bool_fn(c, v->visible);
+  read_bool_fn(c, v->flags & VIEW_IS_VISIBLE);
 }
 
 struct p9_fs fs_views = {
@@ -114,41 +118,41 @@ mk_view(int x, int y, int w, int h)
     return 0;
   }
   v->fs.mode = 0500 | P9_DMDIR;
-  v->fs.qpath = ++qid_cnt;
+  v->fs.qpath = new_qid(FS_VIEW);
   v->fs.aux.p = v;
   v->fs.rm = rm_view;
 
   v->ev.f.name = "event";
   v->ev.f.mode = 0400;
-  v->ev.f.qpath = ++qid_cnt;
+  v->ev.f.qpath = new_qid(FS_EVENT);
   v->ev.f.aux.p = &v->ev;
   v->ev.f.fs = &fs_event;
   add_file(&v->fs, &v->ev.f);
 
   v->ev_pointer.f.name = "pointer";
   v->ev_pointer.f.mode = 0400;
-  v->ev_pointer.f.qpath = ++qid_cnt;
+  v->ev_pointer.f.qpath = new_qid(0);
   v->ev_pointer.f.aux.p = &v->ev_pointer;
   v->ev_pointer.f.fs = &fs_event;
   add_file(&v->fs, &v->ev_pointer.f);
 
   v->ev_keyboard.f.name = "keyboard";
   v->ev_keyboard.f.mode = 0400;
-  v->ev_keyboard.f.qpath = ++qid_cnt;
+  v->ev_keyboard.f.qpath = new_qid(0);
   v->ev_keyboard.f.aux.p = &v->ev_keyboard;
   v->ev_keyboard.f.fs = &fs_event;
   add_file(&v->fs, &v->ev_keyboard.f);
 
   v->fs_visible.name = "visible";
   v->fs_visible.mode = 0600;
-  v->fs_visible.qpath = ++qid_cnt;
+  v->fs_visible.qpath = new_qid(0);
   v->fs_visible.aux.p = v;
   v->fs_visible.fs = &fs_view_visible;
   add_file(&v->fs, &v->fs_visible);
 
   v->fs_geometry.name = "geometry";
   v->fs_geometry.mode = 0600;
-  v->fs_geometry.qpath = ++qid_cnt;
+  v->fs_geometry.qpath = new_qid(0);
   v->fs_geometry.aux.p = v;
   add_file(&v->fs, &v->fs_geometry);
 
@@ -157,13 +161,13 @@ mk_view(int x, int y, int w, int h)
 
   v->fs_gl.name = "gl";
   v->fs_gl.mode = 0700 | P9_DMDIR;
-  v->fs_gl.qpath = ++qid_cnt;
+  v->fs_gl.qpath = new_qid(0);
   v->fs_gl.aux.p = v;
   add_file(&v->fs, &v->fs_gl);
 
   v->fs_canvas.name = "canvas";
   v->fs_canvas.mode = 0700 | P9_DMDIR;
-  v->fs_canvas.qpath = ++qid_cnt;
+  v->fs_canvas.qpath = new_qid(0);
   v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
 #if 0

@@ -11,34 +11,32 @@ struct uiplacement {
 
 enum uiflags {
   UI_IS_CONTAINER = 1,
+  UI_IS_DIRTY = 2,
 };
 
 struct uiobj_place;
 
 struct uiobj {
-  struct view *v;
-
-  struct uiobj_place *places;
+  struct file fs;
 
   struct prop_buf type;
   struct prop_int bg;
   struct prop_int visible;
   struct prop_int drawable;
-  struct prop_int minwidth;
-  struct prop_int maxwidth;
-  struct prop_int minheight;
-  struct prop_int maxheight;
+  struct prop_rect restraint;
 
-  struct file fs;
   struct file fs_evfilter;
   struct file fs_g;
-  struct file fs_parents;
+
+  /* files with aux -> uiobj_place and value with place's parent's path */
+  struct file fs_places;
 
   void (*draw)(struct uiobj *u);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
 
   int flags;
+  int frame_id;
   struct rect g;
   int req_w;
   int req_h;
@@ -54,8 +52,8 @@ struct uiobj_place {
   struct uiobj *obj;
   struct prop_buf path;
   struct prop_buf sticky;
-  struct prop_int padx;
-  struct prop_int pady;
+  struct prop_rect padding;
+  struct prop_rect place;
 
   struct file fs_place;
 
@@ -65,12 +63,24 @@ struct uiobj_place {
   struct uiobj_place *parent;
 };
 
+struct uiobj_parent {
+  struct uiobj_parent *prev;
+  struct uiobj_parent *next;
+  struct uiobj_place *place;
+};
+
 struct uiobj_container {
   struct file fs_items;
 };
 
 struct uiobj *mk_uiobj();
 void rm_uiobj(struct file *f);
-struct file *mk_ui(char *name);
+struct file *mk_ui(char *name, void *aux);
 
 void update_placement(struct uiobj *u);
+
+void init_container_items(struct uiobj_container *c, char *name);
+void update_uiobj(struct uiobj *u);
+void redraw_uiobj(struct uiobj *u);
+
+#define UIOBJ_CLIENT(u) ((struct client *)(u)->fs.aux.p)

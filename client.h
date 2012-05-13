@@ -20,6 +20,8 @@ struct client {
   struct file fs_fonts;
   struct file fs_comm;
 
+  struct file *ui;
+
   struct view *selected_view;
   struct view *views;
 };

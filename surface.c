@@ -171,13 +171,13 @@ init_surface(struct surface *s, int w, int h)
     die("Cannot allocate memory");
 
   s->fs.mode = 0500 | P9_DMDIR;
-  s->fs.qpath = ++qid_cnt;
+  s->fs.qpath = new_qid(0);
   s->fs.aux.p = s;
   s->fs.rm = rm_surface;
 
   s->fs_ctl.file.name = "ctl";
   s->fs_ctl.file.mode = 0200 | P9_DMAPPEND;
-  s->fs_ctl.file.qpath = ++qid_cnt;
+  s->fs_ctl.file.qpath = new_qid(0);
   s->fs_ctl.file.fs = &ctl_fs;
   s->fs_ctl.file.aux.p = s;
   s->fs_ctl.cmd = ctl_cmd;
@@ -185,14 +185,14 @@ init_surface(struct surface *s, int w, int h)
 
   s->fs_size.name = "size";
   s->fs_size.mode = 0600;
-  s->fs_size.qpath = ++qid_cnt;
+  s->fs_size.qpath = new_qid(0);
   s->fs_size.fs = &surface_size_fs;
   s->fs_size.aux.p = s;
   add_file(&s->fs, &s->fs_size);
 
   s->fs_pixels.name = "pixels";
   s->fs_pixels.mode = 0600;
-  s->fs_pixels.qpath = ++qid_cnt;
+  s->fs_pixels.qpath = new_qid(0);
   s->fs_pixels.fs = &surface_pixels_fs;
   s->fs_pixels.aux.p = s;
   s->fs_pixels.length = w * h * pixelsize;

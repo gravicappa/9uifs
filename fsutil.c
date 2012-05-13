@@ -1,5 +1,7 @@
 #include <string.h>
+#include "util.h"
 #include "9p.h"
+#include "fs.h"
 
 void
 read_buf_fn(struct p9_connection *c, int size, char *buf)
@@ -48,4 +50,62 @@ write_bool_fn(struct p9_connection *c, int oldval)
     c->r.count = c->t.count;
     return !(c->t.data[0] == '0' && strchr("\n\t\r ", c->t.data[1]));
   }
+}
+
+struct file *
+find_file_path(struct file *root, int size, char *name)
+{
+  struct file *t = root;
+  char *p, *q;
+
+  p = name;
+  while (t && p[0] && size > 0) {
+    q = strchr(p, '/');
+    if (q) {
+      size -= q - p + 1;
+      if (q > p)
+        t = find_file(t, q - p, p);
+      p = q + 1;
+    } else
+      return find_file(t, size, p);
+  }
+  return 0;
+}
+
+void
+strcpyrev(char *to, char *from, int n)
+{
+  if (n) {
+    from += n - 1;
+    while (n--)
+      *to++ = *from--;
+  }
+}
+
+int
+file_path(struct arr **buf, struct file *f, struct file *root)
+{
+  int i, n, t, off = 0;
+  struct arr *b;
+
+  for (; f && f != root; f = f->parent) {
+    n = strlen(f->name);
+    if (arr_memcpy(buf, 16, off, n + 1, 0) < 0)
+      return -1;
+    strcpyrev((*buf)->b + off, f->name, n);
+    off += n;
+    (*buf)->b[off++] = '/';
+  }
+  if (!*buf)
+    return 0;
+  b = *buf;
+  b->b[off - 1] = 0;
+  n = b->used - 1;
+  i = (n >> 1) - 1;
+  for (; i >= 0; --i) {
+    t = b->b[i];
+    b->b[i] = b->b[n - i - 1];
+    b->b[n - i - 1] = t;
+  }
+  return 0;
 }

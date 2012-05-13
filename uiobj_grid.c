@@ -67,6 +67,7 @@ rm_uigrid(struct file *f)
 int
 init_uigrid(struct uiobj *u)
 {
+  struct uiobj_grid *g;
   u->data = malloc(sizeof(struct uiobj_grid));
   if (!u->data)
     return -1;
@@ -74,5 +75,9 @@ init_uigrid(struct uiobj *u)
   u->update_size = update_grid_size;
   u->flags |= UI_IS_CONTAINER;
   u->fs.rm = rm_uigrid;
+  g = (struct uiobj_grid *)u->data;
+  init_container_items(&g->c, "items");
+  g->c.fs_items.aux.p = u;
+  add_file(&u->fs, &g->c.fs_items);
   return 0;
 }

@@ -9,6 +9,11 @@ struct prop_int {
   int i;
 };
 
+struct prop_rect {
+  struct prop p;
+  int r[4];
+};
+
 struct prop_buf {
   struct prop p;
   struct arr *buf;
@@ -20,6 +25,8 @@ int init_prop_int(struct file *root, struct prop_int *p, char *name, int x,
                   void *aux);
 int init_prop_buf(struct file *root, struct prop_buf *p, char *name, int size,
                   char *x, int fixed_size, void *aux);
+int init_prop_rect(struct file *root, struct prop_rect *p, char *name,
+                   void *aux);
 
 void prop_int_open(struct p9_connection *c, int size, const char *fmt);
 int prop_int_clunk(struct p9_connection *c, const char *fmt);

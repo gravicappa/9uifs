@@ -26,6 +26,7 @@ $name: $obj
 	$CC $CFLAGS $prereq $LDFLAGS -o $target
 
 test_arr: test_arr.c util.o 
+test_path: test_path.c util.o 
 
 %.o: %.c
 	$CC $CFLAGS -c -o $target $stem.c
@@ -33,10 +34,14 @@ test_arr: test_arr.c util.o
 %: %.c
 	$CC $CFLAGS -o $target $prereq
 
+run:V: $name
+	ulimit -c unlimited
+	./$name -d u
+
 valgrind:V: $name
 	valgrind --read-var-info=yes --track-origins=yes \
 		--suppressions=xlib.supp \
-	  ./$name -d mg 2>&1 | tee uifs.log
+	  ./$name -d ug 2>&1 | tee uifs.log
 
 %.html: %.md
 	sundown <$prereq >$target

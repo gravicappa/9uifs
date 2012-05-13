@@ -1,24 +1,29 @@
 #define VIEW_TYPE_SIZE 32
 
-struct uiobj;
+enum viewflags {
+  VIEW_IS_DIRTY = 1,
+  VIEW_IS_VISIBLE = 2
+};
 
 struct view {
+  struct file fs;
+
   struct view *next;
   struct client *c;
   struct rect g;
   char type[VIEW_TYPE_SIZE];
-  int visible;
+  int flags;
   struct surface blit;
 
   struct ev_pool ev;
   struct ev_pool ev_pointer;
   struct ev_pool ev_keyboard;
 
-  struct file fs;
   struct file fs_visible;
   struct file fs_geometry;
   struct file fs_gl;
   struct file fs_canvas;
+  struct file ui_place;
 };
 
 extern struct p9_fs fs_views;

@@ -7,6 +7,7 @@
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "fstypes.h"
 #include "geom.h"
 #include "event.h"
 #include "ctl.h"
@@ -17,6 +18,7 @@
 #include "ui.h"
 
 extern int init_uigrid(struct uiobj *);
+extern struct p9_fs places_fs;
 
 struct uiobj_maker {
   char *type;
@@ -78,9 +80,11 @@ draw_uiobj(struct uiobj *u)
 {
   unsigned int c;
 
+  /*
   c = u->bg.i;
   if (c && 0xff000000)
     fill_rect(u->v->blit.img, u->g.x, u->g.y, u->g.w, u->g.h, c);
+    */
 }
 
 void
@@ -104,17 +108,14 @@ mk_uiobj()
   memset(u, 0, sizeof(*u));
   u->draw = draw_uiobj;
   u->fs.mode = 0500 | P9_DMDIR;
-  u->fs.qpath = ++qid_cnt;
+  u->fs.qpath = new_qid(FS_UIOBJ);
   u->fs.rm = rm_uiobj;
 
   /* TODO: use bg from some kind of style db */
   r = init_prop_buf(&u->fs, &u->type, "type", 0, "", 0, u)
       | init_prop_colour(&u->fs, &u->bg, "background", 0, u)
       | init_prop_int(&u->fs, &u->visible, "visible", 0, u)
-      | init_prop_int(&u->fs, &u->minwidth, "minwidth", 0, u)
-      | init_prop_int(&u->fs, &u->maxwidth, "maxwidth", 0, u)
-      | init_prop_int(&u->fs, &u->minheight, "minheight", 0, u)
-      | init_prop_int(&u->fs, &u->maxheight, "maxheight", 0, u);
+      | init_prop_rect(&u->fs, &u->restraint, "restraint", u);
 
   if (r) {
     rm_file(&u->fs);
@@ -122,21 +123,31 @@ mk_uiobj()
     u = 0;
   }
 
+  for (r = 0; r < 4; ++r)
+    u->restraint.r[r] = 0;
+
   u->type.p.fs.fs = &prop_type_fs;
 
   u->fs_evfilter.name = "evfilter";
   u->fs_evfilter.mode = 0600;
-  u->fs_evfilter.qpath = ++qid_cnt;
+  u->fs_evfilter.qpath = new_qid(0);
   u->fs_evfilter.aux.p = u;
   /*u->fs_evfilter.fs = &evfilter_fs;*/
   add_file(&u->fs, &u->fs_evfilter);
 
   u->fs_g.name = "g";
   u->fs_g.mode = 0400;
-  u->fs_g.qpath = ++qid_cnt;
+  u->fs_g.qpath = new_qid(0);
   u->fs_g.aux.p = u;
   /*u->fs_g.fs = &geom_fs;*/
   add_file(&u->fs, &u->fs_g);
+
+  u->fs_places.name = "places";
+  u->fs_places.mode = 0400;
+  u->fs_places.qpath = new_qid(0);
+  u->fs_places.aux.p = 0;
+  u->fs_places.fs = &places_fs;
+  add_file(&u->fs, &u->fs_places);
 
   return u;
 }
@@ -146,8 +157,8 @@ update_obj_size(struct uiobj *u)
 {
   if (u->update_size)
     u->update_size(u);
-  u->req_w = u->minwidth.i;
-  u->req_h = u->minheight.i;
+  u->req_w = u->restraint.r[0];
+  u->req_h = u->restraint.r[1];
 }
 
 static struct file *
@@ -191,4 +202,17 @@ ui_update_size(struct uiobj_place *up)
         x = x->parent->fs.next->aux.p;
     }
   } while (x && x != up);
+}
+
+/* update items sizes */
+void
+update_uiobj(struct uiobj *u)
+{
+  /*ui_update_size();*/
+}
+
+void
+redraw_uiobj(struct uiobj *u)
+{
+  ;
 }
