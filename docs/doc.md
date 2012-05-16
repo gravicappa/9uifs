@@ -12,9 +12,10 @@
           size
       fonts/
         ctl
-        0/
-        1/
-        2/
+        sans/
+        sans-serif/
+        monospace/
+        decorative/
         ...
       ui/
       store/
@@ -133,10 +134,7 @@ Release pointer
             evfilter
             type -> grid
             visible -> 0 | 1
-            maxwidth
-            minwidth
-            maxheight
-            minheight
+            restraint -> Maxwidth Minwidth Maxheight Minheight
             parents
             view
             items/
@@ -144,23 +142,18 @@ Release pointer
                 path -> buttons/_ok
                 place -> Row Rowspan Col Colspan
                 sticky -> tblr
-                padx ->
-                pady ->
+                padding ->
               02/
                 path ->
                 place -> Row Rowspan Col Colspan
                 sticky ->
-                padx ->
-                pady ->
+                padding ->
           buttons/
             _ok/
               evfilter
               type -> button
               visible -> 0 | 1
-              maxwidth
-              minwidth
-              maxheight
-              minheight
+              restraint -> Maxwidth Minwidth Maxheight Minheight
               text -> Ok
               font -> sans:10:Bold
               g -> X Y W H
