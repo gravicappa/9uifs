@@ -22,8 +22,7 @@ static struct surface *
 get_surface(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  struct file *f = (struct file *)fid->file;
-  return (struct surface *)f->aux.p;
+  return (struct surface *)fid->file;
 }
 
 static void
@@ -149,7 +148,7 @@ static struct p9_fs surface_pixels_fs = {
 void
 rm_surface(struct file *f)
 {
-  struct surface *s = (struct surface *)f->aux.p;
+  struct surface *s = (struct surface *)f;
   if (s->img) {
     imlib_context_set_image(s->img);
     imlib_free_image();

@@ -58,9 +58,12 @@ update_grid_size(struct uiobj *u)
 void
 rm_uigrid(struct file *f)
 {
-  struct uiobj *u = (struct uiobj *)f->aux.p;
-  if (u->data)
+  struct uiobj *u = (struct uiobj *)f;
+  log_printf(LOG_DBG, "rm_uigrid %p data: %p\n", u, u->data);
+  if (u->data) {
     free(u->data);
+    u->data = 0;
+  }
   rm_uiobj(f);
 }
 

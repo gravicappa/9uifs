@@ -96,12 +96,12 @@ upd_placement(struct prop *p)
 {
   struct uiobj_place *up = (struct uiobj_place *)p->aux;
   struct client *c;
-  struct view *v;
+  struct file *vf;
   c = get_place_client(up);
   if (!c)
     return;
-  for (v = c->views; v; v = v->next)
-    v->flags |= VIEW_IS_DIRTY;
+  for (vf = c->fs_views.child; vf; vf = vf->next)
+    ((struct view *)vf)->flags |= VIEW_IS_DIRTY;
 }
 
 static void
@@ -167,6 +167,9 @@ create_place(struct p9_connection *c)
       | init_prop_buf(&up->fs, &up->sticky, "sticky", 4, 0, 1, up)
       | init_prop_rect(&up->fs, &up->padding, "padding", up)
       | init_prop_rect(&up->fs, &up->place, "place", up);
+  up->place.r[1] = up->place.r[3] = 1;
+  up->place.r[0] = 1;
+  up->place.r[2] = -1;
 
   if (r) {
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
@@ -217,15 +220,10 @@ places_open(struct p9_connection *c)
 
   u = (struct uiobj *)((char *)fid->file - offsetof(struct uiobj, fs_places));
   cl = (struct client *)u->fs.aux.p;
-  log_printf(LOG_UI, "places_open u: %p '%s'\n", u, u->fs.name);
   par = (struct uiobj_parent *)u->fs_places.aux.p;
-  log_printf(LOG_UI, "  places: %p\n", par);
   for (; par; par = par->next) {
     if (file_path(&buf, &u->fs, cl->ui))
       die("Cannot allocate memory");
-    log_printf(LOG_UI, "  place: %p\n", par);
-    if (buf)
-      log_printf(LOG_UI, "  place buf: '%.s'\n", buf->used, buf->b);
     if (buf && arr_memcpy(&buf, 16, buf->used, 1, "\n") < 0)
       die("Cannot allocate memory");
   }

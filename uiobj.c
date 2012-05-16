@@ -43,6 +43,7 @@ prop_type_open(struct p9_connection *c)
   if (u->type.buf && u->type.buf->used && u->type.buf->b[0]
       && (((c->t.pfid->open_mode & 3) == P9_OWRITE)
           || ((c->t.pfid->open_mode & 3) == P9_ORDWR))) {
+    c->t.pfid->open_mode = 0;
     P9_SET_STR(c->r.ename, "UI object already has type");
     return;
   }
@@ -54,18 +55,18 @@ prop_type_clunk(struct p9_connection *c)
   struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
   int i, good = 0;
 
-  if (((c->t.pfid->open_mode & 3) == P9_OWRITE)
-      || ((c->t.pfid->open_mode & 3) == P9_ORDWR)) {
-    if (!p->buf)
-      return;
-    trim_string_right(p->buf->b, " \n\r\t");
-    for (i = 0; uitypes[i].type && uitypes[i].init; ++i)
-      if (!strcmp(uitypes[i].type, p->buf->b))
-        if (uitypes[i].init((struct uiobj *)p->p.aux) == 0)
-          good = 1;
-    if (!good)
-      memset(p->buf->b, 0, p->buf->size);
-  }
+  if (((c->t.pfid->open_mode & 3) != P9_OWRITE)
+      && ((c->t.pfid->open_mode & 3) != P9_ORDWR))
+    return;
+  if (!p->buf)
+    return;
+  trim_string_right(p->buf->b, " \n\r\t");
+  for (i = 0; uitypes[i].type && uitypes[i].init; ++i)
+    if (!strcmp(uitypes[i].type, p->buf->b))
+      if (uitypes[i].init((struct uiobj *)p->p.aux) == 0)
+        good = 1;
+  if (!good)
+    memset(p->buf->b, 0, p->buf->size);
 }
 
 struct p9_fs prop_type_fs = {
@@ -90,7 +91,7 @@ draw_uiobj(struct uiobj *u)
 void
 rm_uiobj(struct file *f)
 {
-  struct uiobj *u = (struct uiobj *)f->aux.p;
+  struct uiobj *u = (struct uiobj *)f;
   if (!u)
     return;
   free(u);

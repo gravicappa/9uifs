@@ -6,6 +6,7 @@
 #include "fs.h"
 #include "client.h"
 #include "event.h"
+#include "fstypes.h"
 
 static int buf_delta = 512;
 
@@ -111,8 +112,35 @@ event_flush(struct p9_connection *c)
   lsr->tag = P9_NOTAG;
 }
 
+static void
+rm_event(struct file *f)
+{
+  struct ev_pool *pool = (struct ev_pool *)f;
+  struct ev_listener *lsr, *lsr_next;
+
+  /* NOTE: we assume that event files cannot be deleted runtime so living fids
+     not taken care of */
+  for (lsr = pool->listeners; lsr; lsr = lsr_next) {
+    lsr_next = lsr->next;
+    if (lsr->buf)
+      free(lsr->buf);
+    free(lsr);
+  }
+  pool->listeners = 0;
+}
+
 struct p9_fs fs_event = {
   .open = event_open,
   .read = event_read,
   .flush = event_flush
 };
+
+void
+init_event(struct ev_pool *pool)
+{
+  pool->f.mode = 0400;
+  pool->f.qpath = new_qid(FS_EVENT);
+  pool->f.aux.p = pool;
+  pool->f.fs = &fs_event;
+  pool->f.rm = rm_event;
+}

@@ -99,6 +99,8 @@ add_client(int server_fd, int msize)
   if ((c->ui = mk_ui("ui", c)))
     add_file(&c->fs, c->ui);
 
+  if (clients)
+    clients->prev = c;
   c->next = clients;
   clients = c;
 
@@ -124,15 +126,17 @@ rm_client(struct client *c)
   if (c->buf)
     free(c->buf);
   free_fids(&c->fids);
+  rm_file(&c->fs);
   if (!clients) {
     free(c);
     return;
   }
-  for (p = clients; p != c && p->next; p = p->next) {}
-  if (p == clients)
-    clients = clients->next;
+  if (c->prev)
+    c->prev->next = c->next;
   else
-    p->next = c->next;
+    clients = c->next;
+  if (c->next)
+    c->next->prev = c->prev;
   free(c);
 }
 
@@ -239,8 +243,8 @@ client_pointer_click(int type, int x, int y, int btn)
 void
 draw_views(struct client *c)
 {
-  struct view *v;
+  struct file *vf;
 
-  for (v = c->views; v; v = v->next)
-    draw_view(v);
+  for (vf = c->fs_views.child; vf; vf = vf->next)
+    draw_view((struct view *)vf);
 }

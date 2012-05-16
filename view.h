@@ -8,7 +8,6 @@ enum viewflags {
 struct view {
   struct file fs;
 
-  struct view *next;
   struct client *c;
   struct rect g;
   char type[VIEW_TYPE_SIZE];

@@ -59,8 +59,6 @@ views_create(struct p9_connection *c)
     return;
   }
   v->fs.owns_name = 1;
-  v->next = cl->views;
-  cl->views = v;
   add_file(&cl->fs_views, &v->fs);
   wm_on_create_view(v);
   resp_file_create(c, &v->fs);
@@ -123,24 +121,15 @@ mk_view(int x, int y, int w, int h)
   v->fs.rm = rm_view;
 
   v->ev.f.name = "event";
-  v->ev.f.mode = 0400;
-  v->ev.f.qpath = new_qid(FS_EVENT);
-  v->ev.f.aux.p = &v->ev;
-  v->ev.f.fs = &fs_event;
+  init_event(&v->ev);
   add_file(&v->fs, &v->ev.f);
 
   v->ev_pointer.f.name = "pointer";
-  v->ev_pointer.f.mode = 0400;
-  v->ev_pointer.f.qpath = new_qid(0);
-  v->ev_pointer.f.aux.p = &v->ev_pointer;
-  v->ev_pointer.f.fs = &fs_event;
+  init_event(&v->ev_pointer);
   add_file(&v->fs, &v->ev_pointer.f);
 
   v->ev_keyboard.f.name = "keyboard";
-  v->ev_keyboard.f.mode = 0400;
-  v->ev_keyboard.f.qpath = new_qid(0);
-  v->ev_keyboard.f.aux.p = &v->ev_keyboard;
-  v->ev_keyboard.f.fs = &fs_event;
+  init_event(&v->ev_keyboard);
   add_file(&v->fs, &v->ev_keyboard.f);
 
   v->fs_visible.name = "visible";

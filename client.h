@@ -1,6 +1,7 @@
 struct client {
   struct p9_connection c;
   struct client *next;
+  struct client *prev;
 
   struct fid_pool fids;
 
@@ -23,7 +24,6 @@ struct client {
   struct file *ui;
 
   struct view *selected_view;
-  struct view *views;
 };
 
 extern struct client *clients;

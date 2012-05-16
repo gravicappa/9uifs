@@ -36,12 +36,12 @@ test_path: test_path.c util.o
 
 run:V: $name
 	ulimit -c unlimited
-	./$name -d u
+	./$name -d uc
 
 valgrind:V: $name
 	valgrind --read-var-info=yes --track-origins=yes \
 		--suppressions=xlib.supp \
-	  ./$name -d ug 2>&1 | tee uifs.log
+	  ./$name -d ugc 2>&1 | tee uifs.log
 
 %.html: %.md
 	sundown <$prereq >$target

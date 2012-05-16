@@ -11,7 +11,7 @@ struct ev_pool {
   struct ev_listener *listeners;
 };
 
-extern struct p9_fs fs_event;
 struct client;
 
 void put_event(struct client *c, struct ev_pool *pool, int len, char *ev);
+void init_event(struct ev_pool *pool);

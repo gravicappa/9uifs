@@ -17,6 +17,7 @@ aux_free(struct p9_fid *fid)
 {
   if (fid->aux)
     free(fid->aux);
+  fid->rm = 0;
 }
 
 void
@@ -76,6 +77,17 @@ prop_intdec_clunk(struct p9_connection *c)
 {
   if (prop_int_clunk(c, "%d"))
     P9_SET_STR(c->r.ename, "Wrong number format");
+}
+
+static void
+prop_buf_rm(struct file *f)
+{
+  struct prop_buf *p;
+  p = (struct prop_buf *)f->aux.p;
+  if (p && p->buf) {
+    free(p->buf);
+    p->buf = 0;
+  }
 }
 
 void
@@ -244,17 +256,6 @@ struct p9_fs rect_fs = {
 };
 
 static void
-buf_prop_rm(struct file *f)
-{
-  struct prop_buf *p;
-  p = (struct prop_buf *)f->aux.p;
-  if (p && p->buf) {
-    free(p->buf);
-    p->buf = 0;
-  }
-}
-
-static void
 init_prop_fs(struct prop *p, char *name, void *aux)
 {
   p->aux = aux;
@@ -289,7 +290,7 @@ init_prop_buf(struct file *root, struct prop_buf *p, char *name, int size,
   } else
     memset(p->buf->b, 0, p->buf->size);
   p->p.fs.fs = (fixed_size) ? &fixed_buf_fs : &buf_fs;
-  p->p.fs.rm = buf_prop_rm;
+  p->p.fs.rm = prop_buf_rm;
   add_file(root, &p->p.fs);
   return 0;
 }
