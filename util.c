@@ -72,6 +72,12 @@ arr_memcpy(struct arr **a, int delta, int off, int size, const void *data)
 }
 
 int
+arr_add(struct arr **a, int delta, int size, const void *data)
+{
+  return arr_memcpy(a, delta, (*a) ? (*a)->used : 0, size, data);
+}
+
+int
 arr_delete(struct arr **a, unsigned int off, unsigned int size)
 {
   unsigned int end;

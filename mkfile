@@ -11,7 +11,7 @@ LDFLAGS = $LDFLAGS -lImlib2
 
 obj = 9pmsg.o fs.o main.o util.o net.o client.o fsutil.o fs.o \
       9pdbg.o surface.c view.c event.o ctl.o wm.o screen.o ui.o \
-			uiobj.o uiobj_grid.o uiobj_container.o draw.o prop.o
+			uiobj_grid.o draw.o prop.o
 
 docs = docs/doc.html
 

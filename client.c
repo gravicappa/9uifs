@@ -25,9 +25,9 @@
 #include "ctl.h"
 #include "surface.h"
 #include "event.h"
-#include "view.h"
 #include "prop.h"
 #include "ui.h"
+#include "view.h"
 
 struct client *clients = 0;
 struct client *selected_client = 0;
@@ -96,9 +96,10 @@ add_client(int server_fd, int msize)
   DEFFILE(c->fs_comm, "comm", 0700 | P9_DMDIR, c);
   add_file(&c->fs, &c->fs_comm);
 
-  if ((c->ui = mk_ui("ui", c)))
+  if (ui_init_ui(c) == 0) {
+    c->ui->name = "ui";
     add_file(&c->fs, c->ui);
-
+  }
   if (clients)
     clients->prev = c;
   c->next = clients;
@@ -111,7 +112,6 @@ add_client(int server_fd, int msize)
 void
 rm_client(struct client *c)
 {
-  struct client *p;
   log_printf(LOG_CLIENT, "; rm_client %p\n", c);
 
   if (!c)
@@ -244,7 +244,22 @@ void
 draw_views(struct client *c)
 {
   struct file *vf;
+  struct view *v;
+  int changed;
 
-  for (vf = c->fs_views.child; vf; vf = vf->next)
-    draw_view((struct view *)vf);
+  for (vf = c->fs_views.child; vf; vf = vf->next) {
+    v = (struct view *)vf;
+    if ((v->flags & VIEW_IS_DIRTY) && (v->flags & VIEW_IS_VISIBLE)) {
+      update_view(v);
+      changed = 1;
+    }
+  }
+  if (changed)
+    ++c->frame;
+  for (vf = c->fs_views.child; vf; vf = vf->next) {
+    v = (struct view *)vf;
+    if (v->flags & VIEW_IS_VISIBLE)
+      draw_view((struct view *)vf);
+  }
+  ++c->frame;
 }

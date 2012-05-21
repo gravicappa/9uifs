@@ -32,8 +32,8 @@ void
 wm_on_rm_view(struct view *v)
 {
   struct client *c = v->c;
-  selected_view = ((v == c->fs_views.child) 
-                   ? (struct view *)v->fs.next 
-                   : (struct view *)c->fs_views.child);
-  moveresize_view(selected_view, 0, 0, screen.front->w, screen.front->h);
+  c->selected_view = ((v == (struct view *)c->fs_views.child)
+                      ? (struct view *)v->fs.next
+                      : (struct view *)c->fs_views.child);
+  moveresize_view(c->selected_view, 0, 0, screen.front->w, screen.front->h);
 }

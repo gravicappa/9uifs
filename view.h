@@ -22,7 +22,7 @@ struct view {
   struct file fs_geometry;
   struct file fs_gl;
   struct file fs_canvas;
-  struct file ui_place;
+  struct file *uiplace;
 };
 
 extern struct p9_fs fs_views;
@@ -30,3 +30,4 @@ extern struct p9_fs fs_views;
 struct view *mk_view(int x, int y, int w, int h);
 void moveresize_view(struct view *v, int x, int y, int w, int h);
 void draw_view(struct view *v);
+void update_view(struct view *v);

@@ -24,6 +24,7 @@ struct client {
   struct file *ui;
 
   struct view *selected_view;
+  int frame;
 };
 
 extern struct client *clients;

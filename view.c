@@ -111,7 +111,7 @@ mk_view(int x, int y, int w, int h)
   v->g.y = y;
   v->g.w = w;
   v->g.h = h;
-  if (init_surface(&v->blit, w, h)) {
+  if (init_surface(&v->blit, w, h) || ui_init_uiplace(v)) {
     free(v);
     return 0;
   }
@@ -159,11 +159,9 @@ mk_view(int x, int y, int w, int h)
   v->fs_canvas.qpath = new_qid(0);
   v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
-#if 0
-  v->ui = mk_ui(&v->fs, "ui");
-  if (v->ui)
-    v->ui->v = v;
-#endif
+
+  v->uiplace->name = "uiplace";
+  add_file(&v->fs, v->uiplace);
   return v;
 }
 
@@ -191,4 +189,11 @@ draw_view(struct view *v)
   imlib_context_set_blend(0);
   imlib_blend_image_onto_image(v->blit.img, 0, 0, 0, v->blit.w, v->blit.h,
                                v->g.x, v->g.y, v->g.w, v->g.h);
+}
+
+void
+update_view(struct view *v)
+{
+  ui_update(v);
+  v->flags &= ~VIEW_IS_DIRTY;
 }
