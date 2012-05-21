@@ -245,7 +245,7 @@ draw_views(struct client *c)
 {
   struct file *vf;
   struct view *v;
-  int changed;
+  int changed = 0;
 
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;

@@ -85,9 +85,11 @@ strcpyrev(char *to, char *from, int n)
 int
 file_path(struct arr **buf, struct file *f, struct file *root)
 {
-  int i, n, t, off = 0;
+  int i, n, t, start = 0, off = 0;
   struct arr *b;
 
+  if (*buf)
+    start = off = (*buf)->used;
   for (; f && f != root; f = f->parent) {
     n = strlen(f->name);
     if (arr_memcpy(buf, 16, off, n + 1, 0) < 0)
@@ -100,12 +102,12 @@ file_path(struct arr **buf, struct file *f, struct file *root)
     return 0;
   b = *buf;
   b->b[off - 1] = 0;
-  n = b->used - 1;
+  n = b->used - start - 1;
   i = (n >> 1) - 1;
   for (; i >= 0; --i) {
-    t = b->b[i];
-    b->b[i] = b->b[n - i - 1];
-    b->b[n - i - 1] = t;
+    t = b->b[start + i];
+    b->b[start + i] = b->b[start + n - i - 1];
+    b->b[start + n - i - 1] = t;
   }
   return 0;
 }

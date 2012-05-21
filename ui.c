@@ -317,9 +317,9 @@ rm_place(struct file *f)
 static struct uiobj *
 uiplace_container(struct uiplace *up)
 {
-  return (up->fs.parent && (FSTYPE(*up->fs.parent) == FS_UIPLACE_DIR)
-          && up->fs.parent->parent)
-      ? (struct uiobj *)up->fs.parent->parent : 0;
+  return ((up->fs.parent && (FSTYPE(*up->fs.parent) == FS_UIPLACE_DIR)
+           && up->fs.parent->parent)
+          ? (struct uiobj *)up->fs.parent->parent : 0);
 }
 
 static struct view *
@@ -352,7 +352,7 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
 {
   struct uiobj_parent *p, *p1;
 
-  log_printf(LOG_UI, "place_uiobj u: %p\n", u);
+  log_printf(LOG_UI, ">> place_uiobj u: %p\n", u);
   if (u) {
     p = (struct uiobj_parent *)malloc(sizeof(struct uiobj_parent));
     if (!p)
@@ -376,6 +376,7 @@ unplace_uiobj(struct uiplace *up)
 
   if (!up->obj)
     return;
+  log_printf(LOG_UI, ">> unplace_uiobj u: %p\n", up->obj);
   p = (struct uiobj_parent *)up->obj->fs_places.aux.p;
   for (; p && p->place != up; p = p->next) {}
   if (!p)
@@ -431,7 +432,7 @@ ui_propagate_dirty(struct uiplace *up)
         push_place(par->place);
     } else {
       v = uiplace_container_view(up);
-      log_printf(LOG_UI, "mark view %p as dirty\n", v);
+      log_printf(LOG_UI, "  mark view %p as dirty\n", v);
       if (v)
         v->flags |= VIEW_IS_DIRTY;
     }
@@ -511,7 +512,7 @@ create_place(struct p9_connection *c)
   struct uiobj *u;
   struct uiplace *up;
 
-  log_printf(LOG_UI, ";; create place\n");
+  log_printf(LOG_UI, ">> create_place\n");
 
   if (!c->t.pfid->file)
     return;
@@ -571,7 +572,7 @@ places_open(struct p9_connection *c)
   cl = (struct client *)u->fs.aux.p;
   par = (struct uiobj_parent *)u->fs_places.aux.p;
   for (; par; par = par->next) {
-    if (file_path(&buf, &u->fs, cl->ui))
+    if (file_path(&buf, &par->place->fs, cl->ui))
       die("Cannot allocate memory");
     if (buf && arr_memcpy(&buf, 16, buf->used, 1, "\n") < 0)
       die("Cannot allocate memory");
