@@ -36,7 +36,7 @@ test_path: test_path.c util.o
 
 run:V: $name
 	ulimit -c unlimited
-	./$name -d uc
+	./$name -d uc 2>&1 | tee uifs.log
 
 valgrind:V: $name
 	valgrind --read-var-info=yes --track-origins=yes \

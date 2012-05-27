@@ -13,8 +13,8 @@
 #include "ctl.h"
 #include "surface.h"
 #include "draw.h"
-#include "view.h"
 #include "prop.h"
+#include "view.h"
 #include "uiobj.h"
 #include "ui.h"
 #include "client.h"
@@ -43,6 +43,7 @@ static void items_create(struct p9_connection *c);
 static void create_place(struct p9_connection *c);
 
 static struct arr *stack = 0;
+static int prevframecnt = -1;
 
 struct p9_fs items_fs = {
   .create = items_create,
@@ -160,7 +161,7 @@ draw_uiobj(struct uiobj *u, struct view *v)
 
   c = u->bg.i;
   if (c && 0xff000000)
-    fill_rect(v->blit.img, u->g.x, u->g.y, u->g.w, u->g.h, c);
+    fill_rect(v->blit.img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], c);
 }
 
 void
@@ -191,7 +192,9 @@ mk_uiobj()
   r = init_prop_buf(&u->fs, &u->type, "type", 0, "", 0, u)
       | init_prop_colour(&u->fs, &u->bg, "background", 0, u)
       | init_prop_int(&u->fs, &u->visible, "visible", 0, u)
-      | init_prop_rect(&u->fs, &u->restraint, "restraint", u);
+      | init_prop_int(&u->fs, &u->drawable, "drawable", 1, u)
+      | init_prop_rect(&u->fs, &u->restraint, "restraint", u)
+      | init_prop_rect(&u->fs, &u->g, "g", u);
 
   if (r) {
     rm_file(&u->fs);
@@ -199,10 +202,8 @@ mk_uiobj()
     u = 0;
   }
 
-  for (r = 0; r < 4; ++r)
-    u->restraint.r[r] = 0;
-
   u->type.p.fs.fs = &prop_type_fs;
+  u->g.p.fs.mode = 0400;
 
   u->fs_evfilter.name = "evfilter";
   u->fs_evfilter.mode = 0600;
@@ -210,13 +211,6 @@ mk_uiobj()
   u->fs_evfilter.aux.p = u;
   /*u->fs_evfilter.fs = &evfilter_fs;*/
   add_file(&u->fs, &u->fs_evfilter);
-
-  u->fs_g.name = "g";
-  u->fs_g.mode = 0400;
-  u->fs_g.qpath = new_qid(0);
-  u->fs_g.aux.p = u;
-  /*u->fs_g.fs = &geom_fs;*/
-  add_file(&u->fs, &u->fs_g);
 
   u->fs_places.name = "places";
   u->fs_places.mode = 0400;
@@ -231,6 +225,8 @@ mk_uiobj()
 static void
 update_obj_size(struct uiobj *u)
 {
+  if (!u)
+    return;
   if (u->update_size)
     u->update_size(u);
   u->req_w = u->restraint.r[0];
@@ -245,55 +241,98 @@ up_children(struct uiplace *up)
   return ((struct uiobj_container *)up->obj->data)->fs_items.child;
 }
 
-void
-ui_update_size(struct view *v, struct uiplace *up)
+static void
+walk_dummy_fn(struct uiplace *up, struct view *v, void *aux)
+{
+}
+
+static void
+walk_view_tree(struct uiplace *up, struct view *v, void *aux,
+               void (*before_fn)(struct uiplace *, struct view *, void *),
+               void (*after_fn)(struct uiplace *, struct view *, void *))
 {
   struct file *f;
   struct uiplace *x, *t, *y;
-  int frame;
 
-  log_printf(LOG_UI, ">> ui_update_size\n");
+  log_printf(LOG_UI, ">> walk_view_tree\n");
 
-  if (!(up->obj && (up->obj->flags & UI_IS_CONTAINER)))
+  if (!up->obj)
     return;
-  frame = UIOBJ_CLIENT(up->obj)->frame;
-  up->parent = 0;
+
+  before_fn = (before_fn) ? before_fn : walk_dummy_fn;
+  after_fn = (after_fn) ? after_fn : walk_dummy_fn;
+
   x = up;
+  x->parent = 0;
+  log_printf(LOG_UI, "  0 x = up: %p '%s'\n", x, x->fs.name);
   do {
+    before_fn(x, v, aux);
+    log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->fs.name, up);
     f = up_children(x);
     if (f) {
       y = (struct uiplace *)f;
-      if (y->obj && y->obj->frame == frame)
-        f = 0;
+      if (y->obj) { 
+        if (y->obj->frame == framecnt)
+          f = 0;
+        else
+          y->obj->frame = framecnt;
+      }
     }
     t = x;
+    log_printf(LOG_UI, "  2 f: %p\n", f);
     if (f) {
       x = (struct uiplace *)f;
       x->parent = t;
-    } else if (x->fs.next) {
-      update_obj_size(x->obj);
+    } else if (x->fs.next && x != up) {
+      log_printf(LOG_UI, "  !! x: %p '%s'\n", x, x->fs.name);
+      after_fn(x, v, aux);
       x = (struct uiplace *)x->fs.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->fs.next) {
-        update_obj_size(x->obj);
+        log_printf(LOG_UI, "  !! x: %p '%s'\n", x, x->fs.name);
+        after_fn(x, v, aux);
         x = x->parent;
       }
-      update_obj_size(x->obj);
-      if (x->parent && x->parent != up)
-        update_obj_size(x->parent->obj);
+      log_printf(LOG_UI, "  !! x: %p '%s'\n", x, x->fs.name);
+      after_fn(x, v, aux);
+      if (x->parent) {
+        log_printf(LOG_UI, "  !! x: %p '%s'\n", x, x->fs.name);
+        after_fn(x->parent, v, aux);
+      }
       if (x != up && x->parent && x->parent->fs.next
-          && x->parent->fs.next != &up->obj->fs)
+          && x->parent->fs.next != &up->fs)
         x = (struct uiplace *)x->parent->fs.next;
+      else
+        break;
     }
   } while (x && x != up);
 }
 
-/* update items sizes */
-void
-update_uiobj(struct uiobj *u)
+static void
+update_place_size(struct uiplace *up, struct view *v, void *aux)
 {
-  /*ui_update_size();*/
+  if (up && up->obj)
+    update_obj_size(up->obj);
+}
+
+static void
+resize_place(struct uiplace *up, struct view *v, void *aux)
+{
+  if (up && up->obj && up->obj->resize)
+    up->obj->resize(up->obj);
+}
+
+static void
+draw_obj(struct uiplace *up, struct view *v, void *aux)
+{
+  if (!up->obj)
+    return;
+}
+
+void
+ui_update_size(struct view *v, struct uiplace *up)
+{
 }
 
 void
@@ -394,8 +433,16 @@ unplace_uiobj(struct uiplace *up)
 static void
 push_place(struct uiplace *up)
 {
-  int msize = sizeof(struct uiplace *);
-  if (arr_add(&stack, 16 * msize, msize, up) < 0)
+  int n, esize = sizeof(struct uiplace *);
+  struct uiplace **buf;
+  if (0 && stack) {
+    buf = (struct uiplace **)stack->b;
+    n = stack->used / esize;
+    for (;n; --n, ++buf)
+      if (*buf == up)
+        return;
+  }
+  if (arr_add(&stack, 16 * esize, esize, &up) < 0)
     die("Cannot allocate memory");
 }
 
@@ -408,33 +455,54 @@ pop_place()
   return *((struct uiplace **)(stack->b + stack->used));
 }
 
+static void
+show_stack()
+{
+  struct uiplace **ppu;
+  int i, n;
+  char *sep = "";
+
+  log_printf(LOG_UI, "stack: [");
+  if (stack && stack->used >= sizeof(struct uiplace *)) {
+    ppu = (struct uiplace **)stack->b;
+    n = stack->used / sizeof(struct uiplace *);
+    for (i = 0; i < n; ++i, sep = " ", ++ppu) 
+      log_printf(LOG_UI, "%s%p", sep, *ppu);
+  }
+  log_printf(LOG_UI, "]\n");
+}
+
 void
 ui_propagate_dirty(struct uiplace *up)
 {
   struct view *v;
   struct uiobj *u;
   struct uiobj_parent *par;
+  int i = 0;
 
   log_printf(LOG_UI, ">> ui_propagate_dirty %p\n", up);
 
   if (stack)
     stack->used = 0;
+  ++framecnt;
   push_place(up);
   while (stack && stack->used) {
-    log_printf(LOG_UI, "  stack %d\n", stack->used / sizeof(struct uiplace *));
+    if (++i > 20) die("infinite loop");
+    show_stack();
     up = pop_place();
     if (!up)
       break;
     u = uiplace_container(up);
-    if (u) {
-      par = (struct uiobj_parent *)u->fs_places.aux.p;
-      for (; par; par = par->next)
-        push_place(par->place);
-    } else {
+    if (!u) {
       v = uiplace_container_view(up);
       log_printf(LOG_UI, "  mark view %p as dirty\n", v);
       if (v)
         v->flags |= VIEW_IS_DIRTY;
+    } else if (u->frame != framecnt) {
+      u->frame = framecnt;
+      par = (struct uiobj_parent *)u->fs_places.aux.p;
+      for (; par; par = par->next)
+        push_place(par->place);
     }
   }
 }
@@ -537,8 +605,6 @@ create_place(struct p9_connection *c)
   add_file(&((struct uiobj_container *)u->data)->fs_items, &up->fs);
 
   log_printf(LOG_UI, ";; done creating place '%s'\n", up->fs.name);
-
-  update_uiobj(u);
 }
 
 void
@@ -594,6 +660,71 @@ struct p9_fs places_fs = {
   .read = places_read
 };
 
+static void
+refresh_frames(struct file *root)
+{
+  struct file *x;
+  struct uiobj *u;
+
+  x = root;
+  do {
+    if (x && FSTYPE(*x) == FS_UIOBJ) {
+      u = (struct uiobj *)x;
+      u->frame = framecnt - 1;
+    }
+    if (FSTYPE(*x) == FS_UIDIR && x->child)
+      x = x->child;
+    else if (x->next && x != root)
+      x = x->next;
+    else {
+      while (x != root && x->parent && x->parent != root && !x->parent->next)
+        x = x->parent;
+      if (x != root && x->parent != root && x->parent->next)
+        x = x->parent->next;
+      else
+        break;
+    }
+  } while (x && x != root);
+}
+
+#define PUT(coord, req, v, w) \
+  if (u->req >= rect[coord + 2]) { \
+    u->g.r[coord] = rect[coord]; \
+    u->g.r[coord + 2] = rect[coord + 2]; \
+  } else { \
+    u->g.r[coord] = (rect[coord + 2]  - u->req) >> 1; \
+    u->g.r[coord + 2] = u->req; \
+    a = (buf && strnchr(buf->b, buf->used, v)); \
+    b = (buf && strnchr(buf->b, buf->used, w)); \
+    if (a && !b) \
+      u->g.r[coord] = rect[coord]; \
+    if (b && !a) \
+      u->g.r[coord] = rect[coord + 2] - u->g.r[coord + 2]; \
+    if (a && b) { \
+      u->g.r[coord] = rect[coord]; \
+      u->g.r[coord + 2] = rect[coord + 2]; \
+    } \
+  }
+
+void
+ui_place_with_padding(struct uiplace *up, int rect[4])
+{
+  struct arr *buf;
+  struct uiobj *u = up->obj;
+  int a, b;
+
+  if (!u)
+    return;
+  rect[0] += up->padding.r[0];
+  rect[1] += up->padding.r[1];
+  rect[2] -= up->padding.r[0] + up->padding.r[2];
+  rect[3] -= up->padding.r[1] + up->padding.r[3];
+  buf = up->sticky.buf;
+  PUT(0, req_w, 'l', 'r');
+  PUT(1, req_h, 't', 'b');
+}
+#undef PUT
+
 int
 ui_init_ui(struct client *c)
 {
@@ -643,7 +774,29 @@ ui_pointer_click(struct view *v, int x, int y, int btn)
 }
 
 void
-ui_update(struct view *v)
+ui_update_view(struct view *v)
 {
-  ui_update_size(v, (struct uiplace *)v->uiplace);
+  walk_view_tree((struct uiplace *)v->uiplace, v, 0, 0, update_place_size);
+}
+
+void
+ui_resize_view(struct view *v)
+{
+  struct uiplace *up = (struct uiplace *)v->uiplace;
+  if (!(up && up->obj))
+    return;
+  memcpy(up->obj->g.r, v->g.r, 4 * sizeof(int));
+  walk_view_tree(up, v, 0, resize_place, 0);
+}
+
+void
+ui_update()
+{
+  static const int highestbit = (1 << 31);
+  struct client *c;
+
+  if ((framecnt ^ prevframecnt) & highestbit)
+    for (c = clients; c; c = c->next)
+      refresh_frames(c->ui);
+  prevframecnt = framecnt;
 }

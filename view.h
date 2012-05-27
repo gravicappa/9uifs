@@ -9,19 +9,18 @@ struct view {
   struct file fs;
 
   struct client *c;
-  struct rect g;
   char type[VIEW_TYPE_SIZE];
   int flags;
   struct surface blit;
+  struct prop_rect g;
 
   struct ev_pool ev;
   struct ev_pool ev_pointer;
   struct ev_pool ev_keyboard;
 
-  struct file fs_visible;
-  struct file fs_geometry;
   struct file fs_gl;
   struct file fs_canvas;
+  struct file fs_visible;
   struct file *uiplace;
 };
 

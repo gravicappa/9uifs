@@ -76,8 +76,7 @@ main_loop(int server_fd)
         break;
       }
     }
-    for (c = clients; c; c = c->next)
-      draw_views(c);
+    draw_clients();
     refresh_screen();
     m = update_sock_set(&fdset, server_fd);
     tv.tv_sec = 0;

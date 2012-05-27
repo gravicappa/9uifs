@@ -24,11 +24,11 @@ struct client {
   struct file *ui;
 
   struct view *selected_view;
-  int frame;
 };
 
 extern struct client *clients;
 extern struct view *selected_view;
+extern int framecnt;
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
@@ -38,5 +38,4 @@ int client_send_resp(struct client *c);
 void client_keyboard(int type, int keysym, int mod, unsigned int unicode);
 void client_pointer_move(int x, int y, int state);
 void client_pointer_click(int type, int x, int y, int btn);
-
-void draw_views(struct client *c);
+void draw_clients();

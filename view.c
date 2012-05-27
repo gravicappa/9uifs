@@ -14,9 +14,9 @@
 #include "surface.h"
 #include "client.h"
 #include "event.h"
+#include "prop.h"
 #include "view.h"
 #include "screen.h"
-#include "prop.h"
 #include "ui.h"
 #include "wm.h"
 
@@ -37,6 +37,7 @@ views_create(struct p9_connection *c)
   struct client *cl = (struct client *)c;
   struct view *v;
   struct rect r;
+  int res;
 
   log_printf(LOG_DBG, "; views_create '%.*s' %p\n", c->t.name_len, c->t.name,
              cl);
@@ -58,6 +59,14 @@ views_create(struct p9_connection *c)
     rm_view(&v->fs);
     return;
   }
+  res = init_prop_rect(&v->fs, &v->g, "g", v);
+  if (res) {
+    P9_SET_STR(c->r.ename, "cannot create view");
+    rm_view(&v->fs);
+    return;
+  }
+
+  v->g.p.fs.mode = 0400;
   v->fs.owns_name = 1;
   add_file(&cl->fs_views, &v->fs);
   wm_on_create_view(v);
@@ -107,10 +116,10 @@ mk_view(int x, int y, int w, int h)
   if (!v)
     die("Cannot allocate memory");
   memset(v, 0, sizeof(*v));
-  v->g.x = x;
-  v->g.y = y;
-  v->g.w = w;
-  v->g.h = h;
+  v->g.r[0] = x;
+  v->g.r[1] = y;
+  v->g.r[2] = w;
+  v->g.r[3] = h;
   if (init_surface(&v->blit, w, h) || ui_init_uiplace(v)) {
     free(v);
     return 0;
@@ -139,12 +148,6 @@ mk_view(int x, int y, int w, int h)
   v->fs_visible.fs = &fs_view_visible;
   add_file(&v->fs, &v->fs_visible);
 
-  v->fs_geometry.name = "geometry";
-  v->fs_geometry.mode = 0600;
-  v->fs_geometry.qpath = new_qid(0);
-  v->fs_geometry.aux.p = v;
-  add_file(&v->fs, &v->fs_geometry);
-
   v->blit.fs.name = "blit";
   add_file(&v->fs, &v->blit.fs);
 
@@ -171,11 +174,12 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   char buf[64];
   int len;
 
-  v->g.x = x;
-  v->g.y = y;
-  v->g.w = w;
-  v->g.h = h;
+  v->g.r[0] = x;
+  v->g.r[1] = y;
+  v->g.r[2] = w;
+  v->g.r[3] = h;
   resize_surface(&v->blit, w, h);
+  v->flags |= VIEW_IS_DIRTY;
 
   len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
   put_event(v->c, &v->ev, len, buf);
@@ -188,12 +192,13 @@ draw_view(struct view *v)
   imlib_context_set_anti_alias(1);
   imlib_context_set_blend(0);
   imlib_blend_image_onto_image(v->blit.img, 0, 0, 0, v->blit.w, v->blit.h,
-                               v->g.x, v->g.y, v->g.w, v->g.h);
+                               v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3]);
 }
 
 void
 update_view(struct view *v)
 {
+  log_printf(LOG_UI, ">> update_view '%s'\n", v->fs.name);
   ui_update(v);
   v->flags &= ~VIEW_IS_DIRTY;
 }

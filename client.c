@@ -32,6 +32,8 @@
 struct client *clients = 0;
 struct client *selected_client = 0;
 struct view *selected_view = 0;
+int framecnt = 0;
+int prevframecnt = -1;
 
 struct client *
 add_client(int server_fd, int msize)
@@ -240,8 +242,8 @@ client_pointer_click(int type, int x, int y, int btn)
   put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
 }
 
-void
-draw_views(struct client *c)
+static int
+update_views(struct client *c)
 {
   struct file *vf;
   struct view *v;
@@ -254,12 +256,33 @@ draw_views(struct client *c)
       changed = 1;
     }
   }
-  if (changed)
-    ++c->frame;
+  return changed;
+}
+
+static void
+draw_views(struct client *c)
+{
+  struct file *vf;
+  struct view *v;
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
     if (v->flags & VIEW_IS_VISIBLE)
       draw_view((struct view *)vf);
   }
-  ++c->frame;
+}
+
+void
+draw_clients()
+{
+  struct client *c;
+  int changed = 0;
+
+  for (c = clients; c; c = c->next)
+    changed |= update_views(c);
+  if (changed)
+    ++framecnt;
+  for (c = clients; c; c = c->next)
+    draw_views(c);
+  ++framecnt;
+  ui_update();
 }

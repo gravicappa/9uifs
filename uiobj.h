@@ -25,9 +25,9 @@ struct uiobj {
   struct prop_int visible;
   struct prop_int drawable;
   struct prop_rect restraint;
+  struct prop_rect g;
 
   struct file fs_evfilter;
-  struct file fs_g;
 
   /* files with aux -> uiplace and value with place's parent's path */
   struct file fs_places;
@@ -38,7 +38,6 @@ struct uiobj {
 
   int flags;
   int frame;
-  struct rect g;
   int req_w;
   int req_h;
   void *data;
@@ -85,3 +84,4 @@ void ui_redraw_uiobj(struct uiobj *u);
 #define UIOBJ_CLIENT(u) ((struct client *)(u)->fs.aux.p)
 
 void ui_update_size(struct view *v, struct uiplace *up);
+void ui_place_with_padding(struct uiplace *up, int rect[4]);

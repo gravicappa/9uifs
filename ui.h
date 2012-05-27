@@ -7,4 +7,6 @@ void ui_keyboard(struct view *v, int type, int keysym, int mod,
 void ui_pointer_move(struct view *v, int x, int y, int state);
 void ui_pointer_click(struct view *v, int x, int y, int btn);
 
-void ui_update(struct view *v);
+void ui_update_view(struct view *v);
+void ui_resize_view(struct view *v);
+void ui_update();

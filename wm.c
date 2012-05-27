@@ -9,6 +9,7 @@
 #include "event.h"
 #include "ctl.h"
 #include "surface.h"
+#include "prop.h"
 #include "view.h"
 #include "screen.h"
 
