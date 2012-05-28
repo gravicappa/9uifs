@@ -740,11 +740,12 @@ int
 ui_init_uiplace(struct view *v)
 {
   struct uiplace *up;
+
   up = (struct uiplace *)malloc(sizeof(struct uiplace));
   memset(up, 0, sizeof(*up));
   if (!up || init_place(up))
     return -1;
-  v->uiplace = &up->fs;
+  v->uiplace = up;
   return 0;
 }
 

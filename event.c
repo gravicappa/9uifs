@@ -15,7 +15,9 @@ put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
 {
   struct ev_listener *lsr;
 
+  log_printf(LOG_DBG, ">> put_event pool: %p\n", pool);
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
+    log_printf(LOG_DBG, "  lsr: %p\n", lsr);
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
     if (lsr->tag != P9_NOTAG) {
@@ -40,6 +42,8 @@ event_rm_fid(struct p9_fid *fid)
   struct file *f = (struct file *)fid->file;
   struct ev_pool *pool = (struct ev_pool *)f->aux.p;
   struct ev_listener *lsr = (struct ev_listener *)fid->aux, *p;
+
+  log_printf(LOG_DBG, "event_rm_fid lsr: %p\n", lsr);
 
   if (lsr == pool->listeners)
     pool->listeners = pool->listeners->next;
@@ -74,6 +78,7 @@ event_open(struct p9_connection *c)
   lsr->tag = P9_NOTAG;
   fid->aux = lsr;
   fid->rm = event_rm_fid;
+  log_printf(LOG_DBG, "event_open lsr: %p\n", lsr);
 }
 
 void
@@ -118,8 +123,8 @@ rm_event(struct file *f)
   struct ev_pool *pool = (struct ev_pool *)f;
   struct ev_listener *lsr, *lsr_next;
 
-  /* NOTE: we assume that event files cannot be deleted runtime so living fids
-     not taken care of */
+  /* NOTE: we assume that event files cannot be deleted in runtime so living
+     fids not taken care of */
   for (lsr = pool->listeners; lsr; lsr = lsr_next) {
     lsr_next = lsr->next;
     if (lsr->buf)
@@ -129,7 +134,7 @@ rm_event(struct file *f)
   pool->listeners = 0;
 }
 
-struct p9_fs fs_event = {
+static struct p9_fs fs_event = {
   .open = event_open,
   .read = event_read,
   .flush = event_flush
@@ -143,4 +148,5 @@ init_event(struct ev_pool *pool)
   pool->f.aux.p = pool;
   pool->f.fs = &fs_event;
   pool->f.rm = rm_event;
+  pool->listeners = 0;
 }
