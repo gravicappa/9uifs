@@ -8,5 +8,5 @@ void ui_pointer_move(struct view *v, int x, int y, int state);
 void ui_pointer_click(struct view *v, int x, int y, int btn);
 
 void ui_update_view(struct view *v);
-void ui_resize_view(struct view *v);
+void ui_redraw_view(struct view *v);
 void ui_update();

@@ -537,7 +537,7 @@ fs_clunk(struct p9_connection *c)
   if (get_req_fid(c) && !c->t.pfid)
     return;
   f = (struct file *)c->t.pfid->file;
-  log_printf(LOG_DBG, "; fs_clunk '%s'\n", f ? f->name : "(nil)");
+  if (0) log_printf(LOG_DBG, "; fs_clunk '%s'\n", f ? f->name : "(nil)");
   if (f && f->fs && f->fs->clunk)
     f->fs->clunk(c);
   rm_fid(c->t.pfid, &cl->fids);

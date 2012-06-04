@@ -86,7 +86,7 @@ view_visible_write(struct p9_connection *c)
 {
   struct view *v = get_view(c);
   if (write_bool_fn(c, v->flags & VIEW_IS_VISIBLE))
-    v->flags |= VIEW_IS_VISIBLE;
+    v->flags |= (VIEW_IS_VISIBLE | VIEW_IS_DIRTY);
   else
     v->flags &= ~VIEW_IS_VISIBLE;
 }
@@ -174,6 +174,8 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   char buf[64];
   int len;
 
+  if (!v)
+    return;
   v->g.r[0] = x;
   v->g.r[1] = y;
   v->g.r[2] = w;
@@ -193,12 +195,5 @@ draw_view(struct view *v)
   imlib_context_set_blend(0);
   imlib_blend_image_onto_image(v->blit.img, 0, 0, 0, v->blit.w, v->blit.h,
                                v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3]);
-}
-
-void
-update_view(struct view *v)
-{
-  log_printf(LOG_UI, ">> update_view '%s'\n", v->fs.name);
-  ui_update(v);
-  v->flags &= ~VIEW_IS_DIRTY;
+  ui_redraw_view(v);
 }

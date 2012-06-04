@@ -30,6 +30,15 @@ wm_on_create_view(struct view *v)
 }
 
 void
+wm_view_size_request(struct view *v)
+{
+  v->g.r[0] = 0;
+  v->g.r[1] = 0;
+  v->g.r[2] = screen.front->w;
+  v->g.r[3] = screen.front->h;
+}
+
+void
 wm_on_rm_view(struct view *v)
 {
   struct client *c = v->c;

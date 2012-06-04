@@ -252,7 +252,7 @@ update_views(struct client *c)
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
     if ((v->flags & VIEW_IS_DIRTY) && (v->flags & VIEW_IS_VISIBLE)) {
-      update_view(v);
+      ui_update_view(v);
       changed = 1;
     }
   }
@@ -277,6 +277,7 @@ draw_clients()
   struct client *c;
   int changed = 0;
 
+  ++framecnt;
   for (c = clients; c; c = c->next)
     changed |= update_views(c);
   if (changed)

@@ -7,6 +7,7 @@
 #include "fs.h"
 #include "prop.h"
 #include "uiobj.h"
+#include "client.h"
 
 struct uiobj_grid {
   struct uiobj_container c;
@@ -15,6 +16,8 @@ struct uiobj_grid {
   struct uiplace **grid;
   int *rows_sizes;
   int *cols_sizes;
+  int *rows_flags;
+  int *cols_flags;
 };
 
 static void
@@ -26,16 +29,16 @@ update_grid_grid(struct uiobj_grid *g)
 
   for (nr = nc = -1, f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
-    if (up->obj) {
+    if (up->obj && up->obj->frame != framecnt) {
       if (up->place.r[0] < 0)
-        up->place.r[0] = nc + 1;
+        up->place.r[0] = (nc < 0) ? ++nc : nc;
       if (up->place.r[2] < 1)
         up->place.r[2] = 1;
       x = up->place.r[0] + up->place.r[2] - 1;
       nc = (nc > x) ? nc : x;
 
       if (up->place.r[1] < 0)
-        up->place.r[1] = nr + 1;
+        up->place.r[1] = (nr < 0) ? ++nr : nr + 1;
       if (up->place.r[3] < 1)
         up->place.r[3] = 1;
       x = up->place.r[1] + up->place.r[3] - 1;
@@ -69,8 +72,11 @@ update_grid_grid(struct uiobj_grid *g)
   memset(g->grid, 0, x);
   for (f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
-    if (up->obj)
+    if (up->obj && up->obj->frame != framecnt) {
+      log_printf(LOG_UI, "grid[%d %d] <- %p\n", up->place.r[0],
+                 up->place.r[1], up);
       g->grid[up->place.r[0] + up->place.r[1] * nc] = up;
+    }
   }
 }
 
@@ -79,9 +85,12 @@ update_grid_grid(struct uiobj_grid *g)
     s = 0; \
     for (i = 0; i < ni; ++i) { \
       up = g->grid[ref]; \
-      t = up->obj->req + up->padding.r[coord] + up->padding.r[coord + 2]; \
-      if (up && up->obj && up->place.r[coord + 2] == 1 && t > s) \
-        s = t; \
+      log_printf(LOG_UI, "grid %p [%d/%d %d/%d]: %p\n", g, i, ni, j, nj, up); \
+      if (up && up->obj) { \
+        t = up->obj->req + up->padding.r[coord] + up->padding.r[coord + 2]; \
+        if (up->place.r[coord + 2] == 1 && t > s) \
+          s = t; \
+      } \
     } \
     sizes[j] = s; \
     pos += s; \
@@ -91,7 +100,7 @@ update_grid_grid(struct uiobj_grid *g)
   for (f = g->c.fs_items.child; f; f = f->next) { \
     up = (struct uiplace *)f; \
     ni = up->place.r[coord + 2]; \
-    if (up->obj && ni > 1) { \
+    if (up->obj && up->obj->frame != framecnt && ni > 1) { \
       s = 0; \
       j = up->place.r[coord]; \
       t = up->obj->req + up->padding.r[coord] + up->padding.r[coord + 2]; \
@@ -117,14 +126,18 @@ update_grid_size(struct uiobj *u)
   struct file *f;
 
   log_printf(LOG_UI, ">> update_grid_size '%s'\n", u->fs.name);
+  if (!g)
+    return;
   update_grid_grid(g);
   ni = g->ncols;
   nj = g->nrows;
+  if (!(ni && nj))
+    return;
   pos = 0;
   sizes = g->rows_sizes;
+  log_printf(LOG_UI, "> ugs grid size: [%d %d]\n", g->ncols, g->nrows);
   ITER_CELLS(j, nj, i, ni, i + j * ni, req_h, 0);
   FIX_SPANNED(nj, req_h, 0);
-  log_printf(LOG_UI, "> ugs grid size: [%d %d]\n", g->ncols, g->nrows);
   log_printf(LOG_UI, "> ugs sizes: %p g->cols_sizes: %p\n", sizes,
              g->cols_sizes);
   for (s = 0, i = 0; i < ni; ++i) {
@@ -150,43 +163,47 @@ resize_grid(struct uiobj *u)
   struct uiobj_grid *g = (struct uiobj_grid *)u->data;
   struct uiplace *up;
 
-  if (!g)
+  if (!(g && g->nrows && g->ncols))
     return;
-  x = u->g.r[0];
   w = u->g.r[2];
   h = u->g.r[3];
   nj = g->nrows;
   ni = g->ncols;
-  dh = u->req_h - h;
+
+  log_printf(LOG_UI, ">> resize_grid '%s'\n", u->fs.name);
 
   pcolw = g->cols_sizes;
   dw = w / g->ncols;
   rem = w % g->ncols;
-  for (i = 0; i < ni; ++i, ++pcolw, --rem)
-    *pcolw = dw + (rem > 0) ? 1 : 0;
+  for (i = 0; i < ni; ++i, ++pcolw, --rem) {
+    *pcolw = dw + ((rem > 0) ? 1 : 0);
+    log_printf(LOG_UI, "  - colw[%d/%d]: %d\n", i, ni, *pcolw);
+  }
 
   dh = h / g->nrows;
   rem = h % g->nrows;
   prowh = g->rows_sizes;
   for (y = u->g.r[1], j = 0; j < nj; ++j, ++prowh, --rem) {
-    *prowh = dh + (rem > 0) ? 1 : 0;
+    *prowh = dh + ((rem > 0) ? 1 : 0);
+    log_printf(LOG_UI, "  - rowh[%d/%d]: %d\n", j, nj, *prowh);
     pcolw = g->cols_sizes;
     for (x = u->g.r[0], i = 0; i < ni; ++i, ++pcolw) {
       up = g->grid[i + j * ni];
-      if (up->obj) {
+      if (up && up->obj) {
         r[0] = x;
         r[1] = y;
         w = *pcolw;
         h = *prowh;
         na = up->place.r[2];
-        for (a = 1; a < na; ++a) 
+        for (a = 1; a < na; ++a)
           w += pcolw[a];
         na = up->place.r[3];
-        for (a = 1; a < na; ++a) 
+        for (a = 1; a < na; ++a)
           h += prowh[a];
         r[2] = w;
         r[3] = h;
-        ui_place_with_padding(up, r);
+        if (up->obj->frame != framecnt)
+          ui_place_with_padding(up, r);
       }
       x += *pcolw;
     }
