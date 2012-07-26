@@ -230,8 +230,8 @@ update_obj_size(struct uiobj *u)
     return;
   if (u->update_size)
     u->update_size(u);
-  u->req_w = u->restraint.r[0];
-  u->req_h = u->restraint.r[1];
+  u->reqsize[0] = u->restraint.r[0];
+  u->reqsize[1] = u->restraint.r[1];
 }
 
 static struct file *
@@ -253,7 +253,7 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
                void (*after_fn)(struct uiplace *, struct view *, void *))
 {
   struct file *f;
-  struct uiplace *x, *t, *y;
+  struct uiplace *x, *t;
 
   log_printf(LOG_UI, ">> walk_view_tree\n");
 
@@ -688,13 +688,13 @@ refresh_frames(struct file *root)
   } while (x && x != root);
 }
 
-#define PUT(coord, req, v, w) \
-  if (u->req >= rect[coord + 2]) { \
+#define PUT(coord, v, w) \
+  if (u->reqsize[coord] >= rect[coord + 2]) { \
     u->g.r[coord] = rect[coord]; \
     u->g.r[coord + 2] = rect[coord + 2]; \
   } else { \
-    u->g.r[coord] = (rect[coord + 2]  - u->req) >> 1; \
-    u->g.r[coord + 2] = u->req; \
+    u->g.r[coord] = (rect[coord + 2]  - u->reqsize[coord]) >> 1; \
+    u->g.r[coord + 2] = u->reqsize[coord]; \
     a = (buf && strnchr(buf->b, buf->used, v)); \
     b = (buf && strnchr(buf->b, buf->used, w)); \
     if (a && !b) \
@@ -724,8 +724,8 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
   rect[2] -= up->padding.r[0] + up->padding.r[2];
   rect[3] -= up->padding.r[1] + up->padding.r[3];
   buf = up->sticky.buf;
-  PUT(0, req_w, 'l', 'r');
-  PUT(1, req_h, 't', 'b');
+  PUT(0, 'l', 'r');
+  PUT(1, 't', 'b');
   log_printf(LOG_UI, "  uiobj rect: [%d %d %d %d]\n",
              u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3]);
 }

@@ -39,8 +39,7 @@ struct uiobj {
   int flags;
   int frame;
   int frame1;
-  int req_w;
-  int req_h;
+  int reqsize[2];
   void *data;
 };
 
