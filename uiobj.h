@@ -85,3 +85,5 @@ void ui_redraw_uiobj(struct uiobj *u);
 
 void ui_update_size(struct view *v, struct uiplace *up);
 void ui_place_with_padding(struct uiplace *up, int rect[4]);
+
+void ui_propagate_dirty(struct uiplace *up);

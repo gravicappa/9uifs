@@ -1,18 +1,26 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "util.h"
 #include "geom.h"
 #include "9p.h"
 #include "fs.h"
+#include "fsutil.h"
 #include "prop.h"
 #include "uiobj.h"
 #include "client.h"
 
+struct gridopt {
+  struct file fs;
+  struct uiobj_grid *grid;
+  int coord;
+};
+
 struct uiobj_grid {
   struct uiobj_container c;
-  struct file fs_col_conf;
-  struct file fs_row_conf;
+  struct gridopt fs_cols_opts;
+  struct gridopt fs_rows_opts;
   int nrows;
   int ncols;
   struct uiplace **grid;
@@ -27,6 +35,7 @@ enum grid_flags {
 
 #define UIGRID_CELL_SIZE(x) ((x) & 0x00ffffff)
 #define UIGRID_SET_CELL_SIZE(x, s) (((x) & 0xff000000) | ((s) & 0x00ffffff))
+#define UIGRID_SET_CELL_FLAGS(x, f) (((x) & 0x00ffffff) | ((f) & 0xff000000))
 
 static void
 update_grid_cellcount(struct uiobj_grid *g, int *pnc, int *pnr)
@@ -224,7 +233,7 @@ resize_grid_dim(int ndims, int *dims, int req, int dim)
 static void
 resize_grid(struct uiobj *u)
 {
-  int x, y, w, h, i, ni, j, nj, a, na, *pcolw, *prowh, f;
+  int x, y, w, h, i, ni, j, nj, a, na, *pcolw, *prowh;
   int r[4];
   struct uiobj_grid *g = (struct uiobj_grid *)u->data;
   struct uiplace *up;
@@ -281,6 +290,107 @@ rm_uigrid(struct file *f)
   ui_rm_uiobj(f);
 }
 
+static void
+update_grid(struct uiobj_grid *g)
+{
+  struct file *f;
+  for (f = g->c.fs_items.child; f; f = f->next)
+    ui_propagate_dirty((struct uiplace *)f);
+}
+
+static void
+opts_rmfid(struct p9_fid *fid)
+{
+  if (fid->aux)
+    free(fid->aux);
+  fid->rm = 0;
+  fid->aux = 0;
+}
+
+static void
+opts_open(struct p9_connection *c)
+{
+  struct p9_fid *fid = c->t.pfid;
+  struct gridopt *go = (struct gridopt *)fid->file;
+  int i, n, off, *opts, len;
+  struct arr *a = 0;
+  char buf[16], *sep = "";
+
+  fid->rm = opts_rmfid;
+  fid->aux = 0;
+
+  if (go->coord == 0) {
+    opts = go->grid->cols_opts;
+    n = go->grid->ncols;
+  } else {
+    opts = go->grid->rows_opts;
+    n = go->grid->nrows;
+  }
+  off = 0;
+  for (i = 0; i < n; ++i, ++opts) {
+    len = snprintf(buf, sizeof(buf), "%s%d", sep, *opts >> 24);
+    if (arr_memcpy(&a, 16, off, len + 1, buf) < 0) {
+      P9_SET_STR(c->r.ename, "out of memory");
+      return;
+    }
+    off += len;
+    sep = " ";
+  }
+  fid->aux = a;
+}
+
+static void
+opts_clunk(struct p9_connection *c)
+{
+  struct p9_fid *fid = c->t.pfid;
+  struct gridopt *go = (struct gridopt *)fid->file;
+  int i, n, *opts, x;
+  struct arr *buf = (struct arr *)fid->aux;
+  char *s, *a;
+
+  if (!buf)
+    return;
+
+  if (go->coord == 0) {
+    opts = go->grid->cols_opts;
+    n = go->grid->ncols;
+  } else {
+    opts = go->grid->rows_opts;
+    n = go->grid->nrows;
+  }
+
+  s = buf->b;
+  for (i = 0, a = next_arg(&s); i < n && a; ++i, a = next_arg(&s), ++opts)
+    if (sscanf(a, "%d", &x) == 1)
+      *opts = UIGRID_SET_CELL_FLAGS(*opts, (x << 24));
+  update_grid(go->grid);
+}
+
+static void
+opts_read(struct p9_connection *c)
+{
+  struct p9_fid *fid = c->t.pfid;
+  struct arr *buf = (struct arr *)fid->aux;
+  if (buf)
+    read_data_fn(c, strlen(buf->b), (char *)buf->b);
+}
+
+static void
+opts_write(struct p9_connection *c)
+{
+  struct p9_fid *fid = c->t.pfid;
+  struct arr *buf = (struct arr *)fid->aux;
+  if (buf)
+    write_buf_fn(c, 16, &buf);
+}
+
+struct p9_fs opts_fs = {
+  .open = opts_open,
+  .read = opts_read,
+  .write = opts_write,
+  .clunk = opts_clunk
+};
+
 int
 init_uigrid(struct uiobj *u)
 {
@@ -294,8 +404,27 @@ init_uigrid(struct uiobj *u)
   u->flags |= UI_IS_CONTAINER;
   u->fs.rm = rm_uigrid;
   g = (struct uiobj_grid *)u->data;
+
+  g->fs_cols_opts.coord = 0;
+  g->fs_cols_opts.grid = g;
+  g->fs_cols_opts.fs.name = "colsopts";
+  g->fs_cols_opts.fs.mode = 0600;
+  g->fs_cols_opts.fs.qpath = new_qid(0);
+  g->fs_cols_opts.fs.fs = &opts_fs;
+  add_file(&u->fs, &g->fs_cols_opts.fs);
+
+
+  g->fs_rows_opts.coord = 1;
+  g->fs_rows_opts.grid = g;
+  g->fs_rows_opts.fs.name = "rowsopts";
+  g->fs_rows_opts.fs.mode = 0600;
+  g->fs_rows_opts.fs.qpath = new_qid(0);
+  g->fs_rows_opts.fs.fs = &opts_fs;
+  add_file(&u->fs, &g->fs_rows_opts.fs);
+
   ui_init_container_items(&g->c, "items");
   g->c.fs_items.aux.p = u;
   add_file(&u->fs, &g->c.fs_items);
+
   return 0;
 }

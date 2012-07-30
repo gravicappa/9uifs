@@ -4,7 +4,7 @@
 #include "fs.h"
 
 void
-read_buf_fn(struct p9_connection *c, int size, char *buf)
+read_data_fn(struct p9_connection *c, int size, char *buf)
 {
   c->r.count = 0;
   if (c->t.offset < size) {
@@ -16,7 +16,7 @@ read_buf_fn(struct p9_connection *c, int size, char *buf)
 }
 
 void
-write_buf_fn(struct p9_connection *c, int size, char *buf)
+write_data_fn(struct p9_connection *c, int size, char *buf)
 {
   c->r.count = c->t.count;
   if (c->t.offset >= size)
@@ -24,6 +24,21 @@ write_buf_fn(struct p9_connection *c, int size, char *buf)
   if (c->t.offset + c->t.count > size)
     c->r.count = size - c->t.offset;
   memcpy(buf + c->t.offset, c->t.data, c->r.count);
+}
+
+void
+write_buf_fn(struct p9_connection *c, int delta, struct arr **buf)
+{
+  int off, u;
+
+  u = (*buf) ? (*buf)->used : 0;
+  off = arr_memcpy(buf, delta, c->t.offset, c->t.count + 1, 0);
+  if (off < 0) {
+    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+    return;
+  }
+  memset((*buf)->b + u, 0, (*buf)->used - u);
+  write_data_fn(c, (*buf)->size - 1, (*buf)->b);
 }
 
 void

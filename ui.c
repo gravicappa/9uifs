@@ -255,7 +255,7 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
   struct file *f;
   struct uiplace *x, *t;
 
-  log_printf(LOG_UI, ">> walk_view_tree\n");
+  if (0) log_printf(LOG_UI, ">> walk_view_tree\n");
 
   if (!up->obj)
     return;
@@ -281,21 +281,21 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
       x = (struct uiplace *)f;
       x->parent = t;
     } else if (x->fs.next && x != up) {
-      log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
-                 x->fs.name, x->fs.next, x->parent);
+      if (0) log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
+                        x->fs.name, x->fs.next, x->parent);
       after_fn(x, v, aux);
       x = (struct uiplace *)x->fs.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->fs.next) {
-        log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->fs.name);
+        if (0) log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->fs.name);
         after_fn(x, v, aux);
         x = x->parent;
       }
-      log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->fs.name);
+      if (0) log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->fs.name);
       after_fn(x, v, aux);
       if (x->parent) {
-        log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->fs.name);
+        if (0) log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->fs.name);
         after_fn(x->parent, v, aux);
       }
       if (x != up && x->parent && x->parent != up && x->parent->fs.next
@@ -305,7 +305,7 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
         break;
     }
   } while (x && x != up);
-  log_printf(LOG_UI, ">>>> walk_view_tree done\n");
+  if (0) log_printf(LOG_UI, ">>>> walk_view_tree done\n");
 }
 
 static void
@@ -481,7 +481,6 @@ ui_propagate_dirty(struct uiplace *up)
   struct view *v;
   struct uiobj *u;
   struct uiobj_parent *par;
-  int i = 0;
 
   log_printf(LOG_UI, ">> ui_propagate_dirty %p\n", up);
 
@@ -489,7 +488,6 @@ ui_propagate_dirty(struct uiplace *up)
     stack->used = 0;
   push_place(up);
   while (stack && stack->used) {
-    if (++i > 120) die("infinite loop");
     up = pop_place();
     if (!up)
       break;
@@ -653,7 +651,7 @@ places_read(struct p9_connection *c)
 {
   struct arr *buf = (struct arr *)c->t.pfid->aux;
   if (buf)
-    read_buf_fn(c, buf->used, buf->b);
+    read_data_fn(c, buf->used, buf->b);
 }
 
 struct p9_fs places_fs = {
@@ -805,7 +803,7 @@ ui_redraw_view(struct view *v)
 {
   struct uiplace *up = (struct uiplace *)v->uiplace;
 
-  log_printf(LOG_UI, ">> ui_redraw_view '%s'\n", v->fs.name);
+  if (0) log_printf(LOG_UI, ">> ui_redraw_view '%s'\n", v->fs.name);
 
   if (!(up && up->obj))
     return;

@@ -84,13 +84,13 @@ prop_intdec_open(struct p9_connection *c)
 void
 prop_intdec_read(struct p9_connection *c)
 {
-  read_buf_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
+  read_data_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
 }
 
 void
 prop_intdec_write(struct p9_connection *c)
 {
-  write_buf_fn(c, INT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
+  write_data_fn(c, INT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
 }
 
 void
@@ -129,7 +129,7 @@ prop_buf_read(struct p9_connection *c)
   char *s;
   if (p->buf) {
     for (s = p->buf->b, i = 0; i < p->buf->used && *s; ++i, ++s) {}
-    read_buf_fn(c, i, p->buf->b);
+    read_data_fn(c, i, p->buf->b);
   }
 }
 
@@ -138,7 +138,7 @@ prop_fixed_buf_write(struct p9_connection *c)
 {
   struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
   if (p->buf) {
-    write_buf_fn(c, p->buf->size - 1, p->buf->b);
+    write_data_fn(c, p->buf->size - 1, p->buf->b);
     p->buf->used = strlen(p->buf->b);
   }
 }
@@ -147,16 +147,7 @@ void
 prop_buf_write(struct p9_connection *c)
 {
   struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
-  int off, u;
-
-  u = (p->buf) ? p->buf->used : 0;
-  off = arr_memcpy(&p->buf, 32, c->t.offset, c->t.count + 1, 0);
-  if (off < 0) {
-    P9_SET_STR(c->r.ename, "Cannot allocate memory");
-    return;
-  }
-  memset(p->buf->b + u, 0, p->buf->used - u);
-  write_buf_fn(c, p->buf->size - 1, p->buf->b);
+  write_buf_fn(c, 16, &p->buf);
 }
 
 void
@@ -183,13 +174,13 @@ prop_colour_open(struct p9_connection *c)
 void
 prop_colour_read(struct p9_connection *c)
 {
-  read_buf_fn(c, 8, (char *)c->t.pfid->aux);
+  read_data_fn(c, 8, (char *)c->t.pfid->aux);
 }
 
 void
 prop_colour_write(struct p9_connection *c)
 {
-  write_buf_fn(c, 8, (char *)c->t.pfid->aux);
+  write_data_fn(c, 8, (char *)c->t.pfid->aux);
 }
 
 void
@@ -252,13 +243,13 @@ rect_open(struct p9_connection *c)
 void
 rect_read(struct p9_connection *c)
 {
-  read_buf_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
+  read_data_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
 }
 
 void
 rect_write(struct p9_connection *c)
 {
-  write_buf_fn(c, RECT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
+  write_data_fn(c, RECT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
 }
 
 void

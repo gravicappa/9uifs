@@ -57,14 +57,14 @@ static void
 size_read(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  read_buf_fn(c, strlen((char *)fid->aux), (char *)fid->aux);
+  read_data_fn(c, strlen((char *)fid->aux), (char *)fid->aux);
 }
 
 static void
 size_write(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  write_buf_fn(c, size_buf_len - 1, (char *)fid->aux);
+  write_data_fn(c, size_buf_len - 1, (char *)fid->aux);
 }
 
 static void
@@ -108,7 +108,7 @@ pixels_read(struct p9_connection *c)
     return;
   imlib_context_set_image(s->img);
   pix = (char *)imlib_image_get_data_for_reading_only();
-  read_buf_fn(c, s->w * s->h * 4, pix);
+  read_data_fn(c, s->w * s->h * 4, pix);
 }
 
 static void
@@ -121,7 +121,7 @@ pixels_write(struct p9_connection *c)
     return;
   imlib_context_set_image(s->img);
   pix = (char *)imlib_image_get_data();
-  write_buf_fn(c, s->w * s->h * 4, pix);
+  write_data_fn(c, s->w * s->h * 4, pix);
   imlib_image_put_back_data((DATA32 *)pix);
 }
 
