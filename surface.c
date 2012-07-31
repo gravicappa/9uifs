@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <Imlib2.h>
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
 #include "ctl.h"
+#include "draw.h"
 #include "surface.h"
 
 const int size_buf_len = 32;
@@ -106,8 +106,7 @@ pixels_read(struct p9_connection *c)
 
   if (!s->img)
     return;
-  imlib_context_set_image(s->img);
-  pix = (char *)imlib_image_get_data_for_reading_only();
+  pix = (char *)image_get_data(s->img, 0);
   read_data_fn(c, s->w * s->h * 4, pix);
 }
 
@@ -119,10 +118,9 @@ pixels_write(struct p9_connection *c)
 
   if (!s->img)
     return;
-  imlib_context_set_image(s->img);
-  pix = (char *)imlib_image_get_data();
+  pix = (char *)image_get_data(s->img, 1);
   write_data_fn(c, s->w * s->h * 4, pix);
-  imlib_image_put_back_data((DATA32 *)pix);
+  image_put_back_data(s->img, pix);
 }
 
 static void
@@ -150,10 +148,9 @@ rm_surface(struct file *f)
 {
   struct surface *s = (struct surface *)f;
   if (s->img) {
-    imlib_context_set_image(s->img);
-    imlib_free_image();
+    free_image(s->img);
+    s->img = 0;
   }
-  s->img = 0;
 }
 
 int
@@ -165,7 +162,7 @@ init_surface(struct surface *s, int w, int h)
   s->w = w;
   s->h = h;
 
-  s->img = imlib_create_image(w, h);
+  s->img = create_image(w, h);
   if (!s->img)
     die("Cannot allocate memory");
 
@@ -224,16 +221,13 @@ cmd_blit(struct file *f, char *cmd)
 int
 resize_surface(struct surface *s, int w, int h)
 {
-  Imlib_Image newimg;
+  Image newimg;
 
   if (w == s->w && h == s->h)
     return 0;
-  imlib_context_set_image(s->img);
-  imlib_context_set_anti_alias(0);
-  newimg = imlib_create_cropped_image(0, 0, w, h);
+  newimg = resize_image(s->img, w, h, 0);
   if (!newimg)
     return -1;
-  imlib_free_image();
   s->img = newimg;
   s->w = w;
   s->h = h;

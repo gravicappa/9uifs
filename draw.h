@@ -18,5 +18,27 @@
        (RGBA_READ_HEX(s[6]) << 4) | (RGBA_READ_HEX(s[7])), \
        (RGBA_READ_HEX(s[0]) << 4) | (RGBA_READ_HEX(s[1])))
 
-void fill_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c);
-void draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c);
+typedef void *Image;
+
+struct screen {
+  int w;
+  int h;
+  Image blit;
+  char *pixels;
+};
+
+int init_screen(int w, int h);
+void release_screen();
+void refresh_screen();
+struct screen *default_screen();
+
+void fill_rect(Image dst, int x, int y, int w, int h, unsigned int c);
+void draw_rect(Image dst, int x, int y, int w, int h, unsigned int c);
+
+Image create_image(int w, int h);
+void free_image(Image img);
+void *image_get_data(Image img, int mutable);
+void image_put_back_data(Image img, void *data);
+Image resize_image(Image img, int w, int h, int flags);
+void blit_image(Image dst, int dx, int dy, int dw, int dh,
+                Image src, int sx, int sy, int sw, int sh);

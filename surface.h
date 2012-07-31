@@ -6,7 +6,7 @@ struct surface {
   struct file fs_format;
   unsigned int w;
   unsigned int h;
-  Imlib_Image img;
+  Image img;
 };
 
 struct surface *mk_surface(int w, int h);

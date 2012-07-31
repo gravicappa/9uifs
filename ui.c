@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <Imlib2.h>
+#include <stddef.h>
 
 #include "util.h"
 #include "9p.h"
@@ -11,8 +11,8 @@
 #include "geom.h"
 #include "event.h"
 #include "ctl.h"
-#include "surface.h"
 #include "draw.h"
+#include "surface.h"
 #include "prop.h"
 #include "view.h"
 #include "uiobj.h"

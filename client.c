@@ -23,6 +23,7 @@
 #include "client.h"
 #include "net.h"
 #include "ctl.h"
+#include "draw.h"
 #include "surface.h"
 #include "event.h"
 #include "prop.h"

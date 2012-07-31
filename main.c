@@ -15,7 +15,7 @@
 #include "util.h"
 #include "fs.h"
 #include "client.h"
-#include "screen.h"
+#include "draw.h"
 
 int server_fd = -1;
 int server_port = 5558;

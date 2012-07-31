@@ -1,8 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <SDL/SDL.h>
-#include <Imlib2.h>
 
 #include "util.h"
 #include "9p.h"
@@ -11,12 +9,12 @@
 #include "fstypes.h"
 #include "ctl.h"
 #include "geom.h"
+#include "draw.h"
 #include "surface.h"
 #include "client.h"
 #include "event.h"
 #include "prop.h"
 #include "view.h"
-#include "screen.h"
 #include "ui.h"
 #include "wm.h"
 
@@ -190,10 +188,8 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
 void
 draw_view(struct view *v)
 {
-  imlib_context_set_image(screen.imlib);
-  imlib_context_set_anti_alias(1);
-  imlib_context_set_blend(0);
-  imlib_blend_image_onto_image(v->blit.img, 0, 0, 0, v->blit.w, v->blit.h,
-                               v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3]);
+  struct screen *s = default_screen();
+  blit_image(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3],
+             v->blit.img, 0, 0, v->blit.w, v->blit.h);
   ui_redraw_view(v);
 }
