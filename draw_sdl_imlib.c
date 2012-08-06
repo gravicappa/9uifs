@@ -143,3 +143,16 @@ refresh_screen()
   SDL_BlitSurface(screen.back, 0, screen.front, 0);
   SDL_UpdateRect(screen.front, 0, 0, 0, 0);
 }
+
+void
+draw_utf8(Image dst, int x, int y, int font, char *str)
+{
+  imlib_context_set_image(dst);
+  imlib_text_draw(x, y, str);
+}
+
+int
+get_utf8_bbox(int font, char *str, int *x, int *y, int *w, int *h)
+{
+  return 0;
+}

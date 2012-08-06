@@ -24,7 +24,7 @@ extern int scr_h;
 void
 rm_view(struct file *f)
 {
-  struct view *v = (struct view *)f->aux.p;
+  struct view *v = (struct view *)f;
   wm_on_rm_view(v);
   free(v);
 }
@@ -75,8 +75,7 @@ static struct view *
 get_view(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
-  struct file *f = (struct file *)fid->file;
-  return (struct view *)f->aux.p;
+  return (struct view *)fid->file;
 }
 
 void
@@ -124,7 +123,6 @@ mk_view(int x, int y, int w, int h)
   }
   v->fs.mode = 0500 | P9_DMDIR;
   v->fs.qpath = new_qid(FS_VIEW);
-  v->fs.aux.p = v;
   v->fs.rm = rm_view;
 
   v->ev.f.name = "event";
@@ -142,7 +140,6 @@ mk_view(int x, int y, int w, int h)
   v->fs_visible.name = "visible";
   v->fs_visible.mode = 0600;
   v->fs_visible.qpath = new_qid(0);
-  v->fs_visible.aux.p = v;
   v->fs_visible.fs = &fs_view_visible;
   add_file(&v->fs, &v->fs_visible);
 
@@ -152,13 +149,11 @@ mk_view(int x, int y, int w, int h)
   v->fs_gl.name = "gl";
   v->fs_gl.mode = 0700 | P9_DMDIR;
   v->fs_gl.qpath = new_qid(0);
-  v->fs_gl.aux.p = v;
   add_file(&v->fs, &v->fs_gl);
 
   v->fs_canvas.name = "canvas";
   v->fs_canvas.mode = 0700 | P9_DMDIR;
   v->fs_canvas.qpath = new_qid(0);
-  v->fs_canvas.aux.p = v;
   add_file(&v->fs, &v->fs_canvas);
 
   v->uiplace->name = "uiplace";

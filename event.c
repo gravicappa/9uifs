@@ -40,7 +40,7 @@ void
 event_rm_fid(struct p9_fid *fid)
 {
   struct file *f = (struct file *)fid->file;
-  struct ev_pool *pool = (struct ev_pool *)f->aux.p;
+  struct ev_pool *pool = (struct ev_pool *)f;
   struct ev_listener *lsr = (struct ev_listener *)fid->aux, *p;
 
   log_printf(LOG_DBG, "event_rm_fid lsr: %p\n", lsr);
@@ -65,7 +65,7 @@ event_open(struct p9_connection *c)
   struct ev_listener *lsr;
   struct p9_fid *fid = c->t.pfid;
   struct file *f = (struct file *)fid->file;
-  struct ev_pool *pool = (struct ev_pool *)f->aux.p;
+  struct ev_pool *pool = (struct ev_pool *)f;
 
   lsr = (struct ev_listener *)malloc(sizeof(struct ev_listener));
   if (!lsr) {
@@ -145,7 +145,6 @@ init_event(struct ev_pool *pool)
 {
   pool->f.mode = 0400;
   pool->f.qpath = new_qid(FS_EVENT);
-  pool->f.aux.p = pool;
   pool->f.fs = &fs_event;
   pool->f.rm = rm_event;
   pool->listeners = 0;

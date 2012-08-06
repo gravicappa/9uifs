@@ -278,7 +278,7 @@ resize_grid(struct uiobj *u)
   }
 }
 
-void
+static void
 rm_uigrid(struct file *f)
 {
   struct uiobj *u = (struct uiobj *)f;
@@ -422,8 +422,8 @@ init_uigrid(struct uiobj *u)
   g->fs_rows_opts.fs.fs = &opts_fs;
   add_file(&u->fs, &g->fs_rows_opts.fs);
 
-  ui_init_container_items(&g->c, "items");
-  g->c.fs_items.aux.p = u;
+  ui_init_container_items(&g->c, "items", 0);
+  g->c.u = u;
   add_file(&u->fs, &g->c.fs_items);
 
   return 0;

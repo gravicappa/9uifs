@@ -42,3 +42,6 @@ void image_put_back_data(Image img, void *data);
 Image resize_image(Image img, int w, int h, int flags);
 void blit_image(Image dst, int dx, int dy, int dw, int dh,
                 Image src, int sx, int sy, int sw, int sh);
+
+void draw_utf8(Image dst, int x, int y, int font, char *str);
+int get_utf8_bbox(int font, char *str, int *x, int *y, int *w, int *h);

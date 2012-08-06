@@ -69,34 +69,31 @@ add_client(int server_fd, int msize)
   c->fs.name = "/";
   c->fs.mode = 0500 | P9_DMDIR;
   c->fs.qpath = new_qid(FS_ROOT);
-  c->fs.aux.p = c;
 
   c->fs_event.name = "event";
   c->fs_event.mode = 0400;
   c->fs_event.qpath = new_qid(FS_EVENT);
-  c->fs_event.aux.p = c;
   add_file(&c->fs, &c->fs_event);
 
   c->fs_views.name = "views";
   c->fs_views.mode = 0700 | P9_DMDIR;
   c->fs_views.qpath = new_qid(FS_VIEWS);
   c->fs_views.fs = &fs_views;
-  c->fs_views.aux.p = c;
   add_file(&c->fs, &c->fs_views);
 
   c->fs_images.name = "images";
   c->fs_images.mode = 0700 | P9_DMDIR;
   c->fs_images.qpath = new_qid(FS_IMAGES);
-  c->fs_images.aux.p = c;
   add_file(&c->fs, &c->fs_images);
 
   c->fs_fonts.name = "fonts";
   c->fs_fonts.mode = 0700 | P9_DMDIR;
   c->fs_fonts.qpath = new_qid(FS_NONE);
-  c->fs_fonts.aux.p = c;
   add_file(&c->fs, &c->fs_fonts);
 
-  DEFFILE(c->fs_comm, "comm", 0700 | P9_DMDIR, c);
+  c->fs_comm.name = "comm";
+  c->fs_comm.mode = 0700 | P9_DMDIR;
+  c->fs_comm.qpath = new_qid(FS_NONE);
   add_file(&c->fs, &c->fs_comm);
 
   if (ui_init_ui(c) == 0) {

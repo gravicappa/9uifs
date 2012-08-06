@@ -38,6 +38,11 @@ struct uiobj_maker {
   {0, 0}
 };
 
+struct uiobj_dir {
+  struct file fs;
+  struct client *c;
+};
+
 extern struct p9_fs places_fs;
 
 static void items_create(struct p9_connection *c);
@@ -66,50 +71,50 @@ rm_dir(struct file *dir)
 }
 
 static struct file *
-items_mkdir(char *name)
+items_mkdir(char *name, struct client *client)
 {
-  struct file *f;
-  f = (struct file *)malloc(sizeof(struct file));
-  if (!f)
+  struct uiobj_dir *d;
+  d = (struct uiobj_dir *)malloc(sizeof(struct uiobj_dir));
+  if (!d)
     return 0;
-  memset(f, 0, sizeof(*f));
-  f->name = name;
-  f->mode = 0700 | P9_DMDIR;
-  f->qpath = new_qid(FS_UIDIR);
-  f->fs = &items_fs;
-  f->rm = rm_dir;
-  return f;
+  memset(d, 0, sizeof(*d));
+  d->fs.name = name;
+  d->fs.mode = 0700 | P9_DMDIR;
+  d->fs.qpath = new_qid(FS_UIDIR);
+  d->fs.fs = &items_fs;
+  d->fs.rm = rm_dir;
+  d->c = client;
+  return &d->fs;
 }
 
 static void
 items_create(struct p9_connection *c)
 {
   struct uiobj *u;
-  struct file *f, *d;
+  struct file *f;
+  struct uiobj_dir *dir;
   char *name;
 
   if (!(c->t.perm & P9_DMDIR)) {
     P9_SET_STR(c->r.ename, "wrong uiobj create perm");
     return;
   }
-  f = (struct file *)c->t.pfid->file;
+  dir = (struct uiobj_dir *)c->t.pfid->file;
   name = strndup(c->t.name, c->t.name_len);
   if (!name) {
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
     return;
   }
   if (name[0] == UI_NAME_PREFIX) {
-    u = mk_uiobj();
+    u = mk_uiobj(dir->c);
     u->fs.name = name;
     u->fs.owns_name = 1;
     resp_file_create(c, &u->fs);
-    u->fs.aux.p = f->aux.p;
-    add_file(f, &u->fs);
+    add_file(&dir->fs, &u->fs);
   } else {
-    d = items_mkdir(name);
-    d->owns_name = 1;
-    d->aux.p = f->aux.p;
-    add_file(f, d);
+    f = items_mkdir(name, dir->c);
+    f->owns_name = 1;
+    add_file(&dir->fs, f);
   }
 }
 
@@ -175,7 +180,7 @@ ui_rm_uiobj(struct file *f)
 }
 
 struct uiobj *
-mk_uiobj()
+mk_uiobj(struct client *client)
 {
   int r;
   struct uiobj *u;
@@ -184,6 +189,7 @@ mk_uiobj()
   if (!u)
     return 0;
   memset(u, 0, sizeof(*u));
+  u->client = client;
   u->draw = draw_uiobj;
   u->fs.mode = 0500 | P9_DMDIR;
   u->fs.qpath = new_qid(FS_UIOBJ);
@@ -209,14 +215,12 @@ mk_uiobj()
   u->fs_evfilter.name = "evfilter";
   u->fs_evfilter.mode = 0600;
   u->fs_evfilter.qpath = new_qid(0);
-  u->fs_evfilter.aux.p = u;
   /*u->fs_evfilter.fs = &evfilter_fs;*/
   add_file(&u->fs, &u->fs_evfilter);
 
   u->fs_places.name = "places";
   u->fs_places.mode = 0400;
   u->fs_places.qpath = new_qid(0);
-  u->fs_places.aux.p = 0;
   u->fs_places.fs = &places_fs;
   add_file(&u->fs, &u->fs_places);
 
@@ -381,10 +385,10 @@ get_place_client(struct uiplace *up)
   struct view *v;
 
   if (up->obj)
-    return UIOBJ_CLIENT(up->obj);
+    return up->obj->client;
   u = uiplace_container(up);
   if (u)
-    return UIOBJ_CLIENT(u);
+    return u->client;
   v = uiplace_container_view(up);
   if (v)
     return v->c;
@@ -394,7 +398,7 @@ get_place_client(struct uiplace *up)
 static void
 place_uiobj(struct uiplace *up, struct uiobj *u)
 {
-  struct uiobj_parent *p, *p1;
+  struct uiobj_parent *p;
 
   if (u) {
     p = (struct uiobj_parent *)malloc(sizeof(struct uiobj_parent));
@@ -402,11 +406,10 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
       die("Cannot allocate memory");
     p->place = up;
     p->prev = 0;
-    p1 = (struct uiobj_parent *)u->fs_places.aux.p;
-    p->next = p1;
-    if (p1)
-      p1->prev = p;
-    u->fs_places.aux.p = p;
+    p->next = u->parents;
+    if (u->parents)
+      u->parents->prev = p;
+    u->parents = p;
   }
   up->obj = u;
 }
@@ -419,14 +422,14 @@ unplace_uiobj(struct uiplace *up)
   if (!up->obj)
     return;
   log_printf(LOG_UI, ">> unplace_uiobj u: %p\n", up->obj);
-  p = (struct uiobj_parent *)up->obj->fs_places.aux.p;
+  p = up->obj->parents;
   for (; p && p->place != up; p = p->next) {}
   if (!p)
     return;
   if (p->prev)
     p->prev->next = p->next;
   else
-    up->obj->fs_places.aux.p = p->next;
+    up->obj->parents = p->next;
   if (p->next)
     p->next->prev = p->prev;
   free(p);
@@ -499,7 +502,7 @@ ui_propagate_dirty(struct uiplace *up)
         v->flags |= VIEW_IS_DIRTY;
     } else if (u->frame != framecnt) {
       u->frame = framecnt;
-      par = (struct uiobj_parent *)u->fs_places.aux.p;
+      par = u->parents;
       for (; par; par = par->next)
         push_place(par->place);
     }
@@ -569,7 +572,6 @@ init_place(struct uiplace *up)
   up->fs.mode = 0500 | P9_DMDIR;
   up->fs.qpath = new_qid(FS_UIPLACE);
   up->fs.rm = rm_place;
-  up->fs.aux.p = up;
   return 0;
 }
 
@@ -584,7 +586,7 @@ create_place(struct p9_connection *c)
   if (!c->t.pfid->file)
     return;
 
-  u = (struct uiobj *)((struct file *)c->t.pfid->file)->aux.p;
+  u = ((struct uiobj_container *)c->t.pfid->file)->u;
   if (!u->data)
     return;
   up = (struct uiplace *)malloc(sizeof(struct uiplace));
@@ -607,7 +609,7 @@ create_place(struct p9_connection *c)
 }
 
 void
-ui_init_container_items(struct uiobj_container *c, char *name)
+ui_init_container_items(struct uiobj_container *c, char *name, int single)
 {
   memset(&c->fs_items, 0, sizeof(c->fs_items));
   c->fs_items.name = name;
@@ -615,6 +617,7 @@ ui_init_container_items(struct uiobj_container *c, char *name)
   c->fs_items.mode = 0700 | P9_DMDIR;
   c->fs_items.qpath = new_qid(FS_UIPLACE_DIR);
   c->fs_items.fs = &container_fs;
+  c->single_item = single;
 }
 
 static void
@@ -633,9 +636,9 @@ places_open(struct p9_connection *c)
   struct arr *buf = 0;
   struct uiobj_parent *par;
 
-  u = (struct uiobj *)((char *)fid->file - offsetof(struct uiobj, fs_places));
-  cl = (struct client *)u->fs.aux.p;
-  par = (struct uiobj_parent *)u->fs_places.aux.p;
+  u = containerof(fid->file, struct uiobj, fs_places);
+  cl = (struct client *)u->client;
+  par = u->parents;
   for (; par; par = par->next) {
     if (file_path(&buf, &par->place->fs, cl->ui))
       die("Cannot allocate memory");
@@ -732,11 +735,10 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
 int
 ui_init_ui(struct client *c)
 {
-  c->ui = items_mkdir("ui");
+  c->ui = items_mkdir("ui", c);
   if (!c->ui)
     return -1;
   c->ui->fs = &root_items_fs;
-  c->ui->aux.p = c;
   return 0;
 }
 

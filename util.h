@@ -6,6 +6,9 @@ enum log_masks {
   LOG_UI = 16,
 };
 
+#define containerof(ptr, type, member) \
+  ((type *)((char *)ptr - offsetof(type, member)))
+
 extern int logmask;
 
 void die(char *fmt, ...);

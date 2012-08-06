@@ -25,10 +25,12 @@ struct file {
   struct p9_fs *fs;
   struct fid *fids;
   void (*rm)(struct file *);
+  /*
   union {
     int i;
     void *p;
   } aux;
+  */
 };
 
 extern struct p9_fs fs;
@@ -50,10 +52,3 @@ void attach_fid(struct p9_fid *fid, struct file *file);
 void free_fids(struct fid_pool *pool);
 
 void resp_file_create(struct p9_connection *c, struct file *f);
-
-#define DEFFILE(f, n, m, a) do { \
-    (f).name = (n); \
-    (f).mode = (m); \
-    (f).qpath = new_qid(0); \
-    (f).aux.p = (a); \
-  } while (0)

@@ -1,5 +1,6 @@
 name = uifs
 
+LANG = C
 CC = gcc
 #CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
 CFLAGS = -Wall -O0 -g 

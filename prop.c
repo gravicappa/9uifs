@@ -104,7 +104,7 @@ static void
 prop_buf_rm(struct file *f)
 {
   struct prop_buf *p;
-  p = (struct prop_buf *)f->aux.p;
+  p = (struct prop_buf *)f;
   if (p && p->buf) {
     free(p->buf);
     p->buf = 0;
@@ -314,7 +314,6 @@ init_prop_fs(struct prop *p, char *name, void *aux)
   p->fs.name = name;
   p->fs.mode = 0600;
   p->fs.qpath = new_qid(FS_PROP);
-  p->fs.aux.p = p;
 }
 
 int

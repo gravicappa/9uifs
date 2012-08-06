@@ -16,6 +16,7 @@ enum uiflags {
 
 struct uiplace;
 struct view;
+struct uiobj_parent;
 
 struct uiobj {
   struct file fs;
@@ -28,8 +29,6 @@ struct uiobj {
   struct prop_rect g;
 
   struct file fs_evfilter;
-
-  /* files with aux -> uiplace and value with place's parent's path */
   struct file fs_places;
 
   void (*draw)(struct uiobj *u, struct view *v);
@@ -40,6 +39,8 @@ struct uiobj {
   int frame;
   int frame1;
   int reqsize[2];
+  struct uiobj_parent *parents;
+  struct client *client;
   void *data;
 };
 
@@ -70,6 +71,8 @@ struct uiobj_parent {
 
 struct uiobj_container {
   struct file fs_items;
+  struct uiobj *u;
+  int single_item;
 };
 
 struct uiobj *mk_uiobj();
@@ -77,12 +80,10 @@ void ui_rm_uiobj(struct file *f);
 
 void ui_update_placement(struct uiobj *u);
 
-void ui_init_container_items(struct uiobj_container *c, char *name);
+void ui_init_container_items(struct uiobj_container *c, char *name,
+                             int single);
 void ui_update_uiobj(struct uiobj *u);
 void ui_redraw_uiobj(struct uiobj *u);
-
-#define UIOBJ_CLIENT(u) ((struct client *)(u)->fs.aux.p)
-
 void ui_update_size(struct view *v, struct uiplace *up);
 void ui_place_with_padding(struct uiplace *up, int rect[4]);
 
