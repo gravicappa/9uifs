@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #include "util.h"
 #include "9p.h"
@@ -81,7 +82,7 @@ get_view(struct p9_connection *c)
 void
 view_visible_write(struct p9_connection *c)
 {
-  struct view *v = get_view(c);
+  struct view *v = containerof(c->t.pfid->file, struct view, fs_visible);
   if (write_bool_fn(c, v->flags & VIEW_IS_VISIBLE))
     v->flags |= (VIEW_IS_VISIBLE | VIEW_IS_DIRTY);
   else
@@ -91,7 +92,7 @@ view_visible_write(struct p9_connection *c)
 void
 view_visible_read(struct p9_connection *c)
 {
-  struct view *v = get_view(c);
+  struct view *v = containerof(c->t.pfid->file, struct view, fs_visible);
   read_bool_fn(c, v->flags & VIEW_IS_VISIBLE);
 }
 

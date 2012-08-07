@@ -25,12 +25,6 @@ struct file {
   struct p9_fs *fs;
   struct fid *fids;
   void (*rm)(struct file *);
-  /*
-  union {
-    int i;
-    void *p;
-  } aux;
-  */
 };
 
 extern struct p9_fs fs;

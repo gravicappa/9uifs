@@ -73,6 +73,9 @@ main_loop(int server_fd)
       case SDL_KEYUP:
         client_keyboard('u', ev.key.keysym.sym, ev.key.keysym.mod,
                         ev.key.keysym.unicode);
+        if (ev.key.keysym.sym == SDLK_ESCAPE
+            && (ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
+          running = 0;
         break;
       }
     }

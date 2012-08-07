@@ -486,7 +486,6 @@ ui_propagate_dirty(struct uiplace *up)
   struct uiobj_parent *par;
 
   log_printf(LOG_UI, ">> ui_propagate_dirty %p\n", up);
-
   if (stack)
     stack->used = 0;
   push_place(up);

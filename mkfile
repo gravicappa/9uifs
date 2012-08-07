@@ -40,9 +40,11 @@ run:V: $name
 	./$name -d uc 2>&1 | tee uifs.log
 
 valgrind:V: $name
-	valgrind --read-var-info=yes --track-origins=yes \
-		--suppressions=xlib.supp \
-	  ./$name -d ugc 2>&1 | tee uifs.log
+	flags=()
+	flags=($flags '--read-var-info=yes')
+	flags=($flags '--track-origins=yes')
+	~ $check '*leak*' && flags=($flags --leak-check=full)
+	valgrind --suppressions=xlib.supp $flags ./$name -d ugc 2>&1 | tee uifs.log
 
 %.html: %.md
 	sundown <$prereq >$target
