@@ -23,17 +23,19 @@
 #define UI_NAME_PREFIX '_'
 
 extern int init_uigrid(struct uiobj *);
+extern int init_uiscroll(struct uiobj *);
 
 struct uiobj_maker {
   char *type;
   int (*init)(struct uiobj *);
 } uitypes[] = {
   {"grid", init_uigrid},
+  {"scroll", init_uiscroll},
   /*
-  {"button", mk_uibutton},
-  {"label", mk_uilabel},
-  {"entry", mk_uientry},
-  {"blit", mk_uientry},
+  {"button", init_uibutton},
+  {"label", init_uilabel},
+  {"entry", init_uientry},
+  {"blit", init_uientry},
   */
   {0, 0}
 };
@@ -688,24 +690,29 @@ refresh_frames(struct file *root)
   } while (x && x != root);
 }
 
-#define PUT(coord, v, w) \
-  if (u->reqsize[coord] >= rect[coord + 2]) { \
-    u->g.r[coord] = rect[coord]; \
-    u->g.r[coord + 2] = rect[coord + 2]; \
-  } else { \
-    u->g.r[coord] = (rect[coord + 2]  - u->reqsize[coord]) >> 1; \
-    u->g.r[coord + 2] = u->reqsize[coord]; \
-    a = (buf && strnchr(buf->b, buf->used, v)); \
-    b = (buf && strnchr(buf->b, buf->used, w)); \
-    if (a && !b) \
-      u->g.r[coord] = rect[coord]; \
-    if (b && !a) \
-      u->g.r[coord] = rect[coord + 2] - u->g.r[coord + 2]; \
-    if (a && b) { \
-      u->g.r[coord] = rect[coord]; \
-      u->g.r[coord + 2] = rect[coord + 2]; \
-    } \
+static void
+put_uiobj(struct uiobj *u, struct arr *buf, int coord, int r[4], char *opts)
+{
+  int a, b;
+
+  if (u->reqsize[coord] >= r[coord + 2]) {
+    u->g.r[coord] = r[coord];
+    u->g.r[coord + 2] = r[coord + 2];
+  } else {
+    u->g.r[coord] = (r[coord + 2]  - u->reqsize[coord]) >> 1;
+    u->g.r[coord + 2] = u->reqsize[coord];
+    a = (buf && strnchr(buf->b, buf->used, opts[0]));
+    b = (buf && strnchr(buf->b, buf->used, opts[1]));
+    if (a && !b)
+      u->g.r[coord] = r[coord];
+    if (b && !a)
+      u->g.r[coord] = r[coord + 2] - u->g.r[coord + 2];
+    if (a && b) {
+      u->g.r[coord] = r[coord];
+      u->g.r[coord + 2] = r[coord + 2];
+    }
   }
+}
 
 void
 ui_place_with_padding(struct uiplace *up, int rect[4])
@@ -724,12 +731,11 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
   rect[2] -= up->padding.r[0] + up->padding.r[2];
   rect[3] -= up->padding.r[1] + up->padding.r[3];
   buf = up->sticky.buf;
-  PUT(0, 'l', 'r');
-  PUT(1, 't', 'b');
+  put_uiobj(u, buf, 0, rect, "lr");
+  put_uiobj(u, buf, 1, rect, "tb");
   log_printf(LOG_UI, "  uiobj rect: [%d %d %d %d]\n",
              u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3]);
 }
-#undef PUT
 
 int
 ui_init_ui(struct client *c)
