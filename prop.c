@@ -272,6 +272,74 @@ rect_clunk(struct p9_connection *c)
   }
 }
 
+void
+intarr_open(struct p9_connection *c)
+{
+  struct prop_intarr *p;
+  struct p9_fid *fid = c->t.pfid;
+  int m, i, n, off, *arr, len;
+  char buf[16], *sep = "";
+  struct arr *a = 0;
+
+  fid->rm = aux_free;
+  fid->aux = 0;
+
+  p = (struct prop_intarr *)fid->file;
+  m = c->t.mode;
+  if (((m & 3) == P9_OWRITE || (m & 3) == P9_ORDWR) && (m & P9_OTRUNC))
+    return;
+  off = 0;
+  arr = p->arr;
+  n = p->n;
+  for (i = 0; i < n; ++i, ++arr) {
+    len = snprintf(buf, sizeof(buf), "%s%d", sep, *arr >> 24);
+    if (arr_memcpy(&a, 16, off, len + 1, buf) < 0) {
+      P9_SET_STR(c->r.ename, "out of memory");
+      return;
+    }
+    off += len;
+    sep = " ";
+  }
+  fid->aux = a;
+}
+
+void
+intarr_read(struct p9_connection *c)
+{
+  struct arr *a = (struct arr *)c->t.pfid->aux;
+  if (a)
+    read_data_fn(c, strlen(a->b), (char *)a->b);
+}
+
+void
+intarr_write(struct p9_connection *c)
+{
+  struct arr *a = ((struct arr *)c->t.pfid->aux);
+  write_buf_fn(c, 16, &a);
+  c->t.pfid->aux = a;
+}
+
+void
+intarr_clunk(struct p9_connection *c)
+{
+  struct arr *arr = (struct arr *)c->t.pfid->aux;
+  int i, n, *ptr, x;
+  struct prop_intarr *p = (struct prop_intarr *)c->t.pfid->file;
+  char *s, *a;
+
+  if (!(arr && p && p->arr && p->n))
+    return;
+  n = p->n;
+  ptr = p->arr;
+  s = arr->b;
+
+  for (i = 0, a = next_arg(&s); i < n && a; ++i, a = next_arg(&s), ++ptr)
+    if (sscanf(a, "%d", &x) == 1)
+      *ptr = x;
+  if (p->p.update)
+    p->p.update(&p->p);
+}
+
 struct p9_fs int_fs = {
   .open = prop_intdec_open,
   .read = prop_intdec_read,
@@ -305,6 +373,13 @@ struct p9_fs rect_fs = {
   .read = rect_read,
   .write = rect_write,
   .clunk = rect_clunk
+};
+
+struct p9_fs intarr_fs = {
+  .open = intarr_open,
+  .read = intarr_read,
+  .write = intarr_write,
+  .clunk = intarr_clunk
 };
 
 static void
@@ -369,6 +444,19 @@ init_prop_rect(struct file *root, struct prop_rect *p, char *name, void *aux)
   memset(p, 0, sizeof(*p));
   init_prop_fs(&p->p, name, aux);
   p->p.fs.fs = &rect_fs;
+  add_file(root, &p->p.fs);
+  return 0;
+}
+
+int
+init_prop_intarr(struct file *root, struct prop_intarr *p, char *name, int n,
+                 int *arr, void *aux)
+{
+  memset(p, 0, sizeof(*p));
+  init_prop_fs(&p->p, name, aux);
+  p->n = n;
+  p->arr = arr;
+  p->p.fs.fs = &intarr_fs;
   add_file(root, &p->p.fs);
   return 0;
 }

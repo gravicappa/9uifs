@@ -28,7 +28,18 @@ struct client {
 
 extern struct client *clients;
 extern struct view *selected_view;
-extern int framecnt;
+extern int framecnt[2];
+
+#define FRAMECNT_EQ(x) ((x)[0] == framecnt[0] && (x)[1] == framecnt[1])
+#define FRAMECNT_SET(x) (((x)[0] = framecnt[0]), ((x)[1] = framecnt[1]))
+/*
+#define FRAMECNT_SET(x) \
+  do { \
+    log_printf(LOG_UI, "set-framecnt to %d at %s:%d\n", framecnt[0], \
+               __FILE__, __LINE__); \
+    ((x)[0] = framecnt[0]), ((x)[1] = framecnt[1]); \
+  } while(0)
+*/
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);

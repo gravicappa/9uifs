@@ -1,3 +1,6 @@
+struct client;
+struct view;
+
 int ui_init_ui(struct client *c);
 int ui_init_uiplace(struct view *v);
 void ui_free();

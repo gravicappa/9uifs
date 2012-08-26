@@ -1,3 +1,5 @@
+struct arr;
+
 struct prop {
   struct file fs;
   void (*update)(struct prop *self);
@@ -7,6 +9,12 @@ struct prop {
 struct prop_int {
   struct prop p;
   int i;
+};
+
+struct prop_intarr {
+  struct prop p;
+  int n;
+  int *arr;
 };
 
 struct prop_rect {
@@ -27,6 +35,8 @@ int init_prop_buf(struct file *root, struct prop_buf *p, char *name, int size,
                   char *x, int fixed_size, void *aux);
 int init_prop_rect(struct file *root, struct prop_rect *p, char *name,
                    void *aux);
+int init_prop_intarr(struct file *root, struct prop_intarr *p, char *name,
+                     int n, int *arr, void *aux);
 
 void prop_int_open(struct p9_connection *c, int size, const char *fmt);
 int prop_int_clunk(struct p9_connection *c, const char *fmt);

@@ -3,6 +3,7 @@
 
 #include "util.h"
 #include "draw.h"
+#include "config.h"
 
 struct sdl_screen {
   struct screen s;
@@ -11,6 +12,7 @@ struct sdl_screen {
 };
 
 struct sdl_screen screen;
+Font default_font = 0;
 
 void
 fill_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
@@ -87,6 +89,14 @@ default_screen()
   return &screen.s;
 }
 
+static void
+init_fonts()
+{
+  imlib_add_path_to_font_path(DEFAULT_FONT_DIR);
+  if (!default_font)
+    default_font = create_font(DEFAULT_FONT, DEFAULT_FONT_SIZE);
+}
+
 int
 init_screen(int w, int h)
 {
@@ -117,11 +127,12 @@ init_screen(int w, int h)
     SDL_FreeSurface(screen.back);
     free(screen.s.pixels);
   }
+  init_fonts();
   return 0;
 }
 
 void
-release_screen()
+free_screen()
 {
   if (screen.s.blit) {
     free_image(screen.s.blit);
@@ -135,6 +146,10 @@ release_screen()
     free(screen.s.pixels);
     screen.s.pixels = 0;
   }
+  if (default_font) {
+    free_font(default_font);
+    default_font = 0;
+  }
 }
 
 void
@@ -145,14 +160,36 @@ refresh_screen()
 }
 
 void
-draw_utf8(Image dst, int x, int y, int font, char *str)
+draw_utf8(Image dst, int x, int y, int c, Font font, char *str)
 {
+  imlib_context_set_font((font) ? font : default_font);
   imlib_context_set_image(dst);
+  imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
   imlib_text_draw(x, y, str);
 }
 
 int
-get_utf8_bbox(int font, char *str, int *x, int *y, int *w, int *h)
+get_utf8_size(Font font, char *str, int *w, int *h)
 {
+  imlib_context_set_font((font) ? font : default_font);
+  imlib_get_text_size(str, w, h);
   return 0;
+}
+
+Font
+create_font(const char *name, int size)
+{
+  char buf[256];
+
+  snprintf(buf, sizeof(buf), "%s/%d", name, size);
+  return imlib_load_font(buf);
+}
+
+void
+free_font(Font font)
+{
+  if (font) {
+    imlib_context_set_font(font);
+    imlib_free_font();
+  }
 }

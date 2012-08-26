@@ -12,7 +12,6 @@ struct fid_pool {
 };
 
 struct file {
-  int tag;
   struct file *next;
   struct file *parent;
   struct file *child;

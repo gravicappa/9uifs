@@ -44,26 +44,24 @@ update_grid_cellcount(struct uiobj_grid *g, int *pnc, int *pnr)
   struct file *f;
   struct uiplace *up;
 
-  for (nr = nc = -1, f = g->c.fs_items.child; f; f = f->next) {
+  for (nr = nc = 0, f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
-    if (up->obj && up->obj->frame != framecnt) {
+    if (up->obj) {
       if (up->place.r[0] < 0)
-        up->place.r[0] = (nc < 0) ? ++nc : nc;
+        up->place.r[0] = (nc > 0) ? nc - 1: nc;
       if (up->place.r[2] < 1)
         up->place.r[2] = 1;
-      x = up->place.r[0] + up->place.r[2] - 1;
+      x = up->place.r[0] + up->place.r[2];
       nc = (nc > x) ? nc : x;
 
       if (up->place.r[1] < 0)
-        up->place.r[1] = (nr < 0) ? ++nr : nr + 1;
+        up->place.r[1] = nr;
       if (up->place.r[3] < 1)
         up->place.r[3] = 1;
-      x = up->place.r[1] + up->place.r[3] - 1;
+      x = up->place.r[1] + up->place.r[3];
       nr = (nr > x) ? nr : x;
     }
   }
-  ++nc;
-  ++nr;
   *pnc = nc;
   *pnr = nr;
 }
@@ -98,9 +96,10 @@ update_grid_grid(struct uiobj_grid *g)
     g->nrows = nr;
   }
   memset(g->grid, 0, x);
+  log_printf(LOG_UI, "grid size: [%d %d]\n", nc, nr);
   for (f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
-    if (up->obj && up->obj->frame != framecnt) {
+    if (up->obj) {
       log_printf(LOG_UI, "grid[%d %d] <- %p\n", up->place.r[0],
                  up->place.r[1], up);
       g->grid[up->place.r[0] + up->place.r[1] * nc] = up;
@@ -133,6 +132,8 @@ iter_cells(struct uiobj_grid *g, int coord)
       up = g->grid[i * mi + j * mj];
       log_printf(LOG_UI, "grid %p [%d/%d %d/%d]: %p\n", g, i, ni, j, nj, up);
       if (up && up->obj) {
+        log_printf(LOG_UI, " obj: %p coord: %d req: %d\n", up->obj, coord,
+                   up->obj->reqsize[coord]);
         t = (up->obj->reqsize[coord] + up->padding.r[coord]
              + up->padding.r[coord + 2]);
         if (up->place.r[coord + 2] == 1 && t > s)
@@ -160,7 +161,7 @@ iter_spanned_cells(struct uiobj_grid *g, int coord)
   for (f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
     ni = up->place.r[coord + 2];
-    if (up->obj && up->obj->frame != framecnt && ni > 1) {
+    if (up->obj && ni > 1) {
       s = 0;
       j = up->place.r[coord];
       t = (up->obj->reqsize[coord] + up->padding.r[coord]
@@ -245,7 +246,8 @@ resize_grid(struct uiobj *u)
   ni = g->ncols;
   nj = g->nrows;
 
-  log_printf(LOG_UI, ">> resize_grid '%s'\n", u->fs.name);
+  log_printf(LOG_UI, ">> resize_grid '%s' [%d %d]\n", u->fs.name, ni, nj);
+  log_printf(LOG_UI, "     size: [%d %d]\n", w, h);
 
   resize_grid_dim(ni, g->cols_opts, u->reqsize[0], w);
   resize_grid_dim(nj, g->rows_opts, u->reqsize[1], h);
@@ -255,7 +257,9 @@ resize_grid(struct uiobj *u)
     log_printf(LOG_UI, "  - rowh[%d/%d]: %d\n", j, nj, *prowh);
     pcolw = g->cols_opts;
     for (x = u->g.r[0], i = 0; i < ni; ++i, ++pcolw) {
+      log_printf(LOG_UI, "  - colw[%d/%d]: %d\n", i, ni, *pcolw);
       up = g->grid[i + j * ni];
+      log_printf(LOG_UI, "  up[%d/%d]: %p\n", i, j, up);
       if (up && up->obj) {
         r[0] = x;
         r[1] = y;
@@ -269,8 +273,7 @@ resize_grid(struct uiobj *u)
           h += UIGRID_CELL_SIZE(prowh[a]);
         r[2] = w;
         r[3] = h;
-        if (up->obj->frame != framecnt)
-          ui_place_with_padding(up, r);
+        ui_place_with_padding(up, r);
       }
       x += UIGRID_CELL_SIZE(*pcolw);
     }
@@ -380,8 +383,13 @@ opts_write(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
   struct arr *buf = (struct arr *)fid->aux;
+  struct gridopt *go = (struct gridopt *)fid->file;
+
   if (buf)
     write_buf_fn(c, 16, &buf);
+  else if ((go->coord == 0 && go->grid->ncols == 0)
+           || (go->coord == 1 && go->grid->nrows == 0))
+    c->r.count = c->t.count;
 }
 
 struct p9_fs opts_fs = {
@@ -422,7 +430,7 @@ init_uigrid(struct uiobj *u)
   g->fs_rows_opts.fs.fs = &opts_fs;
   add_file(&u->fs, &g->fs_rows_opts.fs);
 
-  ui_init_container_items(&g->c, "items", 0);
+  ui_init_container_items(&g->c, "items");
   g->c.u = u;
   add_file(&u->fs, &g->c.fs_items);
 

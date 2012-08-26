@@ -149,7 +149,7 @@ main(int argc, char **argv)
   if (sdl_init(scr_w, scr_h))
     die("Cannot init SDL");
   main_loop(fd);
-  release_screen();
+  free_screen();
   SDL_Quit();
   return 0;
 }

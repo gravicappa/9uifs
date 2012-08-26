@@ -33,7 +33,7 @@
 struct client *clients = 0;
 struct client *selected_client = 0;
 struct view *selected_view = 0;
-int framecnt = 0;
+int framecnt[2] = {0, 0};
 int prevframecnt = -1;
 
 struct client *
@@ -275,13 +275,13 @@ draw_clients()
   struct client *c;
   int changed = 0;
 
-  ++framecnt;
+  ++framecnt[0];
   for (c = clients; c; c = c->next)
     changed |= update_views(c);
   if (changed)
-    ++framecnt;
+    ++framecnt[0];
   for (c = clients; c; c = c->next)
     draw_views(c);
-  ++framecnt;
+  ++framecnt[0];
   ui_update();
 }

@@ -16,7 +16,6 @@ enum uiflags {
 
 struct uiplace;
 struct view;
-struct uiobj_parent;
 
 struct uiobj {
   struct file fs;
@@ -29,17 +28,16 @@ struct uiobj {
   struct prop_rect g;
 
   struct file fs_evfilter;
-  struct file fs_places;
+  struct file fs_parent;
 
   void (*draw)(struct uiobj *u, struct view *v);
+  void (*draw_over)(struct uiobj *u, struct view *v);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
 
   int flags;
-  int frame;
-  int frame1;
   int reqsize[2];
-  struct uiobj_parent *parents;
+  struct uiplace *parent;
   struct client *client;
   void *data;
 };
@@ -63,16 +61,14 @@ struct uiplace {
   struct uiplace *parent;
 };
 
-struct uiobj_parent {
-  struct uiobj_parent *prev;
-  struct uiobj_parent *next;
-  struct uiplace *place;
-};
-
 struct uiobj_container {
   struct file fs_items;
   struct uiobj *u;
-  int single_item;
+};
+
+struct uiobj_maker {
+  char *type;
+  int (*init)(struct uiobj *);
 };
 
 struct uiobj *mk_uiobj();
@@ -80,11 +76,12 @@ void ui_rm_uiobj(struct file *f);
 
 void ui_update_placement(struct uiobj *u);
 
-void ui_init_container_items(struct uiobj_container *c, char *name,
-                             int single);
+void ui_init_container_items(struct uiobj_container *c, char *name);
 void ui_update_uiobj(struct uiobj *u);
 void ui_redraw_uiobj(struct uiobj *u);
 void ui_update_size(struct view *v, struct uiplace *up);
 void ui_place_with_padding(struct uiplace *up, int rect[4]);
 
 void ui_propagate_dirty(struct uiplace *up);
+void ui_default_prop_update(struct prop *p);
+int ui_init_place(struct uiplace *up);

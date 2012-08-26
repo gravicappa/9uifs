@@ -19,6 +19,7 @@
        (RGBA_READ_HEX(s[0]) << 4) | (RGBA_READ_HEX(s[1])))
 
 typedef void *Image;
+typedef void *Font;
 
 struct screen {
   int w;
@@ -28,7 +29,7 @@ struct screen {
 };
 
 int init_screen(int w, int h);
-void release_screen();
+void free_screen();
 void refresh_screen();
 struct screen *default_screen();
 
@@ -43,5 +44,8 @@ Image resize_image(Image img, int w, int h, int flags);
 void blit_image(Image dst, int dx, int dy, int dw, int dh,
                 Image src, int sx, int sy, int sw, int sh);
 
-void draw_utf8(Image dst, int x, int y, int font, char *str);
-int get_utf8_bbox(int font, char *str, int *x, int *y, int *w, int *h);
+void draw_utf8(Image dst, int x, int y, int c, Font font, char *str);
+int get_utf8_size(Font font, char *str, int *w, int *h);
+
+Font create_font(const char *name, int size);
+void free_font(Font font);

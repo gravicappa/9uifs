@@ -72,13 +72,6 @@ views_create(struct p9_connection *c)
   resp_file_create(c, &v->fs);
 }
 
-static struct view *
-get_view(struct p9_connection *c)
-{
-  struct p9_fid *fid = c->t.pfid;
-  return (struct view *)fid->file;
-}
-
 void
 view_visible_write(struct p9_connection *c)
 {
@@ -185,7 +178,7 @@ void
 draw_view(struct view *v)
 {
   struct screen *s = default_screen();
+  ui_redraw_view(v);
   blit_image(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3],
              v->blit.img, 0, 0, v->blit.w, v->blit.h);
-  ui_redraw_view(v);
 }
