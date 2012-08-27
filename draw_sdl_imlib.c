@@ -172,7 +172,7 @@ int
 get_utf8_size(Font font, char *str, int *w, int *h)
 {
   imlib_context_set_font((font) ? font : default_font);
-  imlib_get_text_size(str, w, h);
+  imlib_get_text_advance(str, w, h);
   return 0;
 }
 
