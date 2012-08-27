@@ -50,8 +50,7 @@ valgrind:V: $name
   flags=($flags '--track-origins=yes')
   if (~ $check '*leak*') flags=($flags '--leak-check=full')
 	if not true
-  echo valgrind '--suppressions=xlib.supp' $flags ./$name -d ugc
-  valgrind '--suppressions=xlib.supp' $flags ./$name -d ugc >[2=1] \
+  valgrind '--suppressions=test/xlib.supp' $flags ./$name -d ugc >[2=1] \
 	| tee $name.log
 
 %.html: %.md
