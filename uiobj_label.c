@@ -59,6 +59,12 @@ resize(struct uiobj *u)
   log_printf(LOG_UI, "     reqsize: [%d %d]\n", u->reqsize[0], u->reqsize[1]);
 }
 
+static struct uiobj_ops label_ops = {
+  .draw = draw,
+  .resize = resize,
+  .update_size = update_size
+};
+
 int
 init_uilabel(struct uiobj *u)
 {
@@ -78,9 +84,7 @@ init_uilabel(struct uiobj *u)
   }
   x->text.p.update = ui_default_prop_update;
   x->font.p.update = ui_default_prop_update;
-  u->draw = draw;
-  u->update_size = update_size;
-  u->resize = resize;
+  u->ops = &label_ops;
   u->data = x;
   u->fs.rm = rm_uilabel;
   return 0;

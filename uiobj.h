@@ -16,6 +16,18 @@ enum uiflags {
 
 struct uiplace;
 struct view;
+struct uiobj;
+
+struct uiobj_ops {
+  int allocated;
+  void (*draw)(struct uiobj *u, struct view *v);
+  void (*draw_over)(struct uiobj *u, struct view *v);
+  void (*resize)(struct uiobj *u);
+  void (*update_size)(struct uiobj *u);
+  void (*on_key)(struct uiobj* u, int keysym, int mod, unsigned int unicode);
+  void (*on_pointer)(struct uiobj* u, int x, int y, int state);
+  void (*on_pointer_press)(struct uiobj* u, int x, int y, int btn);
+};
 
 struct uiobj {
   struct file fs;
@@ -30,10 +42,7 @@ struct uiobj {
   struct file fs_evfilter;
   struct file fs_parent;
 
-  void (*draw)(struct uiobj *u, struct view *v);
-  void (*draw_over)(struct uiobj *u, struct view *v);
-  void (*resize)(struct uiobj *u);
-  void (*update_size)(struct uiobj *u);
+  struct uiobj_ops *ops;
 
   int flags;
   int reqsize[2];
@@ -85,3 +94,5 @@ void ui_place_with_padding(struct uiplace *up, int rect[4]);
 void ui_propagate_dirty(struct uiplace *up);
 void ui_default_prop_update(struct prop *p);
 int ui_init_place(struct uiplace *up);
+
+void default_draw_uiobj(struct uiobj *u, struct view *v);

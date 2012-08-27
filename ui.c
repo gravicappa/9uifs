@@ -182,8 +182,8 @@ struct p9_fs parent_fs = {
   .read = parent_read
 };
 
-static void
-draw_uiobj(struct uiobj *u, struct view *v)
+void
+default_draw_uiobj(struct uiobj *u, struct view *v)
 {
   unsigned int c;
 
@@ -212,7 +212,7 @@ mk_uiobj(struct client *client)
     return 0;
   memset(u, 0, sizeof(*u));
   u->client = client;
-  u->draw = draw_uiobj;
+  u->ops = 0;
   u->fs.mode = 0500 | P9_DMDIR;
   u->fs.qpath = new_qid(FS_UIOBJ);
   u->fs.rm = ui_rm_uiobj;
@@ -254,8 +254,8 @@ update_obj_size(struct uiobj *u)
 {
   if (!u)
     return;
-  if (u->update_size)
-    u->update_size(u);
+  if (u->ops->update_size)
+    u->ops->update_size(u);
   else {
     u->reqsize[0] = u->restraint.r[0];
     u->reqsize[1] = u->restraint.r[1];
@@ -343,22 +343,22 @@ update_place_size(struct uiplace *up, struct view *v, void *aux)
 static void
 resize_place(struct uiplace *up, struct view *v, void *aux)
 {
-  if (up && up->obj && up->obj->resize)
-    up->obj->resize(up->obj);
+  if (up && up->obj && up->obj->ops->resize)
+    up->obj->ops->resize(up->obj);
 }
 
 static void
 draw_obj(struct uiplace *up, struct view *v, void *aux)
 {
-  if (up && up->obj && up->obj->draw)
-    up->obj->draw(up->obj, v);
+  if (up && up->obj && up->obj->ops->draw)
+    up->obj->ops->draw(up->obj, v);
 }
 
 static void
 draw_over_obj(struct uiplace *up, struct view *v, void *aux)
 {
-  if (up && up->obj && up->obj->draw_over)
-    up->obj->draw_over(up->obj, v);
+  if (up && up->obj && up->obj->ops->draw_over)
+    up->obj->ops->draw_over(up->obj, v);
 }
 
 void
@@ -369,7 +369,6 @@ ui_update_size(struct view *v, struct uiplace *up)
 void
 redraw_uiobj(struct uiobj *u)
 {
-  ;
 }
 
 static void

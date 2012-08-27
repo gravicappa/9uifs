@@ -399,6 +399,12 @@ struct p9_fs opts_fs = {
   .clunk = opts_clunk
 };
 
+static struct uiobj_ops grid_ops = {
+  .resize = resize_grid,
+  .update_size = update_grid_size,
+  .draw = default_draw_uiobj
+};
+
 int
 init_uigrid(struct uiobj *u)
 {
@@ -407,8 +413,7 @@ init_uigrid(struct uiobj *u)
   if (!u->data)
     return -1;
   memset(u->data, 0, sizeof(struct uiobj_grid));
-  u->resize = resize_grid;
-  u->update_size = update_grid_size;
+  u->ops = &grid_ops;
   u->flags |= UI_IS_CONTAINER;
   u->fs.rm = rm_uigrid;
   g = (struct uiobj_grid *)u->data;
