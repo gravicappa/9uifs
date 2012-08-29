@@ -96,31 +96,35 @@ strcpyrev(char *to, char *from, int n)
 }
 
 int
-file_path(struct arr **buf, struct file *f, struct file *root)
+file_path_len(struct file *f, struct file *root)
 {
-  int i, n, t, start = 0, off = 0;
-  struct arr *b;
+  int n = 0;
 
-  if (*buf)
-    start = off = (*buf)->used;
+  for (; f && f != root; f = f->parent)
+    n += strlen(f->name) + 1;
+  return n;
+}
+
+int
+file_path(int bytes, char *buf, struct file *f, struct file *root)
+{
+  int i, n, t, off = 0;
+
   for (; f && f != root; f = f->parent) {
     n = strlen(f->name);
-    if (arr_memcpy(buf, 16, off, n + 1, 0) < 0)
-      return -1;
-    strcpyrev((*buf)->b + off, f->name, n);
+    if (off + n >= bytes)
+      return bytes - off - n;
+    strcpyrev(buf + off, f->name, n);
     off += n;
-    (*buf)->b[off++] = '/';
+    buf[off++] = '/';
   }
-  if (!*buf)
-    return 0;
-  b = *buf;
-  b->b[off - 1] = 0;
-  n = b->used - start - 1;
+  buf[off - 1] = 0;
+  n = off - 1;
   i = (n >> 1) - 1;
   for (; i >= 0; --i) {
-    t = b->b[start + i];
-    b->b[start + i] = b->b[start + n - i - 1];
-    b->b[start + n - i - 1] = t;
+    t = buf[i];
+    buf[i] = buf[n - i - 1];
+    buf[n - i - 1] = t;
   }
-  return 0;
+  return off;
 }

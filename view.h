@@ -1,8 +1,11 @@
-#define VIEW_TYPE_SIZE 32
+#define VIEW_TYPE_SIZE 16
 
 enum viewflags {
-  VIEW_IS_DIRTY = 1,
-  VIEW_IS_VISIBLE = 2
+  VIEW_IS_DIRTY = (1 << 0),
+  VIEW_IS_VISIBLE = (1 << 1),
+  VIEW_KBD_EV = (1 << 2),
+  VIEW_PRESS_PTR_EV = (1 << 3),
+  VIEW_MOVE_PTR_EV = (1 << 4),
 };
 
 struct view {
@@ -22,6 +25,8 @@ struct view {
   struct file fs_canvas;
   struct file fs_visible;
   struct file *uiplace;
+  struct file *uisel;
+  struct file *uipointed;
 };
 
 extern struct p9_fs fs_views;

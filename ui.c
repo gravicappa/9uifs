@@ -160,10 +160,14 @@ parent_open(struct p9_connection *c)
   struct client *cl;
   struct p9_fid *fid = c->t.pfid;
   struct arr *buf = 0;
+  int n;
 
   u = containerof(fid->file, struct uiobj, fs_parent);
   cl = (struct client *)u->client;
-  if (file_path(&buf, &u->parent->fs, cl->ui))
+  n = file_path_len(&u->parent->fs, cl->ui);
+  if (arr_memcpy(&buf, n, 0, n, 0))
+    die("Cannot allocate memory");
+  if (file_path(n, buf->b, &u->parent->fs, cl->ui))
     die("Cannot allocate memory");
   fid->aux = buf;
   c->t.pfid->rm = rm_parent_fid;
@@ -270,15 +274,16 @@ up_children(struct uiplace *up)
   return ((struct uiobj_container *)up->obj->data)->fs_items.child;
 }
 
-static void
+static int
 walk_dummy_fn(struct uiplace *up, struct view *v, void *aux)
 {
+  return 1;
 }
 
-static void
+void
 walk_view_tree(struct uiplace *up, struct view *v, void *aux,
-               void (*before_fn)(struct uiplace *, struct view *, void *),
-               void (*after_fn)(struct uiplace *, struct view *, void *))
+               int (*before_fn)(struct uiplace *, struct view *, void *),
+               int (*after_fn)(struct uiplace *, struct view *, void *))
 {
   struct file *f;
   struct uiplace *x, *t;
@@ -295,10 +300,9 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
   x->parent = 0;
   if (0) log_printf(LOG_UI, "  0 x = up: %p '%s'\n", x, x->fs.name);
   do {
-    before_fn(x, v, aux);
     if (0) log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->fs.name, up);
     f = 0;
-    if (x->obj)
+    if (before_fn(x, v, aux) && x->obj)
       f = up_children(x);
     t = x;
     if (0) log_printf(LOG_UI, "  2 f: %p\n", f);
@@ -333,32 +337,36 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
   if (0) log_printf(LOG_UI, ">>>> walk_view_tree done\n");
 }
 
-static void
+static int
 update_place_size(struct uiplace *up, struct view *v, void *aux)
 {
   if (up && up->obj)
     update_obj_size(up->obj);
+  return 1;
 }
 
-static void
+static int
 resize_place(struct uiplace *up, struct view *v, void *aux)
 {
   if (up && up->obj && up->obj->ops->resize)
     up->obj->ops->resize(up->obj);
+  return 1;
 }
 
-static void
+static int
 draw_obj(struct uiplace *up, struct view *v, void *aux)
 {
   if (up && up->obj && up->obj->ops->draw)
     up->obj->ops->draw(up->obj, v);
+  return 1;
 }
 
-static void
+static int
 draw_over_obj(struct uiplace *up, struct view *v, void *aux)
 {
   if (up && up->obj && up->obj->ops->draw_over)
     up->obj->ops->draw_over(up->obj, v);
+  return 1;
 }
 
 void
@@ -651,22 +659,6 @@ ui_init_uiplace(struct view *v)
 
 void
 ui_free()
-{
-}
-
-void
-ui_keyboard(struct view *v, int type, int keysym, int mod,
-            unsigned int unicode)
-{
-}
-
-void
-ui_pointer_move(struct view *v, int x, int y, int state)
-{
-}
-
-void
-ui_pointer_click(struct view *v, int x, int y, int btn)
 {
 }
 

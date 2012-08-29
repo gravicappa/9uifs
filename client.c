@@ -20,19 +20,21 @@
 #include "fs.h"
 #include "fstypes.h"
 #include "geom.h"
+#include "event.h"
 #include "client.h"
 #include "net.h"
 #include "ctl.h"
 #include "draw.h"
 #include "surface.h"
-#include "event.h"
 #include "prop.h"
 #include "ui.h"
 #include "view.h"
+#include "config.h"
 
 struct client *clients = 0;
 struct client *selected_client = 0;
 struct view *selected_view = 0;
+unsigned int cur_time_ms;
 int framecnt[2] = {0, 0};
 int prevframecnt = -1;
 
@@ -70,10 +72,9 @@ add_client(int server_fd, int msize)
   c->fs.mode = 0500 | P9_DMDIR;
   c->fs.qpath = new_qid(FS_ROOT);
 
-  c->fs_event.name = "event";
-  c->fs_event.mode = 0400;
-  c->fs_event.qpath = new_qid(FS_EVENT);
-  add_file(&c->fs, &c->fs_event);
+  c->ev.f.name = "event";
+  init_event(&c->ev);
+  add_file(&c->fs, &c->ev.f);
 
   c->fs_views.name = "views";
   c->fs_views.mode = 0700 | P9_DMDIR;
@@ -211,9 +212,10 @@ client_keyboard(int type, int keysym, int mod, unsigned int unicode)
 
   if (!selected_view)
     return;
-  len = snprintf(buf, sizeof(buf), "%c %u %u %u\n", type, keysym, mod,
+  len = snprintf(buf, sizeof(buf), "%u %u %u %u\n", type, keysym, mod,
                  unicode);
   put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);
+  ui_keyboard(selected_view, type, keysym, mod, unicode);
 }
 
 void
@@ -226,18 +228,20 @@ client_pointer_move(int x, int y, int state)
     return;
   len = snprintf(buf, sizeof(buf), "m %u %u %u %u\n", 0, x, y, state);
   put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+  ui_pointer_move(selected_view, x, y, state);
 }
 
 void
-client_pointer_click(int type, int x, int y, int btn)
+client_pointer_press(int type, int x, int y, int btn)
 {
   char buf[48];
   int len;
 
   if (!selected_view)
     return;
-  len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, 0, x, y, btn);
+  len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, 0, x, y, btn);
   put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+  ui_pointer_press(selected_view, type, x, y, btn);
 }
 
 static int
@@ -262,6 +266,7 @@ draw_views(struct client *c)
 {
   struct file *vf;
   struct view *v;
+
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
     if (v->flags & VIEW_IS_VISIBLE)
@@ -275,13 +280,54 @@ draw_clients()
   struct client *c;
   int changed = 0;
 
-  ++framecnt[0];
   for (c = clients; c; c = c->next)
-    changed |= update_views(c);
-  if (changed)
-    ++framecnt[0];
+    update_views(c);
   for (c = clients; c; c = c->next)
     draw_views(c);
-  ++framecnt[0];
   ui_update();
+}
+
+int
+update_sock_set(fd_set *fdset, int server_fd)
+{
+  struct client *c = clients;
+  int m;
+
+  FD_ZERO(fdset);
+  FD_SET(server_fd, fdset);
+
+  m = server_fd;
+  for (c = clients; c; c = c->next) {
+    FD_SET(c->fd, fdset);
+    m = (m > c->fd) ? m : c->fd;
+  }
+  return m;
+}
+
+int
+process_clients(int server_fd, unsigned int time_ms)
+{
+  struct timeval tv;
+  fd_set fdset;
+  int m, r;
+  struct client *c, *cnext;
+
+  cur_time_ms = time_ms;
+  m = update_sock_set(&fdset, server_fd);
+  tv.tv_sec = 0;
+  tv.tv_usec = 1000000 / 30;
+  r = select(m + 1, &fdset, 0, 0, &tv);
+  if (r < 0)
+    return -1;
+  if (r > 0) {
+    if (FD_ISSET(server_fd, &fdset))
+      add_client(server_fd, MSIZE);
+    for (c = clients; c; c = cnext) {
+      cnext = c->next;
+      if (FD_ISSET(c->fd, &fdset))
+        if (process_client_io(c))
+          rm_client(c);
+    }
+  }
+  return 0;
 }

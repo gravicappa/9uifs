@@ -10,8 +10,12 @@ struct uiplacement {
 };
 
 enum uiflags {
-  UI_IS_CONTAINER = 1,
-  UI_IS_DIRTY = 2,
+  UI_IS_CONTAINER = (1 << 0),
+  UI_IS_DIRTY = (1 << 1),
+  UI_IS_DISABLED = (1 << 2),
+  UI_KBD_EV = (1 << 3),
+  UI_PRESS_PTR_EV = (1 << 4),
+  UI_MOVE_PTR_EV = (1 << 5),
 };
 
 struct uiplace;
@@ -24,9 +28,11 @@ struct uiobj_ops {
   void (*draw_over)(struct uiobj *u, struct view *v);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
-  void (*on_key)(struct uiobj* u, int keysym, int mod, unsigned int unicode);
-  void (*on_pointer)(struct uiobj* u, int x, int y, int state);
-  void (*on_pointer_press)(struct uiobj* u, int x, int y, int btn);
+  int (*on_key)(struct uiobj *u, int type, int keysym, int mod,
+                unsigned int unicode);
+  int (*on_move_pointer)(struct uiobj *u, int x, int y, int state);
+  int (*on_press_pointer)(struct uiobj *u, int type, int x, int y, int btn);
+  int (*on_inout_pointer)(struct uiobj *u, int inside);
 };
 
 struct uiobj {
@@ -96,3 +102,10 @@ void ui_default_prop_update(struct prop *p);
 int ui_init_place(struct uiplace *up);
 
 void default_draw_uiobj(struct uiobj *u, struct view *v);
+
+void walk_view_tree(struct uiplace *up, struct view *v, void *aux,
+                    int (*before_fn)(struct uiplace *, struct view *, void *),
+                    int (*after_fn)(struct uiplace *, struct view *, void *));
+
+struct ev_pool;
+int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);

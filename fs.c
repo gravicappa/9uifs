@@ -3,6 +3,7 @@
 #include "9p.h"
 #include "util.h"
 #include "fs.h"
+#include "event.h"
 #include "client.h"
 
 unsigned long long qid_cnt = 0;

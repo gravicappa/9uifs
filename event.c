@@ -4,8 +4,8 @@
 #include "9p.h"
 #include "util.h"
 #include "fs.h"
-#include "client.h"
 #include "event.h"
+#include "client.h"
 #include "fstypes.h"
 
 static int buf_delta = 512;

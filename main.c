@@ -14,6 +14,7 @@
 #include "net.h"
 #include "util.h"
 #include "fs.h"
+#include "event.h"
 #include "client.h"
 #include "draw.h"
 
@@ -21,36 +22,18 @@ int server_fd = -1;
 int server_port = 5558;
 int scr_w = 320;
 int scr_h = 200;
+int frame_ms = 1000 / 30;
 char *server_host = 0;
-static int msize = 1024;
-
-int
-update_sock_set(fd_set *fdset, int server_fd)
-{
-  struct client *c = clients;
-  int m;
-
-  FD_ZERO(fdset);
-  FD_SET(server_fd, fdset);
-
-  m = server_fd;
-  for (c = clients; c; c = c->next) {
-    FD_SET(c->fd, fdset);
-    m = (m > c->fd) ? m : c->fd;
-  }
-  return m;
-}
 
 int
 main_loop(int server_fd)
 {
-  fd_set fdset;
   SDL_Event ev;
-  int m, r, running = 1;
-  struct client *c, *cnext;
-  struct timeval tv;
+  int running = 1;
+  unsigned int prev_draw_ms = 0, time_ms;
 
   while (running) {
+    time_ms = SDL_GetTicks();
     while (SDL_PollEvent(&ev)) {
       /*log_printf(LOG_DBG, "#SDL ev.type: %d\n", ev.type);*/
       switch (ev.type) {
@@ -61,17 +44,17 @@ main_loop(int server_fd)
         client_pointer_move(ev.motion.x, ev.motion.y, ev.motion.state);
         break;
       case SDL_MOUSEBUTTONDOWN:
-        client_pointer_click('d', ev.button.x, ev.button.y, ev.button.button);
+        client_pointer_press(1, ev.button.x, ev.button.y, ev.button.button);
         break;
       case SDL_MOUSEBUTTONUP:
-        client_pointer_click('u', ev.button.x, ev.button.y, ev.button.button);
+        client_pointer_press(0, ev.button.x, ev.button.y, ev.button.button);
         break;
       case SDL_KEYDOWN:
-        client_keyboard('d', ev.key.keysym.sym, ev.key.keysym.mod,
+        client_keyboard(1, ev.key.keysym.sym, ev.key.keysym.mod,
                         ev.key.keysym.unicode);
         break;
       case SDL_KEYUP:
-        client_keyboard('u', ev.key.keysym.sym, ev.key.keysym.mod,
+        client_keyboard(0, ev.key.keysym.sym, ev.key.keysym.mod,
                         ev.key.keysym.unicode);
         if (ev.key.keysym.sym == SDLK_ESCAPE
             && (ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
@@ -79,23 +62,12 @@ main_loop(int server_fd)
         break;
       }
     }
-    draw_clients();
-    refresh_screen();
-    m = update_sock_set(&fdset, server_fd);
-    tv.tv_sec = 0;
-    tv.tv_usec = 33000;
-    r = select(m + 1, &fdset, 0, 0, &tv);
-    if (r < 0)
-      break;
-    if (r > 0) {
-      if (FD_ISSET(server_fd, &fdset))
-        add_client(server_fd, msize);
-      for (c = clients; c; c = cnext) {
-        cnext = c->next;
-        if (FD_ISSET(c->fd, &fdset))
-          if (process_client_io(c))
-            rm_client(c);
-      }
+    if (process_clients(server_fd, time_ms))
+      running = 0;
+    if (time_ms - prev_draw_ms > frame_ms) {
+      draw_clients();
+      refresh_screen();
+      prev_draw_ms = time_ms;
     }
   }
   return 0;

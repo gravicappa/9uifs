@@ -14,8 +14,9 @@ struct client {
   char *outbuf;
   char *buf;
 
+  int flags;
   struct file fs;
-  struct file fs_event;
+  struct ev_pool ev;
   struct file fs_views;
   struct file fs_images;
   struct file fs_fonts;
@@ -29,17 +30,10 @@ struct client {
 extern struct client *clients;
 extern struct view *selected_view;
 extern int framecnt[2];
+extern unsigned int cur_time_ms;
 
 #define FRAMECNT_EQ(x) ((x)[0] == framecnt[0] && (x)[1] == framecnt[1])
 #define FRAMECNT_SET(x) (((x)[0] = framecnt[0]), ((x)[1] = framecnt[1]))
-/*
-#define FRAMECNT_SET(x) \
-  do { \
-    log_printf(LOG_UI, "set-framecnt to %d at %s:%d\n", framecnt[0], \
-               __FILE__, __LINE__); \
-    ((x)[0] = framecnt[0]), ((x)[1] = framecnt[1]); \
-  } while(0)
-*/
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
@@ -48,5 +42,7 @@ int client_send_resp(struct client *c);
 
 void client_keyboard(int type, int keysym, int mod, unsigned int unicode);
 void client_pointer_move(int x, int y, int state);
-void client_pointer_click(int type, int x, int y, int btn);
+void client_pointer_press(int type, int x, int y, int btn);
 void draw_clients();
+
+int process_clients(int server_fd, unsigned int time_ms);
