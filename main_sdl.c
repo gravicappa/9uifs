@@ -248,7 +248,7 @@ main_loop(int server_fd)
         break;
       }
     }
-    if (process_clients(server_fd, time_ms))
+    if (process_clients(server_fd, time_ms, frame_ms))
       running = 0;
     if (time_ms - prev_draw_ms > frame_ms) {
       if (draw_clients())

@@ -308,7 +308,7 @@ update_sock_set(fd_set *fdset, int server_fd)
 }
 
 int
-process_clients(int server_fd, unsigned int time_ms)
+process_clients(int server_fd, unsigned int time_ms, unsigned int frame_ms)
 {
   struct timeval tv;
   fd_set fdset;
@@ -318,7 +318,7 @@ process_clients(int server_fd, unsigned int time_ms)
   cur_time_ms = time_ms;
   m = update_sock_set(&fdset, server_fd);
   tv.tv_sec = 0;
-  tv.tv_usec = 1000000 / 30;
+  tv.tv_usec = 1000 * frame_ms;
   r = select(m + 1, &fdset, 0, 0, &tv);
   if (r < 0)
     return -1;

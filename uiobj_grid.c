@@ -97,14 +97,10 @@ update_grid_grid(struct uiobj_grid *g)
     g->nrows = nr;
   }
   memset(g->grid, 0, x);
-  log_printf(LOG_UI, "grid size: [%d %d]\n", nc, nr);
   for (f = g->c.fs_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
-    if (up->obj) {
-      log_printf(LOG_UI, "grid[%d %d] <- %p\n", up->place.r[0],
-                 up->place.r[1], up);
+    if (up->obj)
       g->grid[up->place.r[0] + up->place.r[1] * nc] = up;
-    }
   }
 }
 
@@ -131,10 +127,7 @@ iter_cells(struct uiobj_grid *g, int coord)
     s = 0;
     for (i = 0; i < ni; ++i) {
       up = g->grid[i * mi + j * mj];
-      log_printf(LOG_UI, "grid %p [%d/%d %d/%d]: %p\n", g, i, ni, j, nj, up);
       if (up && up->obj) {
-        log_printf(LOG_UI, " obj: %p coord: %d req: %d\n", up->obj, coord,
-                   up->obj->reqsize[coord]);
         t = (up->obj->reqsize[coord] + up->padding.r[coord]
              + up->padding.r[coord + 2]);
         if (up->place.r[coord + 2] == 1 && t > s)
@@ -172,10 +165,8 @@ iter_spanned_cells(struct uiobj_grid *g, int coord)
       if (t > s) {
         ds = t / lim;
         mds = t % lim;
-        for (i = 0; i < ni - 1; ++i, --mds) {
-          log_printf(LOG_UI, "> ugs fs i: %d/%d idx: %d\n", i, lim, j + i);
+        for (i = 0; i < ni - 1; ++i, --mds)
           opts[j + i] = ds + (mds > 0) ? 1 : 0;
-        }
       }
     }
   }
@@ -187,13 +178,11 @@ update_grid_size(struct uiobj *u)
   int i, ni, s, *opts;
   struct uiobj_grid *g = (struct uiobj_grid *)u->data;
 
-  log_printf(LOG_UI, ">> update_grid_size '%s'\n", u->fs.name);
   if (!g)
     return;
   update_grid_grid(g);
   if (!(g->ncols && g->nrows))
     return;
-  log_printf(LOG_UI, "> ugs grid size: [%d %d]\n", g->ncols, g->nrows);
 
   iter_cells(g, 0);
   iter_spanned_cells(g, 0);
@@ -247,20 +236,14 @@ resize_grid(struct uiobj *u)
   ni = g->ncols;
   nj = g->nrows;
 
-  log_printf(LOG_UI, ">> resize_grid '%s' [%d %d]\n", u->fs.name, ni, nj);
-  log_printf(LOG_UI, "     size: [%d %d]\n", w, h);
-
   resize_grid_dim(ni, g->cols_opts, u->reqsize[0], w);
   resize_grid_dim(nj, g->rows_opts, u->reqsize[1], h);
 
   prowh = g->rows_opts;
   for (y = u->g.r[1], j = 0; j < nj; ++j, ++prowh) {
-    log_printf(LOG_UI, "  - rowh[%d/%d]: %d\n", j, nj, *prowh);
     pcolw = g->cols_opts;
     for (x = u->g.r[0], i = 0; i < ni; ++i, ++pcolw) {
-      log_printf(LOG_UI, "  - colw[%d/%d]: %d\n", i, ni, *pcolw);
       up = g->grid[i + j * ni];
-      log_printf(LOG_UI, "  up[%d/%d]: %p\n", i, j, up);
       if (up && up->obj) {
         r[0] = x;
         r[1] = y;
@@ -286,7 +269,6 @@ static void
 rm_uigrid(struct file *f)
 {
   struct uiobj *u = (struct uiobj *)f;
-  log_printf(LOG_DBG, "rm_uigrid %p data: %p\n", u, u->data);
   if (u->data) {
     free(u->data);
     u->data = 0;

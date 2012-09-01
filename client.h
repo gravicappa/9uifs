@@ -45,4 +45,5 @@ void client_pointer_move(int x, int y, int state);
 void client_pointer_press(int type, int x, int y, int btn);
 int draw_clients();
 
-int process_clients(int server_fd, unsigned int time_ms);
+int process_clients(int server_fd, unsigned int time_ms,
+                    unsigned int frame_ms);

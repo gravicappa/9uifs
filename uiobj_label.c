@@ -185,7 +185,6 @@ on_btn_press_pointer(struct uiobj *u, int type, int x, int y, int btn)
       press_button(u, 0);
     b->state = BTN_NORMAL;
   }
-  log_printf(LOG_UI, "button %s is dirty\n", u->fs.name);
   u->flags |= UI_IS_DIRTY;
   return 1;
 }
