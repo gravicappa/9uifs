@@ -65,8 +65,8 @@ main_loop(int server_fd)
     if (process_clients(server_fd, time_ms))
       running = 0;
     if (time_ms - prev_draw_ms > frame_ms) {
-      draw_clients();
-      refresh_screen();
+      if (draw_clients())
+        refresh_screen();
       prev_draw_ms = time_ms;
     }
   }

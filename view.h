@@ -33,5 +33,5 @@ extern struct p9_fs fs_views;
 
 struct view *mk_view(int x, int y, int w, int h);
 void moveresize_view(struct view *v, int x, int y, int w, int h);
-void draw_view(struct view *v);
+int draw_view(struct view *v);
 void update_view(struct view *v);

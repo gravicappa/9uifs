@@ -35,8 +35,6 @@ struct uiobj_dir {
 static void items_create(struct p9_connection *c);
 static void create_place(struct p9_connection *c);
 
-static int prevframecnt = -1;
-
 struct p9_fs items_fs = {
   .create = items_create,
 };
@@ -124,6 +122,7 @@ prop_type_clunk(struct p9_connection *c)
 {
   struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
   int i, good = 0;
+  struct uiobj *u;
 
   if (((c->t.pfid->open_mode & 3) != P9_OWRITE)
       && ((c->t.pfid->open_mode & 3) != P9_ORDWR))
@@ -131,10 +130,12 @@ prop_type_clunk(struct p9_connection *c)
   if (!p->buf)
     return;
   trim_string_right(p->buf->b, " \n\r\t");
+  u = (struct uiobj *)p->p.aux;
   for (i = 0; uitypes[i].type && uitypes[i].init; ++i)
     if (!strcmp(uitypes[i].type, p->buf->b))
-      if (uitypes[i].init((struct uiobj *)p->p.aux) == 0)
+      if (uitypes[i].init(u) == 0)
         good = 1;
+  u->flags |= UI_IS_DIRTY;
   if (!good)
     memset(p->buf->b, 0, p->buf->size);
 }
@@ -187,13 +188,14 @@ struct p9_fs parent_fs = {
 };
 
 void
-default_draw_uiobj(struct uiobj *u, struct view *v)
+default_draw_uiobj(struct uiobj *u, struct uicontext *uc)
 {
-  unsigned int c;
+  struct surface *blit = &uc->v->blit;
+  unsigned int bg;
 
-  c = u->bg.i;
-  if (c && 0xff000000)
-    fill_rect(v->blit.img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], c);
+  bg = u->bg.i;
+  if (bg && 0xff000000)
+    fill_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], bg);
 }
 
 void
@@ -220,6 +222,7 @@ mk_uiobj(struct client *client)
   u->fs.mode = 0500 | P9_DMDIR;
   u->fs.qpath = new_qid(FS_UIOBJ);
   u->fs.rm = ui_rm_uiobj;
+  u->flags |= UI_IS_DIRTY;
 
   /* TODO: use bg from some kind of style db */
   r = init_prop_buf(&u->fs, &u->type, "type", 0, "", 0, u)
@@ -275,15 +278,16 @@ up_children(struct uiplace *up)
 }
 
 static int
-walk_dummy_fn(struct uiplace *up, struct view *v, void *aux)
+walk_dummy_fn(struct uiplace *up, void *aux)
 {
   return 1;
 }
 
 void
-walk_view_tree(struct uiplace *up, struct view *v, void *aux,
-               int (*before_fn)(struct uiplace *, struct view *, void *),
-               int (*after_fn)(struct uiplace *, struct view *, void *))
+walk_view_tree(struct uiplace *up,
+               int (*before_fn)(struct uiplace *, void *),
+               int (*after_fn)(struct uiplace *, void *),
+               void *aux)
 {
   struct file *f;
   struct uiplace *x, *t;
@@ -302,7 +306,7 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
   do {
     if (0) log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->fs.name, up);
     f = 0;
-    if (before_fn(x, v, aux) && x->obj)
+    if (before_fn(x, aux) && x->obj)
       f = up_children(x);
     t = x;
     if (0) log_printf(LOG_UI, "  2 f: %p\n", f);
@@ -312,20 +316,20 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
     } else if (x->fs.next && x != up) {
       if (0) log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
                         x->fs.name, x->fs.next, x->parent);
-      after_fn(x, v, aux);
+      after_fn(x, aux);
       x = (struct uiplace *)x->fs.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->fs.next) {
         if (0) log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->fs.name);
-        after_fn(x, v, aux);
+        after_fn(x, aux);
         x = x->parent;
       }
       if (0) log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->fs.name);
-      after_fn(x, v, aux);
+      after_fn(x, aux);
       if (x->parent) {
         if (0) log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->fs.name);
-        after_fn(x->parent, v, aux);
+        after_fn(x->parent, aux);
       }
       if (x != up && x->parent && x->parent != up && x->parent->fs.next
           && x->parent->fs.next != &up->fs)
@@ -338,7 +342,7 @@ walk_view_tree(struct uiplace *up, struct view *v, void *aux,
 }
 
 static int
-update_place_size(struct uiplace *up, struct view *v, void *aux)
+update_place_size(struct uiplace *up, void *aux)
 {
   if (up && up->obj)
     update_obj_size(up->obj);
@@ -346,26 +350,85 @@ update_place_size(struct uiplace *up, struct view *v, void *aux)
 }
 
 static int
-resize_place(struct uiplace *up, struct view *v, void *aux)
+resize_place(struct uiplace *up, void *aux)
 {
   if (up && up->obj && up->obj->ops->resize)
     up->obj->ops->resize(up->obj);
   return 1;
 }
 
-static int
-draw_obj(struct uiplace *up, struct view *v, void *aux)
+static void
+intersect_clip(int *c1, int *c2)
 {
-  if (up && up->obj && up->obj->ops->draw)
-    up->obj->ops->draw(up->obj, v);
+  int i, r[4], t;
+
+  memcpy(r, c2, sizeof(r));
+  for (i = 0; i < 2; ++i) {
+    t = c1[i] - r[i];
+    if (t > 0) {
+      r[i + 2] -= t;
+      r[i] = c1[i];
+    }
+    t = c1[i] + c1[i + 2];
+    if (r[i] + r[i + 2] > t)
+      r[i + 2] = t - r[i];
+  }
+  memcpy(c1, r, sizeof(r));
+}
+
+static int
+update_obj(struct uiplace *up, void *aux)
+{
+  struct uicontext *ctx = (struct uicontext *)aux;
+  struct uiobj *u;
+
+  if (up && up->obj) {
+    u = up->obj;
+    if (u->ops->update)
+      u->ops->update(u, ctx);
+  }
   return 1;
 }
 
 static int
-draw_over_obj(struct uiplace *up, struct view *v, void *aux)
+draw_obj(struct uiplace *up, void *aux)
 {
-  if (up && up->obj && up->obj->ops->draw_over)
-    up->obj->ops->draw_over(up->obj, v);
+  struct uicontext *ctx = (struct uicontext *)aux;
+  struct uiobj *u;
+  int *clip = ctx->clip, dirty;
+
+  if (up && up->obj) {
+    u = up->obj;
+    memcpy(up->clip, clip, sizeof(up->clip));
+    intersect_clip(clip, up->clip);
+    set_cliprect(clip[0], clip[1], clip[2], clip[3]);
+    dirty = (ctx->v->flags & VIEW_IS_DIRTY) || (u->flags & UI_IS_DIRTY);
+    if (dirty && u->ops->draw) {
+      u->ops->draw(u, ctx);
+      ctx->dirty = 1;
+    }
+  }
+  return 1;
+}
+
+static int
+draw_over_obj(struct uiplace *up, void *aux)
+{
+  struct uicontext *ctx = (struct uicontext *)aux;
+  int *clip = ctx->clip, dirty;
+  struct uiobj *u;
+
+  if (up && up->obj) {
+    u = up->obj;
+    dirty = (ctx->v->flags & VIEW_IS_DIRTY) || (u->flags & UI_IS_DIRTY);
+    if (dirty && u->ops->draw_over) {
+      u->ops->draw_over(u, ctx);
+      ctx->dirty = 1;
+    }
+    memcpy(clip, up->clip, sizeof(ctx->clip));
+    set_cliprect(clip[0], clip[1], clip[2], clip[3]);
+    u->flags &= ~UI_IS_DIRTY;
+  }
   return 1;
 }
 
@@ -375,7 +438,7 @@ ui_update_size(struct view *v, struct uiplace *up)
 }
 
 void
-redraw_uiobj(struct uiobj *u)
+ui_redraw_uiobj(struct uiobj *u)
 {
 }
 
@@ -672,34 +735,34 @@ ui_update_view(struct view *v)
   if (!(up && up->obj))
     return;
 
-  walk_view_tree((struct uiplace *)v->uiplace, v, 0, 0, update_place_size);
+  walk_view_tree((struct uiplace *)v->uiplace, 0, update_place_size, 0);
   wm_view_size_request(v);
   log_printf(LOG_UI, "  view->rect: [%d %d %d %d]\n", v->g.r[0],
              v->g.r[1], v->g.r[2], v->g.r[3]);
   ui_place_with_padding(up, v->g.r);
-  ++framecnt[0];
-  walk_view_tree(up, v, 0, resize_place, 0);
+  walk_view_tree(up, resize_place, 0, 0);
   v->flags &= ~VIEW_IS_DIRTY;
 }
 
-void
+int
 ui_redraw_view(struct view *v)
 {
   struct uiplace *up = (struct uiplace *)v->uiplace;
-
-  if (0) log_printf(LOG_UI, ">> ui_redraw_view '%s'\n", v->fs.name);
+  struct uicontext ctx = {0};
 
   if (!(up && up->obj))
-    return;
+    return 0;
 
-  walk_view_tree((struct uiplace *)v->uiplace, v, 0, draw_obj, draw_over_obj);
+  ctx.v = v;
+  memcpy(ctx.clip, v->g.r, sizeof(ctx.clip));
+  walk_view_tree(up, 0, update_obj, &ctx);
+  walk_view_tree(up, draw_obj, draw_over_obj, &ctx);
+  return ctx.dirty;
 }
 
-void
+int
 ui_update()
 {
-  if (framecnt[0] - prevframecnt >= 1000) {
-    framecnt[1] = time(0);
-    prevframecnt = framecnt[0];
-  }
+  return 0;
 }
+

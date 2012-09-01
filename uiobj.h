@@ -21,11 +21,14 @@ enum uiflags {
 struct uiplace;
 struct view;
 struct uiobj;
+struct ev_pool;
+struct uicontext;
 
 struct uiobj_ops {
   int allocated;
-  void (*draw)(struct uiobj *u, struct view *v);
-  void (*draw_over)(struct uiobj *u, struct view *v);
+  void (*draw)(struct uiobj *u, struct uicontext *uc);
+  void (*draw_over)(struct uiobj *u, struct uicontext *uc);
+  void (*update)(struct uiobj *u, struct uicontext *uc);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
   int (*on_key)(struct uiobj *u, int type, int keysym, int mod,
@@ -73,6 +76,7 @@ struct uiplace {
   void (*detach)(struct uiplace *self);
 
   /* temporary */
+  int clip[4];
   struct uiplace *parent;
 };
 
@@ -84,6 +88,12 @@ struct uiobj_container {
 struct uiobj_maker {
   char *type;
   int (*init)(struct uiobj *);
+};
+
+struct uicontext {
+  int dirty;
+  struct view *v;
+  int clip[4];
 };
 
 struct uiobj *mk_uiobj();
@@ -101,11 +111,11 @@ void ui_propagate_dirty(struct uiplace *up);
 void ui_default_prop_update(struct prop *p);
 int ui_init_place(struct uiplace *up);
 
-void default_draw_uiobj(struct uiobj *u, struct view *v);
+void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
 
-void walk_view_tree(struct uiplace *up, struct view *v, void *aux,
-                    int (*before_fn)(struct uiplace *, struct view *, void *),
-                    int (*after_fn)(struct uiplace *, struct view *, void *));
+void walk_view_tree(struct uiplace *up,
+                    int (*before_fn)(struct uiplace *, void *),
+                    int (*after_fn)(struct uiplace *, void *),
+                    void *aux);
 
-struct ev_pool;
 int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);

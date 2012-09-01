@@ -174,11 +174,14 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   put_event(v->c, &v->ev, len, buf);
 }
 
-void
+int
 draw_view(struct view *v)
 {
   struct screen *s = default_screen();
-  ui_redraw_view(v);
-  blit_image(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3],
-             v->blit.img, 0, 0, v->blit.w, v->blit.h);
+  if (ui_redraw_view(v)) {
+    blit_image(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3],
+               v->blit.img, 0, 0, v->blit.w, v->blit.h);
+    return 1;
+  }
+  return 0;
 }

@@ -43,6 +43,6 @@ int client_send_resp(struct client *c);
 void client_keyboard(int type, int keysym, int mod, unsigned int unicode);
 void client_pointer_move(int x, int y, int state);
 void client_pointer_press(int type, int x, int y, int btn);
-void draw_clients();
+int draw_clients();
 
 int process_clients(int server_fd, unsigned int time_ms);

@@ -33,6 +33,7 @@ void free_screen();
 void refresh_screen();
 struct screen *default_screen();
 
+void set_cliprect(int x, int y, int w, int h);
 void fill_rect(Image dst, int x, int y, int w, int h, unsigned int c);
 void draw_rect(Image dst, int x, int y, int w, int h, unsigned int c);
 

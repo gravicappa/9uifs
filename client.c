@@ -261,20 +261,22 @@ update_views(struct client *c)
   return changed;
 }
 
-static void
+static int
 draw_views(struct client *c)
 {
   struct file *vf;
   struct view *v;
+  int changed = 0;
 
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
     if (v->flags & VIEW_IS_VISIBLE)
-      draw_view((struct view *)vf);
+      changed |= draw_view((struct view *)vf);
   }
+  return changed;
 }
 
-void
+int
 draw_clients()
 {
   struct client *c;
@@ -283,8 +285,9 @@ draw_clients()
   for (c = clients; c; c = c->next)
     update_views(c);
   for (c = clients; c; c = c->next)
-    draw_views(c);
-  ui_update();
+    changed |= draw_views(c);
+  changed |= ui_update();
+  return changed;
 }
 
 int

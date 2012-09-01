@@ -155,7 +155,7 @@ struct pointer_finder {
 };
 
 static int
-find_uiobj_fn(struct uiplace *up, struct view *v, void *aux)
+find_uiobj_fn(struct uiplace *up, void *aux)
 {
   struct pointer_finder *finder = (struct pointer_finder *)aux;
   struct uiobj *u = up->obj;
@@ -177,7 +177,7 @@ find_uiobj_by_xy(struct view *v, int x, int y)
 {
   struct pointer_finder f = {x, y, 0};
   struct uiplace *up = (struct uiplace *)v->uiplace;
-  walk_view_tree(up, v, &f, find_uiobj_fn, 0);
+  walk_view_tree(up, find_uiobj_fn, 0, &f);
   return f.u;
 }
 

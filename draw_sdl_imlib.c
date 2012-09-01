@@ -83,6 +83,12 @@ blit_image(Image dst, int dx, int dy, int dw, int dh,
   imlib_blend_image_onto_image(src, 0, sx, dy, sw, sh, dx, dy, dw, dh);
 }
 
+void
+set_cliprect(int x, int y, int w, int h)
+{
+  imlib_context_set_cliprect(x, y, w, h);
+}
+
 struct screen *
 default_screen()
 {
