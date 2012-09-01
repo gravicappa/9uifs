@@ -14,9 +14,8 @@ LDFLAGS = $LDFLAGS `{sdl-config --static-libs}
 CFLAGS = $CFLAGS -DX_DISPLAY_MISSING
 LDFLAGS = $LDFLAGS -lImlib2
 
-obj = config.o 9pmsg.o fs.o main.o util.o net.o client.o fsutil.o fs.o \
+obj = config.o 9pmsg.o fs.o main_sdl.o util.o net.o client.o fsutil.o fs.o \
       9pdbg.o surface.c view.c event.o ctl.o wm.o ui.o uievent.o prop.o \
-      draw_sdl_imlib.o \
       uiobj_grid.o uiobj_scroll.o uiobj_label.o
 
 docs = docs/doc.html
