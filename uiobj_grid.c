@@ -29,10 +29,8 @@ struct uiobj_grid {
   int *cols_opts;
 };
 
-enum grid_flags {
-  UIGRID_DEFAULT_FLAGS = 0,
-  UIGRID_IS_EXPAND = 1 << 24,
-};
+#define UIGRID_IS_EXPAND (1 << 24)
+#define UIGRID_DEFAULT_FLAGS 0
 
 #define UIGRID_CELL_SIZE(x) ((x) & 0x00ffffff)
 #define UIGRID_SET_CELL_SIZE(x, s) (((x) & 0xff000000) | ((s) & 0x00ffffff))
@@ -192,12 +190,12 @@ update_grid_size(struct uiobj *u)
   opts = g->cols_opts;
   ni = g->ncols;
   for (s = 0, i = 0; i < ni; ++i)
-    s += opts[i];
+    s += UIGRID_CELL_SIZE(opts[i]);
   u->reqsize[0] = s;
   opts = g->rows_opts;
   ni = g->nrows;
   for (s = 0, i = 0; i < ni; ++i)
-    s += opts[i];
+    s += UIGRID_CELL_SIZE(opts[i]);
   u->reqsize[1] = s;
 }
 

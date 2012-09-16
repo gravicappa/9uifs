@@ -4,6 +4,7 @@ name = uifs
 
 LANG = C
 CC = gcc
+O = o
 #CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
 CFLAGS = -Wall -O0 -g
 
@@ -14,18 +15,22 @@ LDFLAGS = $LDFLAGS `{sdl-config --static-libs}
 CFLAGS = $CFLAGS -DX_DISPLAY_MISSING
 LDFLAGS = $LDFLAGS -lImlib2
 
-obj = config.o 9pmsg.o fs.o main_sdl.o util.o net.o client.o fsutil.o fs.o \
-      9pdbg.o surface.c view.c event.o ctl.o wm.o ui.o uievent.o prop.o \
-      uiobj_grid.o uiobj_scroll.o uiobj_label.o
+obj = config.$O 9pmsg.$O fs.$O main_sdl.$O util.$O net.$O client.$O \
+			fsutil.$O fs.$O 9pdbg.$O surface.c view.c event.$O ctl.$O wm.$O \
+			ui.$O uievent.$O prop.$O uiobj_grid.$O uiobj_scroll.$O uiobj_label.$O
 
 docs = docs/doc.html
 
 all:V: $name
 
 clean:V:
-  rm -f *.o $name
+  rm -f *.$O $name
 
 docs:V: $docs
+
+
+$name.exe: $obj
+  $CC $CFLAGS $prereq $LDFLAGS -o $target
 
 $name: $obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
@@ -33,7 +38,7 @@ $name: $obj
 test/test_arr: test/test_arr.c util.o
 test/test_path: test/test_path.c util.o
 
-%.o: %.c
+%.$O: %.c
   $CC $CFLAGS -c -o $target $stem.c
 
 %: %.c
