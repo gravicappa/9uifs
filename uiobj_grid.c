@@ -65,31 +65,42 @@ update_grid_cellcount(struct uiobj_grid *g, int *pnc, int *pnr)
   *pnr = nr;
 }
 
+static int
+update_grid_opts(struct uiobj_grid *g, int ncols, int nrows)
+{
+  int i;
+
+  if (ncols != g->ncols || !g->cols_opts) {
+    g->cols_opts = (int *)realloc(g->cols_opts, ncols * sizeof(int));
+    if (ncols > 0 && g->cols_opts == 0)
+      return -1;
+    for (i = g->ncols; i < ncols; ++i)
+      g->cols_opts[i] = UIGRID_DEFAULT_FLAGS;
+  }
+  if (nrows != g->nrows || !g->rows_opts) {
+    g->rows_opts = (int *)realloc(g->rows_opts, nrows * sizeof(int));
+    if (nrows > 0 && g->rows_opts == 0)
+      return -1;
+    for (i = g->nrows; i < nrows; ++i)
+      g->rows_opts[i] = UIGRID_DEFAULT_FLAGS;
+  }
+  return 0;
+}
+
 static void
 update_grid_grid(struct uiobj_grid *g)
 {
-  int x, i, nr, nc;
+  int x, nr, nc;
   struct file *f;
   struct uiplace *up;
 
   update_grid_cellcount(g, &nc, &nr);
-
-  if (nc != g->ncols || !g->cols_opts) {
-    g->cols_opts = (int *)realloc(g->cols_opts, nc * sizeof(int));
-    for (i = g->ncols; i < nc; ++i)
-      g->cols_opts[i] = UIGRID_DEFAULT_FLAGS;
-  }
-  if (nr != g->nrows || !g->rows_opts) {
-    g->rows_opts = (int *)realloc(g->rows_opts, nr * sizeof(int));
-    for (i = g->nrows; i < nr; ++i)
-      g->rows_opts[i] = UIGRID_DEFAULT_FLAGS;
-  }
-  if (!(g->cols_opts && g->rows_opts))
+  if (update_grid_opts(g, nc, nr))
     die("Cannot allocate memory");
   x = nc * nr * sizeof(struct uiplace *);
   if (nc != g->ncols || nr != g->nrows || !g->grid) {
     g->grid = (struct uiplace **)realloc(g->grid, x);
-    if (!g->grid)
+    if (nc > 0 && nr > 0 && !g->grid)
       die("Cannot allocate memory");
     g->ncols = nc;
     g->nrows = nr;
@@ -296,12 +307,21 @@ opts_open(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
   struct gridopt *go = (struct gridopt *)fid->file;
-  int i, n, off, *opts, len;
+  struct uiobj_grid *g = go->grid;
+  int i, n, off, *opts, len, ncols, nrows;
   struct arr *a = 0;
   char buf[16], *sep = "";
 
   fid->rm = opts_rmfid;
   fid->aux = 0;
+
+  update_grid_cellcount(g, &ncols, &nrows);
+  if (update_grid_opts(g, ncols, nrows)) {
+    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+    return;
+  }
+  go->grid->ncols = ncols;
+  go->grid->nrows = nrows;
 
   if (go->coord == 0) {
     opts = go->grid->cols_opts;
@@ -347,6 +367,8 @@ opts_clunk(struct p9_connection *c)
   for (i = 0, a = next_arg(&s); i < n && a; ++i, a = next_arg(&s), ++opts)
     if (sscanf(a, "%d", &x) == 1)
       *opts = UIGRID_SET_CELL_FLAGS(*opts, (x << 24));
+  free(buf);
+  fid->aux = 0;
   update_grid(go->grid);
 }
 
