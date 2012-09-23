@@ -272,6 +272,7 @@ draw_views(struct client *c)
     v = (struct view *)vf;
     if (v->flags & VIEW_IS_VISIBLE)
       changed |= draw_view((struct view *)vf);
+    v->flags &= ~VIEW_IS_DIRTY;
   }
   return changed;
 }
@@ -282,10 +283,10 @@ draw_clients()
   struct client *c;
   int changed = 0;
 
-  for (c = clients; c; c = c->next)
+  for (c = clients; c; c = c->next) {
     update_views(c);
-  for (c = clients; c; c = c->next)
     changed |= draw_views(c);
+  }
   changed |= ui_update();
   return changed;
 }

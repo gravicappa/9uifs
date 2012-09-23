@@ -202,8 +202,17 @@ void
 ui_rm_uiobj(struct file *f)
 {
   struct uiobj *u = (struct uiobj *)f;
+  struct uiplace *up;
+
   if (!u)
     return;
+  up = u->parent;
+  if (up) {
+    up->obj = 0;
+    if (up->path.buf)
+      up->path.buf->used = 0;
+    ui_propagate_dirty(up);
+  }
   free(u);
 }
 
@@ -224,19 +233,21 @@ mk_uiobj(struct client *client)
   u->fs.rm = ui_rm_uiobj;
   u->flags |= UI_IS_DIRTY;
 
-  /* TODO: use bg from some kind of style db */
   r = init_prop_buf(&u->fs, &u->type, "type", 0, "", 0, u)
-      | init_prop_colour(&u->fs, &u->bg, "background", 0, u)
-      | init_prop_int(&u->fs, &u->visible, "visible", 0, u)
-      | init_prop_int(&u->fs, &u->drawable, "drawable", 1, u)
-      | init_prop_rect(&u->fs, &u->restraint, "restraint", u)
-      | init_prop_rect(&u->fs, &u->g, "g", u);
+      || init_prop_colour(&u->fs, &u->bg, "background", 0, u)
+      || init_prop_int(&u->fs, &u->visible, "visible", 0, u)
+      || init_prop_int(&u->fs, &u->drawable, "drawable", 1, u)
+      || init_prop_rect(&u->fs, &u->restraint, "restraint", u)
+      || init_prop_rect(&u->fs, &u->g, "g", u);
 
   if (r) {
     rm_file(&u->fs);
     free(u);
     u = 0;
   }
+
+  u->bg.p.update = u->visible.p.update = u->drawable.p.update
+    = u->restraint.p.update = ui_prop_update_default;
 
   u->type.p.fs.fs = &prop_type_fs;
   u->g.p.fs.mode = 0400;
@@ -446,8 +457,14 @@ static void
 rm_place(struct file *f)
 {
   struct uiplace *up = (struct uiplace *)f;
+
   if (!up)
     return;
+  if (up->obj) {
+    up->obj->parent = 0;
+    up->obj = 0;
+    ui_propagate_dirty(up);
+  }
   if (up->path.buf)
     free(up->path.buf);
   if (up->sticky.buf)
@@ -532,8 +549,10 @@ ui_propagate_dirty(struct uiplace *up)
 
   log_printf(LOG_UI, ">> ui_propagate_dirty %p\n", up);
 
-  while (up && (u = uiplace_container(up)))
+  while (up && (u = uiplace_container(up))) {
+    u->flags |= UI_IS_DIRTY;
     up = u->parent;
+  }
   if (up) {
     v = uiplace_container_view(up);
     if (v && (v->flags & VIEW_IS_VISIBLE))
@@ -542,10 +561,26 @@ ui_propagate_dirty(struct uiplace *up)
 }
 
 void
-ui_default_prop_update(struct prop *p)
+ui_prop_update_default(struct prop *p)
+{
+  struct uiobj *u = (struct uiobj *)p->aux;
+
+  if (FSTYPE(*((struct file *)p->aux)) != FS_UIOBJ) {
+    log_printf(LOG_UI, "ui_default_prop_update type: %d\n",
+               FSTYPE(*((struct file *)p->aux)));
+    die("Type error");
+  }
+  u->flags |= UI_IS_DIRTY;
+  if (u->parent)
+    ui_propagate_dirty(u->parent);
+}
+
+void
+uiplace_prop_update_default(struct prop *p)
 {
   struct uiplace *up = (struct uiplace *)p->aux;
-  ui_propagate_dirty(up);
+  if (up)
+    ui_propagate_dirty(up);
 }
 
 static void
@@ -575,7 +610,7 @@ upd_path(struct prop *p)
       pb->buf->used = 0;
   }
   if (up->obj != prevu)
-    ui_default_prop_update(p);
+    uiplace_prop_update_default(p);
 }
 
 int
@@ -584,9 +619,9 @@ ui_init_place(struct uiplace *up)
   int r;
 
   r = init_prop_buf(&up->fs, &up->path, "path", 0, "", 0, up)
-      | init_prop_buf(&up->fs, &up->sticky, "sticky", 8, 0, 1, up)
-      | init_prop_rect(&up->fs, &up->padding, "padding", up)
-      | init_prop_rect(&up->fs, &up->place, "place", up);
+      || init_prop_buf(&up->fs, &up->sticky, "sticky", 8, 0, 1, up)
+      || init_prop_rect(&up->fs, &up->padding, "padding", up)
+      || init_prop_rect(&up->fs, &up->place, "place", up);
   up->place.r[0] = -1;
   up->place.r[1] = -1;
   up->place.r[2] = 1;
@@ -598,8 +633,8 @@ ui_init_place(struct uiplace *up)
     return -1;
   }
   up->path.p.update = upd_path;
-  up->sticky.p.update = ui_default_prop_update;
-  up->padding.p.update = ui_default_prop_update;
+  up->sticky.p.update = up->padding.p.update = up->place.p.update
+      = uiplace_prop_update_default;
 
   up->fs.mode = 0500 | P9_DMDIR;
   up->fs.qpath = new_qid(FS_UIPLACE);
@@ -741,7 +776,6 @@ ui_update_view(struct view *v)
              v->g.r[1], v->g.r[2], v->g.r[3]);
   ui_place_with_padding(up, v->g.r);
   walk_view_tree(up, resize_place, 0, 0);
-  v->flags &= ~VIEW_IS_DIRTY;
 }
 
 int

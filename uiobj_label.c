@@ -92,8 +92,8 @@ init_uilabel(struct uiobj *u)
     free(x);
     return -1;
   }
-  x->text.p.update = ui_default_prop_update;
-  x->font.p.update = ui_default_prop_update;
+  x->text.p.update = x->fg.p.update = x->font.p.update
+      = ui_prop_update_default;
   u->ops = &label_ops;
   u->data = x;
   u->fs.rm = rm_uilabel;

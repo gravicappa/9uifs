@@ -108,7 +108,8 @@ void ui_update_size(struct view *v, struct uiplace *up);
 void ui_place_with_padding(struct uiplace *up, int rect[4]);
 
 void ui_propagate_dirty(struct uiplace *up);
-void ui_default_prop_update(struct prop *p);
+void ui_prop_update_default(struct prop *p);
+void uiplace_prop_update_default(struct prop *p);
 int ui_init_place(struct uiplace *up);
 
 void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
