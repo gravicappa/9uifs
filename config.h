@@ -2,6 +2,8 @@
 #define DEFAULT_FONT "cmunrm"
 #define DEFAULT_FONT_SIZE 14
 
+#define DEFAULT_BG 0xffffffff
+
 #define DEFAULT_LABEL_BG 0xffffffff
 #define DEFAULT_LABEL_FG 0xff000000
 

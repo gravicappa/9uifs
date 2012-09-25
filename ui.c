@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <time.h>
 
+#include "config.h"
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
@@ -234,7 +235,7 @@ mk_uiobj(struct client *client)
   u->flags |= UI_IS_DIRTY;
 
   r = init_prop_buf(&u->fs, &u->type, "type", 0, "", 0, u)
-      || init_prop_colour(&u->fs, &u->bg, "background", 0, u)
+      || init_prop_colour(&u->fs, &u->bg, "background", DEFAULT_BG, u)
       || init_prop_int(&u->fs, &u->visible, "visible", 0, u)
       || init_prop_int(&u->fs, &u->drawable, "drawable", 1, u)
       || init_prop_rect(&u->fs, &u->restraint, "restraint", u)

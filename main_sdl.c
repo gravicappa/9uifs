@@ -177,19 +177,33 @@ refresh_screen()
 }
 
 void
-draw_utf8(Image dst, int x, int y, int c, Font font, char *str)
+draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
 {
+  char let;
+
   imlib_context_set_font((font) ? font : default_font);
   imlib_context_set_image(dst);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
+
+  /* FIXME: use patched imlib2 */
+  let = str[len];
+  str[len] = 0;
   imlib_text_draw(x, y, str);
+  str[len] = let;
 }
 
 int
-get_utf8_size(Font font, char *str, int *w, int *h)
+get_utf8_size(Font font, int len, char *str, int *w, int *h)
 {
+  char let;
+
   imlib_context_set_font((font) ? font : default_font);
+
+  /* FIXME: use patched imlib2 */
+  let = str[len];
+  str[len] = 0;
   imlib_get_text_advance(str, w, h);
+  str[len] = let;
   return 0;
 }
 

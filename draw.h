@@ -45,8 +45,8 @@ Image resize_image(Image img, int w, int h, int flags);
 void blit_image(Image dst, int dx, int dy, int dw, int dh,
                 Image src, int sx, int sy, int sw, int sh);
 
-void draw_utf8(Image dst, int x, int y, int c, Font font, char *str);
-int get_utf8_size(Font font, char *str, int *w, int *h);
+void draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str);
+int get_utf8_size(Font font, int len, char *str, int *w, int *h);
 
 Font create_font(const char *name, int size);
 void free_font(Font font);
