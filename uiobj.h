@@ -36,6 +36,7 @@ struct uiobj_ops {
   int (*on_move_pointer)(struct uiobj *u, int x, int y, int state);
   int (*on_press_pointer)(struct uiobj *u, int type, int x, int y, int btn);
   int (*on_inout_pointer)(struct uiobj *u, int inside);
+  struct file *(*get_children)(struct uiobj *u);
 };
 
 struct uiobj {
@@ -63,8 +64,6 @@ struct uiobj {
 struct uiplace {
   struct file fs;
 
-  struct uiplace *next;
-  struct uiplace *prev;
   struct uiobj *obj;
   struct prop_buf path;
   struct prop_buf sticky;
@@ -110,7 +109,7 @@ void ui_place_with_padding(struct uiplace *up, int rect[4]);
 void ui_propagate_dirty(struct uiplace *up);
 void ui_prop_update_default(struct prop *p);
 void uiplace_prop_update_default(struct prop *p);
-int ui_init_place(struct uiplace *up);
+int ui_init_place(struct uiplace *up, int setup);
 
 void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
 

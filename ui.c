@@ -273,6 +273,9 @@ update_obj_size(struct uiobj *u)
 {
   if (!u)
     return;
+  log_printf(LOG_UI,
+             "upd_obj_size (%p) %s type: %s ops: %p ops->updsize: %p\n",
+             u, u->fs.name, u->type.buf->b, u->ops, u->ops->update_size);
   if (u->ops->update_size)
     u->ops->update_size(u);
   else {
@@ -284,9 +287,8 @@ update_obj_size(struct uiobj *u)
 static struct file *
 up_children(struct uiplace *up)
 {
-  if (!(up->obj && (up->obj->flags & UI_IS_CONTAINER) && up->obj->data))
-    return 0;
-  return ((struct uiobj_container *)up->obj->data)->fs_items.child;
+  struct uiobj *u = up->obj;
+  return (u && u->ops->get_children) ? u->ops->get_children(u) : 0;
 }
 
 static int
@@ -324,6 +326,7 @@ walk_view_tree(struct uiplace *up,
     if (0) log_printf(LOG_UI, "  2 f: %p\n", f);
     if (f) {
       x = (struct uiplace *)f;
+      if (0) log_printf(LOG_UI, "  %s->parent <- %p\n", x->fs.name, t);
       x->parent = t;
     } else if (x->fs.next && x != up) {
       if (0) log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
@@ -344,9 +347,11 @@ walk_view_tree(struct uiplace *up,
         after_fn(x->parent, aux);
       }
       if (x != up && x->parent && x->parent != up && x->parent->fs.next
-          && x->parent->fs.next != &up->fs)
+          && x->parent->fs.next != &up->fs) {
+        t = x->parent->parent;
         x = (struct uiplace *)x->parent->fs.next;
-      else
+        x->parent = t;
+      } else
         break;
     }
   } while (x && x != up);
@@ -478,7 +483,7 @@ uiplace_container(struct uiplace *up)
   if (up->fs.parent && FSTYPE(*up->fs.parent) == FS_UIOBJ)
     return (struct uiobj *)up->fs.parent;
   if (up->fs.parent && (FSTYPE(*up->fs.parent) == FS_UIPLACE_DIR)
-      && up->fs.parent->parent)
+      && up->fs.parent->parent && FSTYPE(*up->fs.parent->parent) == FS_UIOBJ)
     return (struct uiobj *)up->fs.parent->parent;
   return 0;
 }
@@ -615,27 +620,30 @@ upd_path(struct prop *p)
 }
 
 int
-ui_init_place(struct uiplace *up)
+ui_init_place(struct uiplace *up, int setup)
 {
   int r;
 
-  r = init_prop_buf(&up->fs, &up->path, "path", 0, "", 0, up)
-      || init_prop_buf(&up->fs, &up->sticky, "sticky", 8, 0, 1, up)
-      || init_prop_rect(&up->fs, &up->padding, "padding", up)
-      || init_prop_rect(&up->fs, &up->place, "place", up);
+  r = init_prop_buf(&up->fs, &up->path, "path", 0, "", 0, up);
+  if (setup && !r) {
+    r = init_prop_buf(&up->fs, &up->sticky, "sticky", 8, 0, 1, up)
+        || init_prop_rect(&up->fs, &up->padding, "padding", up)
+        || init_prop_rect(&up->fs, &up->place, "place", up);
+    up->sticky.p.update = up->padding.p.update = up->place.p.update
+        = uiplace_prop_update_default;
+  }
   up->place.r[0] = -1;
   up->place.r[1] = -1;
   up->place.r[2] = 1;
   up->place.r[3] = 1;
 
   if (r) {
-    free(up->fs.name);
+    if (up->fs.owns_name)
+      free(up->fs.name);
     free(up);
     return -1;
   }
   up->path.p.update = upd_path;
-  up->sticky.p.update = up->padding.p.update = up->place.p.update
-      = uiplace_prop_update_default;
 
   up->fs.mode = 0500 | P9_DMDIR;
   up->fs.qpath = new_qid(FS_UIPLACE);
@@ -666,7 +674,7 @@ create_place(struct p9_connection *c)
 
   up->fs.name = strndup(c->t.name, c->t.name_len);
   up->fs.owns_name = 1;
-  if (!up->fs.name || ui_init_place(up)) {
+  if (!up->fs.name || ui_init_place(up, 1)) {
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
     free(up);
     return;
@@ -750,7 +758,7 @@ ui_init_uiplace(struct view *v)
 
   up = (struct uiplace *)malloc(sizeof(struct uiplace));
   memset(up, 0, sizeof(*up));
-  if (!up || ui_init_place(up))
+  if (!up || ui_init_place(up, 1))
     return -1;
   v->uiplace = &up->fs;
   return 0;
@@ -773,8 +781,6 @@ ui_update_view(struct view *v)
 
   walk_view_tree((struct uiplace *)v->uiplace, 0, update_place_size, 0);
   wm_view_size_request(v);
-  log_printf(LOG_UI, "  view->rect: [%d %d %d %d]\n", v->g.r[0],
-             v->g.r[1], v->g.r[2], v->g.r[3]);
   ui_place_with_padding(up, v->g.r);
   walk_view_tree(up, resize_place, 0, 0);
 }

@@ -181,6 +181,9 @@ draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
 {
   char let;
 
+  if (!(len && str))
+    return;
+
   imlib_context_set_font((font) ? font : default_font);
   imlib_context_set_image(dst);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
@@ -196,6 +199,11 @@ int
 get_utf8_size(Font font, int len, char *str, int *w, int *h)
 {
   char let;
+
+  if (!(len && str)) {
+    *w = *h = 0;
+    return 0;
+  }
 
   imlib_context_set_font((font) ? font : default_font);
 

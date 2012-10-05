@@ -3,6 +3,7 @@
 
 #include "util.h"
 #include "draw.h"
+#include "text.h"
 #include "9p.h"
 #include "fs.h"
 #include "prop.h"
@@ -47,7 +48,7 @@ draw(struct uiobj *u, struct uicontext *uc)
     fill_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], bg);
   if (fg && 0xff000000 && x->text.buf)
     multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, 0,
-                    x->text.buf->size, x->text.buf->b);
+                    x->text.buf->used - 1, x->text.buf->b);
 }
 
 static void
@@ -56,7 +57,7 @@ update_size(struct uiobj *u)
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   int w = 0, h = 0;
   if (x->text.buf)
-    multi_get_utf8_size(0, x->text.buf->size, x->text.buf->b, &w, &h);
+    multi_get_utf8_size(0, x->text.buf->used - 1, x->text.buf->b, &w, &h);
   log_printf(LOG_UI, ">> label.update_size [%d %d]\n", w, h);
   u->reqsize[0] = w;
   u->reqsize[1] = h;
@@ -143,8 +144,8 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
   if (frame && 0xff000000)
     draw_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], frame);
   if (fg && 0xff000000 && b->text.buf)
-    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, 0, b->text.buf->size,
-                    b->text.buf->b);
+    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, 0,
+                    b->text.buf->used - 1, b->text.buf->b);
 }
 
 static void

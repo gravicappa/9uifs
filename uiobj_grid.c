@@ -98,6 +98,7 @@ update_grid_grid(struct uiobj_grid *g)
   if (update_grid_opts(g, nc, nr))
     die("Cannot allocate memory");
   x = nc * nr * sizeof(struct uiplace *);
+  log_printf(LOG_UI, "update_grid_grid [%d %d]\n", nc, nr);
   if (nc != g->ncols || nr != g->nrows || !g->grid) {
     g->grid = (struct uiplace **)realloc(g->grid, x);
     if (nc > 0 && nr > 0 && !g->grid)
@@ -187,6 +188,7 @@ update_grid_size(struct uiobj *u)
   int i, ni, s, *opts;
   struct uiobj_grid *g = (struct uiobj_grid *)u->data;
 
+  log_printf(LOG_UI, "# update_grid_size g: %p\n", g);
   if (!g)
     return;
   update_grid_grid(g);
@@ -240,6 +242,7 @@ resize_grid(struct uiobj *u)
 
   if (!(g && g->nrows && g->ncols))
     return;
+
   w = u->g.r[2];
   h = u->g.r[3];
   ni = g->ncols;
@@ -272,6 +275,7 @@ resize_grid(struct uiobj *u)
     }
     y += UIGRID_CELL_SIZE(*prowh);
   }
+  log_printf(LOG_UI, "grid resize done\n");
 }
 
 static void
@@ -402,10 +406,18 @@ struct p9_fs opts_fs = {
   .clunk = opts_clunk
 };
 
+static struct file *
+get_children(struct uiobj *u)
+{
+  struct uiobj_container *c = (struct uiobj_container *)u->data;
+  return (c) ? c->fs_items.child : 0;
+}
+
 static struct uiobj_ops grid_ops = {
   .resize = resize_grid,
   .update_size = update_grid_size,
-  .draw = default_draw_uiobj
+  .draw = default_draw_uiobj,
+  .get_children = get_children,
 };
 
 int
@@ -416,9 +428,6 @@ init_uigrid(struct uiobj *u)
   if (!u->data)
     return -1;
   memset(u->data, 0, sizeof(struct uiobj_grid));
-  u->ops = &grid_ops;
-  u->flags |= UI_IS_CONTAINER;
-  u->fs.rm = rm_uigrid;
   g = (struct uiobj_grid *)u->data;
 
   g->fs_cols_opts.coord = 0;
@@ -441,6 +450,9 @@ init_uigrid(struct uiobj *u)
   ui_init_container_items(&g->c, "items");
   g->c.u = u;
   add_file(&u->fs, &g->c.fs_items);
+  u->ops = &grid_ops;
+  u->flags |= UI_IS_CONTAINER;
+  u->fs.rm = rm_uigrid;
 
   return 0;
 }
