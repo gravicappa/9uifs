@@ -29,7 +29,7 @@ struct file {
 extern struct p9_fs fs;
 
 unsigned long long new_qid(unsigned char type);
-#define FSTYPE(f) (((f).qpath) & 0xff)
+#define FSTYPE(f) ((unsigned int)((f).qpath) & 0xff)
 
 void add_file(struct file *root, struct file *f);
 void rm_file(struct file *f);
