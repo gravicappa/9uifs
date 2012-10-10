@@ -66,11 +66,13 @@ prop_int_clunk(struct p9_connection *c, const char *fmt)
   if (!c->t.pfid->aux)
     return 0;
 
-  p = (struct prop_int *)c->t.pfid->file;
-  if (sscanf((char *)c->t.pfid->aux, fmt, &x) != 1)
-    return -1;
-  if (p && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR))
-    p->i = x;
+  if ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR) {
+    p = (struct prop_int *)c->t.pfid->file;
+    if (sscanf((char *)c->t.pfid->aux, fmt, &x) != 1)
+      return -1;
+    if (p)
+      p->i = x;
+  }
   prop_clunk(c);
   return 0;
 }
@@ -197,26 +199,27 @@ prop_colour_clunk(struct p9_connection *c)
   if (!buf)
     return;
 
-  len = strlen(buf);
-  if (len <= 4) {
-    n = sscanf(buf, "%01x%01x%01x%01x", &r, &g, &b, &a);
-    if (n < 3)
+  if ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR) {
+    len = strlen(buf);
+    if (len <= 4) {
+      n = sscanf(buf, "%01x%01x%01x%01x", &r, &g, &b, &a);
+      if (n < 3)
+        goto error;
+      r <<= 4;
+      g <<= 4;
+      b <<= 4;
+      a = (n == 4) ? (a << 4) : 0xff;
+    } else if (len <= 8) {
+      n = sscanf(buf, "%02x%02x%02x%02x", &r, &g, &b, &a);
+      if (n < 3)
+        goto error;
+      if (n < 4)
+        a = 0xff;
+    } else
       goto error;
-    r <<= 4;
-    g <<= 4;
-    b <<= 4;
-    a = (n == 4) ? (a << 4) : 0xff;
-  } else if (len <= 8) {
-    n = sscanf(buf, "%02x%02x%02x%02x", &r, &g, &b, &a);
-    if (n < 3)
-      goto error;
-    if (n < 4)
-      a = 0xff;
-  } else
-    goto error;
-
-  if (p && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR))
-    p->i = (a << 24) | (r << 16) | (g << 8) | b;
+    if (p)
+      p->i = (a << 24) | (r << 16) | (g << 8) | b;
+  }
   prop_clunk(c);
   return;
 error:
@@ -258,8 +261,9 @@ rect_clunk(struct p9_connection *c)
   int r[4];
   struct prop_rect *p;
   char *s = (char *)c->t.pfid->aux;
+  int mode = c->t.pfid->open_mode;
 
-  if (!s)
+  if (!s || !((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR))
     return;
 
   p = (struct prop_rect *)c->t.pfid->file;
@@ -326,8 +330,10 @@ intarr_clunk(struct p9_connection *c)
   int i, n, *ptr, x;
   struct prop_intarr *p = (struct prop_intarr *)c->t.pfid->file;
   char *s, *a;
+  int mode = c->t.pfid->open_mode;
 
-  if (!(arr && p && p->arr && p->n))
+  if (!(arr && p && p->arr && p->n
+        && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR)))
     return;
   n = p->n;
   ptr = p->arr;

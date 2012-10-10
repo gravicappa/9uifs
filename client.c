@@ -15,6 +15,7 @@
 #endif
 
 #include "util.h"
+#include "input.h"
 #include "9p.h"
 #include "9pdbg.h"
 #include "fs.h"
@@ -205,43 +206,40 @@ client_send_resp(struct client *c)
 }
 
 void
-client_keyboard(int type, int keysym, int mod, unsigned int unicode)
-{
-  char buf[64];
-  int len;
-
-  if (!selected_view)
-    return;
-  len = snprintf(buf, sizeof(buf), "%u %u %u %u\n", type, keysym, mod,
-                 unicode);
-  put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);
-  ui_keyboard(selected_view, type, keysym, mod, unicode);
-}
-
-void
-client_pointer_move(int x, int y, int state)
+client_input_event(struct input_event *ev)
 {
   char buf[48];
-  int len;
+  int len, type;
 
   if (!selected_view)
     return;
-  len = snprintf(buf, sizeof(buf), "m %u %u %u %u\n", 0, x, y, state);
-  put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
-  ui_pointer_move(selected_view, x, y, state);
-}
 
-void
-client_pointer_press(int type, int x, int y, int btn)
-{
-  char buf[48];
-  int len;
+  switch (ev->type) {
+    case IN_PTR_MOVE: 
+      len = snprintf(buf, sizeof(buf), "m %u %u %u %d %d %u\n", ev->id,
+                     ev->x, ev->y, ev->dx, ev->dy, ev->state);
+      put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+      ui_pointer_move(selected_view, ev);
+      break;
 
-  if (!selected_view)
-    return;
-  len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, 0, x, y, btn);
-  put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
-  ui_pointer_press(selected_view, type, x, y, btn);
+    case IN_PTR_DOWN:
+    case IN_PTR_UP: 
+      type = (ev->type == IN_PTR_DOWN) ? 1 : 0;
+      len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, ev->id,
+                     ev->x, ev->y, ev->key);
+      put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+      ui_pointer_press(selected_view, ev);
+      break;
+
+    case IN_KEY_DOWN:
+    case IN_KEY_UP: 
+      type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
+      len = snprintf(buf, sizeof(buf), "%u %u %u %lu\n", type, ev->key,
+                     ev->state, ev->unicode);
+      put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);
+      ui_keyboard(selected_view, ev);
+      break;
+  }
 }
 
 static int
@@ -253,7 +251,7 @@ update_views(struct client *c)
 
   for (vf = c->fs_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
-    if ((v->flags & VIEW_IS_DIRTY) && (v->flags & VIEW_IS_VISIBLE)) {
+    if ((v->flags & VIEW_IS_VISIBLE) && (v->flags & VIEW_IS_DIRTY)) {
       ui_update_view(v);
       changed = 1;
     }

@@ -14,4 +14,9 @@
 
 #define BTN_PRESS_TIME_MS 100
 
+#define SCROLL_SIZE 10
+#define MIN_SCROLL_LEN 50
+#define SCROLL_BG 0xffeeeeee
+#define SCROLL_FG 0xff000000
+
 #define MSIZE 1024

@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "util.h"
+#include "input.h"
 #include "draw.h"
 #include "text.h"
 #include "9p.h"
@@ -114,6 +115,7 @@ update_btn(struct uiobj *u, struct uicontext *uc)
     if (b->pressed_ms > 0 && t > BTN_PRESS_TIME_MS) {
       b->state = BTN_NORMAL;
       u->flags |= UI_IS_DIRTY;
+      log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
     }
   }
 }
@@ -121,7 +123,7 @@ update_btn(struct uiobj *u, struct uicontext *uc)
 static void
 draw_btn(struct uiobj *u, struct uicontext *uc)
 {
-  unsigned int fg, bg, frame, n;
+  unsigned int fg, bg, frame;
   struct uiobj_label *b = (struct uiobj_label *)u->data;
   struct surface *blit = &uc->v->blit;
 
@@ -158,37 +160,38 @@ press_button(struct uiobj *u, int by_kbd)
   if (by_kbd)
     b->pressed_ms = cur_time_ms;
   u->flags |= UI_IS_DIRTY;
+  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
 }
 
 static int
-on_btn_key(struct uiobj *u, int type, int keysym, int mod, unsigned int uni)
+on_btn_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
-  if (keysym == '\r') {
-    if (type) {
-      b->state = BTN_PRESSED;
-      b->pressed_ms = 0;
-    } else
-      press_button(u, 1);
-    u->flags |= UI_IS_DIRTY;
-    return 1;
-  }
-  return 0;
-}
-
-static int
-on_btn_press_pointer(struct uiobj *u, int type, int x, int y, int btn)
-{
-  struct uiobj_label *b = (struct uiobj_label *)u->data;
-  if (type) {
+  switch (ev->type) {
+  case IN_PTR_DOWN:
     b->state = BTN_PRESSED;
     b->pressed_ms = 0;
-  } else {
+    break;
+  case IN_PTR_UP:
     if (b->state == BTN_PRESSED)
       press_button(u, 0);
     b->state = BTN_NORMAL;
+    break;
+  case IN_KEY_DOWN:
+    if (!(ev->key == '\n' || ev->key == '\r'))
+      return 0;
+    b->state = BTN_PRESSED;
+    b->pressed_ms = 0;
+    break;
+  case IN_KEY_UP:
+    if (!(ev->key == '\n' || ev->key == '\r'))
+      return 0;
+    press_button(u, 1);
+    break;
+  default: return 0;
   }
   u->flags |= UI_IS_DIRTY;
+  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
   return 1;
 }
 
@@ -199,6 +202,7 @@ on_btn_inout_pointer(struct uiobj *u, int inside)
   if (!inside) {
     x->state = BTN_NORMAL;
     u->flags |= UI_IS_DIRTY;
+    log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
   }
   return 1;
 }
@@ -208,8 +212,7 @@ static struct uiobj_ops btn_ops = {
   .draw = draw_btn,
   .resize = resize,
   .update_size = update_size,
-  .on_press_pointer = on_btn_press_pointer,
-  .on_key = on_btn_key,
+  .on_input = on_btn_input,
   .on_inout_pointer = on_btn_inout_pointer
 };
 

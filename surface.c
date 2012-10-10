@@ -73,8 +73,10 @@ size_clunk(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
   unsigned int w, h;
+  int mode = c->t.pfid->open_mode;
 
-  if (!(fid->aux && s->img))
+  if (!(fid->aux && s->img 
+      && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR)))
     return;
 
   if (sscanf((char *)fid->aux, "%u %u", &w, &h) != 2) {

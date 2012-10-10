@@ -23,6 +23,7 @@ struct view;
 struct uiobj;
 struct ev_pool;
 struct uicontext;
+struct input_event;
 
 struct uiobj_ops {
   int allocated;
@@ -31,10 +32,10 @@ struct uiobj_ops {
   void (*update)(struct uiobj *u, struct uicontext *uc);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
-  int (*on_key)(struct uiobj *u, int type, int keysym, int mod,
-                unsigned int unicode);
-  int (*on_move_pointer)(struct uiobj *u, int x, int y, int state);
-  int (*on_press_pointer)(struct uiobj *u, int type, int x, int y, int btn);
+  int (*on_input)(struct uiobj *u, struct input_event *ev);
+  int (*on_key)(struct uiobj *u, struct input_event *ev);
+  int (*on_move_pointer)(struct uiobj *u, struct input_event *ev);
+  int (*on_press_pointer)(struct uiobj *u, struct input_event *ev);
   int (*on_inout_pointer)(struct uiobj *u, int inside);
   struct file *(*get_children)(struct uiobj *u);
 };
@@ -48,6 +49,7 @@ struct uiobj {
   struct prop_int drawable;
   struct prop_rect restraint;
   struct prop_rect g;
+  struct prop_rect viewport;
 
   struct file fs_evfilter;
   struct file fs_parent;

@@ -4,6 +4,7 @@
 #include "9p.h"
 #include "net.h"
 #include "util.h"
+#include "input.h"
 #include "draw.h"
 #include "config.h"
 #include "fs.h"
@@ -237,6 +238,7 @@ int
 main_loop(int server_fd)
 {
   SDL_Event ev;
+  struct input_event in_ev;
   int running = 1;
   unsigned int prev_draw_ms = 0, time_ms;
 
@@ -249,24 +251,35 @@ main_loop(int server_fd)
         running = 0;
         break;
       case SDL_MOUSEMOTION:
-        client_pointer_move(ev.motion.x, ev.motion.y, ev.motion.state);
-        break;
-      case SDL_MOUSEBUTTONDOWN:
-        client_pointer_press(1, ev.button.x, ev.button.y, ev.button.button);
+        in_ev.type = IN_PTR_MOVE;
+        in_ev.ms = time_ms;
+        in_ev.x = ev.motion.x;
+        in_ev.y = ev.motion.y;
+        in_ev.dx = ev.motion.xrel;
+        in_ev.dy = ev.motion.yrel;
+        in_ev.state = ev.motion.state;
+        client_input_event(&in_ev);
         break;
       case SDL_MOUSEBUTTONUP:
-        client_pointer_press(0, ev.button.x, ev.button.y, ev.button.button);
-        break;
-      case SDL_KEYDOWN:
-        client_keyboard(1, ev.key.keysym.sym, ev.key.keysym.mod,
-                        ev.key.keysym.unicode);
+      case SDL_MOUSEBUTTONDOWN:
+        in_ev.type = (ev.type == SDL_MOUSEBUTTONUP) ? IN_PTR_UP : IN_PTR_DOWN;
+        in_ev.ms = time_ms;
+        in_ev.x = ev.button.x;
+        in_ev.y = ev.button.y;
+        in_ev.key = ev.button.button;
+        client_input_event(&in_ev);
         break;
       case SDL_KEYUP:
-        client_keyboard(0, ev.key.keysym.sym, ev.key.keysym.mod,
-                        ev.key.keysym.unicode);
         if (ev.key.keysym.sym == SDLK_ESCAPE
             && (ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
           running = 0;
+      case SDL_KEYDOWN:
+        in_ev.type = (ev.type == SDL_KEYUP) ? IN_KEY_UP : IN_KEY_DOWN;
+        in_ev.ms = time_ms;
+        in_ev.key = ev.key.keysym.sym;
+        in_ev.state = ev.key.keysym.mod;
+        in_ev.unicode = ev.key.keysym.unicode;
+        client_input_event(&in_ev);
         break;
       }
     }

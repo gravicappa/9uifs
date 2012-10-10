@@ -331,20 +331,24 @@ walk_view_tree(struct uiplace *up,
     } else if (x->fs.next && x != up) {
       if (0) log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
                         x->fs.name, x->fs.next, x->parent);
-      after_fn(x, aux);
+      if (!after_fn(x, aux))
+        return;
       x = (struct uiplace *)x->fs.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->fs.next) {
         if (0) log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->fs.name);
-        after_fn(x, aux);
+        if (!after_fn(x, aux))
+          return;
         x = x->parent;
       }
       if (0) log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->fs.name);
-      after_fn(x, aux);
+      if (!after_fn(x, aux))
+        return;
       if (x->parent) {
         if (0) log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->fs.name);
-        after_fn(x->parent, aux);
+        if (!after_fn(x->parent, aux))
+          return;
       }
       if (x != up && x->parent && x->parent != up && x->parent->fs.next
           && x->parent->fs.next != &up->fs) {
@@ -369,17 +373,22 @@ update_place_size(struct uiplace *up, void *aux)
 static int
 resize_place(struct uiplace *up, void *aux)
 {
-  if (up && up->obj && up->obj->ops->resize)
-    up->obj->ops->resize(up->obj);
+  struct uiobj *u = up->obj;
+
+  if (!u)
+    return 1;
+  if (u->ops->resize)
+    u->ops->resize(u);
+  memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
   return 1;
 }
 
 static void
-intersect_clip(int *c1, int *c2)
+intersect_clip(int *r, int *c1, int *c2)
 {
-  int i, r[4], t;
+  int i, t;
 
-  memcpy(r, c2, sizeof(r));
+  memcpy(r, c2, sizeof(int[4]));
   for (i = 0; i < 2; ++i) {
     t = c1[i] - r[i];
     if (t > 0) {
@@ -390,7 +399,6 @@ intersect_clip(int *c1, int *c2)
     if (r[i] + r[i + 2] > t)
       r[i + 2] = t - r[i];
   }
-  memcpy(c1, r, sizeof(r));
 }
 
 static int
@@ -412,15 +420,20 @@ draw_obj(struct uiplace *up, void *aux)
 {
   struct uicontext *ctx = (struct uicontext *)aux;
   struct uiobj *u;
-  int *clip = ctx->clip, dirty;
+  int *clip = ctx->clip, dirty, r[4];
 
   if (up && up->obj) {
     u = up->obj;
-    memcpy(up->clip, clip, sizeof(up->clip));
-    intersect_clip(clip, up->clip);
-    set_cliprect(clip[0], clip[1], clip[2], clip[3]);
     dirty = (ctx->v->flags & VIEW_IS_DIRTY) || (u->flags & UI_IS_DIRTY);
-    if (dirty && u->ops->draw) {
+    if (!dirty)
+      return 1;
+    memcpy(up->clip, clip, sizeof(up->clip));
+    intersect_clip(r, clip, u->viewport.r);
+    memcpy(clip, r, sizeof(ctx->clip));
+    set_cliprect(clip[0], clip[1], clip[2], clip[3]);
+    log_printf(LOG_UI, "ui draw clip: [%d %d %d %d]\n",
+               clip[0], clip[1], clip[2], clip[3]);
+    if (u->ops->draw) {
       u->ops->draw(u, ctx);
       ctx->dirty = 1;
     }
@@ -442,8 +455,10 @@ draw_over_obj(struct uiplace *up, void *aux)
       u->ops->draw_over(u, ctx);
       ctx->dirty = 1;
     }
-    memcpy(clip, up->clip, sizeof(ctx->clip));
-    set_cliprect(clip[0], clip[1], clip[2], clip[3]);
+    if (dirty) {
+      memcpy(clip, up->clip, sizeof(ctx->clip));
+      set_cliprect(clip[0], clip[1], clip[2], clip[3]);
+    }
     u->flags &= ~UI_IS_DIRTY;
   }
   return 1;
@@ -556,13 +571,16 @@ ui_propagate_dirty(struct uiplace *up)
   log_printf(LOG_UI, ">> ui_propagate_dirty %p\n", up);
 
   while (up && (u = uiplace_container(up))) {
+    log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
     u->flags |= UI_IS_DIRTY;
     up = u->parent;
   }
   if (up) {
     v = uiplace_container_view(up);
-    if (v && (v->flags & VIEW_IS_VISIBLE))
+    if (v && (v->flags & VIEW_IS_VISIBLE)) {
+      log_printf(LOG_UI, "dirty view %s\n", v->fs.name);
       v->flags |= VIEW_IS_DIRTY;
+    }
   }
 }
 
@@ -577,6 +595,7 @@ ui_prop_update_default(struct prop *p)
     die("Type error");
   }
   u->flags |= UI_IS_DIRTY;
+  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
   if (u->parent)
     ui_propagate_dirty(u->parent);
 }
@@ -722,7 +741,6 @@ put_uiobj(struct uiobj *u, struct arr *buf, int coord, int r[4], char *opts)
 void
 ui_place_with_padding(struct uiplace *up, int rect[4])
 {
-  struct arr *buf;
   struct uiobj *u = up->obj;
 
   if (!u)
@@ -734,9 +752,8 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
   rect[1] += up->padding.r[1];
   rect[2] -= up->padding.r[0] + up->padding.r[2];
   rect[3] -= up->padding.r[1] + up->padding.r[3];
-  buf = up->sticky.buf;
-  put_uiobj(u, buf, 0, rect, "lr");
-  put_uiobj(u, buf, 1, rect, "tb");
+  put_uiobj(u, up->sticky.buf, 0, rect, "lr");
+  put_uiobj(u, up->sticky.buf, 1, rect, "tb");
   log_printf(LOG_UI, "  uiobj rect: [%d %d %d %d]\n",
              u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3]);
 }
@@ -806,4 +823,3 @@ ui_update()
 {
   return 0;
 }
-

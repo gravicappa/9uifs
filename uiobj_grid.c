@@ -355,8 +355,9 @@ opts_clunk(struct p9_connection *c)
   int i, n, *opts, x;
   struct arr *buf = (struct arr *)fid->aux;
   char *s, *a;
+  int mode = c->t.pfid->open_mode;
 
-  if (!buf)
+  if (!buf || ((mode & 3) != P9_OWRITE && (mode & 3) != P9_ORDWR))
     return;
 
   if (go->coord == 0) {

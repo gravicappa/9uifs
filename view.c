@@ -140,7 +140,7 @@ mk_view(int x, int y, int w, int h)
   v->blit.fs.name = "blit";
   add_file(&v->fs, &v->blit.fs);
 
-  v->fs_gl.name = "gl";
+  v->fs_gl.name = "gles";
   v->fs_gl.mode = 0700 | P9_DMDIR;
   v->fs_gl.qpath = new_qid(0);
   add_file(&v->fs, &v->fs_gl);

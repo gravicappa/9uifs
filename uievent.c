@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "util.h"
+#include "input.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
@@ -132,19 +133,21 @@ put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...)
 }
 
 int
-ui_keyboard(struct view *v, int type, int keysym, int mod,
-            unsigned int unicode)
+ui_keyboard(struct view *v, struct input_event *ev)
 {
   struct uiobj *u = (struct uiobj *)v->uisel;
+  int type;
 
-  if (u && u->ops->on_key && u->ops->on_key(u, type, keysym, mod, unicode))
+  if (u && u->ops->on_key && u->ops->on_key(u, ev))
     return 1;
+
+  type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
   if (v->flags & VIEW_KBD_EV)
-    put_ui_event(&v->ev, v->c, "key\t$n\t$n\t$n\t$u\t$o\n", type, keysym,
-                 mod, unicode, u);
+    put_ui_event(&v->ev, v->c, "key\t$n\t$n\t$n\t$u\t$o\n", type, ev->key,
+                 ev->state, ev->unicode, u);
   if (u && u->flags & UI_KBD_EV)
     put_ui_event(&v->c->ev, v->c, "key\t$n\t$n\t$n\t$u\t$v\t$o\n", type,
-                 keysym, mod, unicode, v, u);
+                 ev->key, ev->state, ev->unicode, v, u);
   return 0;
 }
 
@@ -155,19 +158,22 @@ struct pointer_finder {
 };
 
 static int
+inside_uiobj(int x, int y, struct uiobj *u)
+{
+  int *r;
+  if (!u)
+    return 0;
+  r = u->viewport.r;
+  return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
+}
+
+static int
 find_uiobj_fn(struct uiplace *up, void *aux)
 {
   struct pointer_finder *finder = (struct pointer_finder *)aux;
-  struct uiobj *u = up->obj;
-  int *r, x, y;
-  if (u) {
-    r = u->g.r;
-    x = finder->x;
-    y = finder->y;
-    if (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3])) {
-      finder->u = u;
-      return 1;
-    }
+  if (inside_uiobj(finder->x, finder->y, up->obj)) {
+    finder->u = up->obj;
+    return 1;
   }
   return 0;
 }
@@ -199,36 +205,77 @@ pointer_enter_exit(struct view *v, struct uiobj *sel, int x, int y)
   }
 }
 
-int
-ui_pointer_move(struct view *v, int x, int y, int state)
+struct input_context {
+  struct input_event *ev;
+  struct uiobj *u;
+  struct view *v;
+};
+
+static int
+input_event_after_fn(struct uiplace *up, void *aux)
 {
-  struct uiobj *sel = find_uiobj_by_xy(v, x, y);
-  pointer_enter_exit(v, sel, x, y);
-  if (sel && sel->ops->on_move_pointer)
-    sel->ops->on_move_pointer(sel, x, y, state);
-  v->uipointed = (struct file *)sel;
+  struct input_context *ctx = (struct input_context *)aux;
+  struct input_event *ev = ctx->ev;
+  struct uiobj *u = up->obj;
+
+  if (!inside_uiobj(ev->x, ev->y, u))
+    return 1;
+
+  pointer_enter_exit(ctx->v, u, ev->x, ev->y);
+  if (u->ops->on_input && u->ops->on_input(u, ev)) {
+    ctx->u = u;
+    return 0;
+  }
+  return 1;
+}
+
+int
+ui_pointer_press(struct view *v, struct input_event *ev)
+{
+  struct input_context ctx = { ev, 0, v };
+  int type;
+
+  walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
+  
+  log_printf(LOG_UI, "ui_pointer_press ev.type: %d u: %s\n", ev->type,
+             (ctx.u) ? ctx.u->fs.name : "(nil)");
+
+  if (ctx.u)
+    v->uisel = &ctx.u->fs;
+
+  switch (ev->type) {
+  case IN_PTR_DOWN:
+  case IN_PTR_UP:
+    if (!ctx.u)
+      return 0;
+    type = (ev->type == IN_PTR_DOWN) ? 1 : 0;
+    if (v->flags & VIEW_PRESS_PTR_EV)
+      put_ui_event(&v->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$o\n",
+                   type, ev->x, ev->y, ev->key, ctx.u);
+    if (ctx.u->flags & UI_PRESS_PTR_EV)
+      put_ui_event(&v->c->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$v\t$o\n",
+                   type, ev->x, ev->y, ev->key, v, ctx.u);
+    return 1;
+  case IN_PTR_MOVE:
+    v->uipointed = &ctx.u->fs;
+    break;
+  }
   return 0;
 }
 
 int
-ui_pointer_press(struct view *v, int type, int x, int y, int btn)
+ui_pointer_move(struct view *v, struct input_event *ev)
 {
-  struct uiobj *sel = find_uiobj_by_xy(v, x, y);
+  return ui_pointer_press(v, ev);
+  /*
+  struct input_context ctx = {ev, 0, v};
+  walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
 
-  pointer_enter_exit(v, sel, x, y);
-  v->uisel = (struct file *)sel;
-  if (sel && sel->ops->on_press_pointer
-      && sel->ops->on_press_pointer(sel, type, x, y, btn))
-    return 1;
-
-  if (sel) {
-    if (v->flags & VIEW_PRESS_PTR_EV)
-      put_ui_event(&v->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$o\n",
-                   type, x, y, btn, sel);
-    if (sel->flags & UI_PRESS_PTR_EV)
-      put_ui_event(&v->c->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$v\t$o\n",
-                   type, x, y, btn, v, sel);
-    return 1;
-  }
+  struct uiobj *sel = find_uiobj_by_xy(v, ev->x, ev->y);
+  pointer_enter_exit(v, sel, ev->x, ev->y);
+  if (sel && sel->ops->on_move_pointer)
+    sel->ops->on_move_pointer(sel, ev);
+  v->uipointed = (struct file *)sel;
   return 0;
+  */
 }
