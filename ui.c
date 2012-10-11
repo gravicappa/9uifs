@@ -431,8 +431,6 @@ draw_obj(struct uiplace *up, void *aux)
     intersect_clip(r, clip, u->viewport.r);
     memcpy(clip, r, sizeof(ctx->clip));
     set_cliprect(clip[0], clip[1], clip[2], clip[3]);
-    log_printf(LOG_UI, "ui draw clip: [%d %d %d %d]\n",
-               clip[0], clip[1], clip[2], clip[3]);
     if (u->ops->draw) {
       u->ops->draw(u, ctx);
       ctx->dirty = 1;

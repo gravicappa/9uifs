@@ -167,26 +167,6 @@ inside_uiobj(int x, int y, struct uiobj *u)
   return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
 }
 
-static int
-find_uiobj_fn(struct uiplace *up, void *aux)
-{
-  struct pointer_finder *finder = (struct pointer_finder *)aux;
-  if (inside_uiobj(finder->x, finder->y, up->obj)) {
-    finder->u = up->obj;
-    return 1;
-  }
-  return 0;
-}
-
-static struct uiobj *
-find_uiobj_by_xy(struct view *v, int x, int y)
-{
-  struct pointer_finder f = {x, y, 0};
-  struct uiplace *up = (struct uiplace *)v->uiplace;
-  walk_view_tree(up, find_uiobj_fn, 0, &f);
-  return f.u;
-}
-
 static void
 pointer_enter_exit(struct view *v, struct uiobj *sel, int x, int y)
 {
@@ -236,7 +216,6 @@ input_event_after_fn(struct uiplace *up, void *aux)
 static void
 enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
 {
-  struct uiplace *up, *upprev;
   struct uiobj *obj, *last;
 
   if (prev == u)

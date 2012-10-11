@@ -42,6 +42,8 @@ draw(struct uiobj *u, struct uicontext *uc)
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   struct surface *blit = &uc->v->blit;
 
+  log_printf(LOG_UI, "label.draw '%s'\n", x->text.buf ? x->text.buf->b : 0);
+
   bg = u->bg.i;
   fg = x->fg.i;
 

@@ -9,11 +9,9 @@ multi_draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
 
   if (!(str && len))
     return;
-  log_printf(LOG_UI, "multi_draw len: %d str: '%.*s'\n", len, len, str);
   for (i = j = 0; i < len; ++i)
     if (str[i] == '\n' || str[i] == '\r') {
       if (j < i) {
-        log_printf(LOG_UI, "multi_draw '%.*s'\n", i - j, str + j);
         draw_utf8(dst, x, y, c, font, i - j, str + j);
         get_utf8_size(font, i - j, str + j, &dx, &dy);
         y += dy;
@@ -30,7 +28,6 @@ multi_get_utf8_size(Font font, int len, char *str, int *w, int *h)
   int x, y, x1, y1, i, j;
 
   x = y = 0;
-  log_printf(LOG_UI, "multi_get_size len: %d str: '%.*s'\n", len, len, str);
   if (str && len)
     for (i = j = 0; i <= len; ++i)
       if (str[i] == '\n' || str[i] == '\r' || i >= len) {

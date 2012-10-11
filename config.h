@@ -16,9 +16,11 @@
 
 #define SCROLL_SIZE 10
 #define MIN_SCROLL_LEN 50
-#define SCROLL_BG 0xffeeeeee
-#define SCROLL_FG 0xff000000
-#define SCROLL_FRAME 0xffffffff
+#define SCROLL_BG 0xffffffff
+#define SCROLL_HANDLE 0x5f000000
+#define SCROLL_FRAME 0x5fffffff
 #define SCROLL_THRESHOLD 10
+#define SCROLL_HINT_SIZE 2
+#define SCROLL_HINT_BG 0x5f000000
 
 #define MSIZE 1024
