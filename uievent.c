@@ -208,6 +208,7 @@ pointer_enter_exit(struct view *v, struct uiobj *sel, int x, int y)
 struct input_context {
   struct input_event *ev;
   struct uiobj *u;
+  struct uiobj *over;
   struct view *v;
 };
 
@@ -221,7 +222,10 @@ input_event_after_fn(struct uiplace *up, void *aux)
   if (!inside_uiobj(ev->x, ev->y, u))
     return 1;
 
-  pointer_enter_exit(ctx->v, u, ev->x, ev->y);
+  if (!ctx->over)
+    ctx->over = u;
+
+  if (0) pointer_enter_exit(ctx->v, u, ev->x, ev->y);
   if (u->ops->on_input && u->ops->on_input(u, ev)) {
     ctx->u = u;
     return 0;
@@ -229,16 +233,52 @@ input_event_after_fn(struct uiplace *up, void *aux)
   return 1;
 }
 
+static void
+enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
+{
+  struct uiplace *up, *upprev;
+  struct uiobj *obj, *last;
+
+  if (prev == u)
+    return;
+  obj = prev;
+  while (obj) {
+    last = obj;
+    if (inside_uiobj(x, y, obj))
+      break;
+    else if (obj->ops->on_inout_pointer)
+      obj->ops->on_inout_pointer(obj, 0);
+    if  (obj->parent && obj->parent->parent)
+      obj = obj->parent->parent->obj;
+    else
+      obj = 0;
+  }
+  obj = u;
+  while (obj && obj != last) {
+    if (!inside_uiobj(x, y, obj))
+      break;
+    else if (obj->ops->on_inout_pointer)
+      obj->ops->on_inout_pointer(obj, 1);
+    if  (obj->parent && obj->parent->parent)
+      obj = obj->parent->parent->obj;
+    else
+      obj = 0;
+  }
+}
+
 int
 ui_pointer_press(struct view *v, struct input_event *ev)
 {
-  struct input_context ctx = { ev, 0, v };
+  struct input_context ctx = {ev, 0, 0, v};
   int type;
 
   walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
-  
+
   log_printf(LOG_UI, "ui_pointer_press ev.type: %d u: %s\n", ev->type,
              (ctx.u) ? ctx.u->fs.name : "(nil)");
+
+  enter_exit((struct uiobj *)v->uipointed, ctx.over, ev->x, ev->y);
+  v->uipointed = (struct file *)ctx.over;
 
   if (ctx.u)
     v->uisel = &ctx.u->fs;
@@ -259,6 +299,7 @@ ui_pointer_press(struct view *v, struct input_event *ev)
   case IN_PTR_MOVE:
     v->uipointed = &ctx.u->fs;
     break;
+  default:;
   }
   return 0;
 }
@@ -267,15 +308,4 @@ int
 ui_pointer_move(struct view *v, struct input_event *ev)
 {
   return ui_pointer_press(v, ev);
-  /*
-  struct input_context ctx = {ev, 0, v};
-  walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
-
-  struct uiobj *sel = find_uiobj_by_xy(v, ev->x, ev->y);
-  pointer_enter_exit(v, sel, ev->x, ev->y);
-  if (sel && sel->ops->on_move_pointer)
-    sel->ops->on_move_pointer(sel, ev);
-  v->uipointed = (struct file *)sel;
-  return 0;
-  */
 }

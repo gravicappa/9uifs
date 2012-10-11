@@ -27,12 +27,18 @@ struct uiobj_scroll {
   int scrollopts[2];
   int prevclip[4];
   struct uiobj *prevobj;
+  enum {
+    NORMAL = 0,
+    WAITING,
+    SCROLLING
+  } mode;
+  int start[2];
 };
 
 static void
 draw(struct uiobj *u, struct uicontext *ctx)
 {
-  int *clip = ctx->clip, i, *cr, *r;
+  int i, *cr, *r;
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child;
 
@@ -67,7 +73,7 @@ scroll_rect(int *r, struct uiobj *u, int coord)
 static void
 draw_over(struct uiobj *u, struct uicontext *ctx)
 {
-  int i, flag = 0, len[2], pos[2], r[4], *clip = ctx->clip;
+  int i, flag = 0, len[2], pos[2], r[4];
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child;
   struct surface *blit;
@@ -157,44 +163,97 @@ get_children(struct uiobj *u)
   return (c) ? c->fs_items.child : 0;
 }
 
+static void
+scroll(struct uiobj *u, int dx, int dy)
+{
+  struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
+  struct uiobj *child = us->place.obj;
+  int i;
+
+  us->pos[0] -= dx;
+  us->pos[1] -= dy;
+  log_printf(LOG_UI, "scroll-on-input pos: [%d %d]\n", us->pos[0],
+             us->pos[1]);
+  u->flags |= UI_IS_DIRTY;
+  child->flags |= UI_IS_DIRTY;
+  resize(u);
+  memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
+  for (i = 0; i < 2; ++i)
+    if (us->pos[i] < 0)
+      us->pos[i] = 0;
+    else if (us->pos[i] > child->reqsize[i] - child->viewport.r[i + 2])
+      us->pos[i] = child->reqsize[i] - child->viewport.r[i + 2];
+}
+
+static int
+on_ptr_move(struct uiobj *u, struct input_event *ev)
+{
+  struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
+  struct uiobj *child = us->place.obj;
+  int dx, dy;
+
+  dx = ev->dx * child->reqsize[0] / u->g.r[2];
+  dy = ev->dy * child->reqsize[1] / u->g.r[3];
+  if (dx == 0 && dy == 0)
+    return 0;
+
+  switch (us->mode) {
+  case NORMAL:
+    log_printf(LOG_UI, "scroll normal\n");
+    us->start[0] = ev->x;
+    us->start[1] = ev->y;
+    us->mode = WAITING;
+    break;
+  case WAITING:
+    if (abs(us->start[0] - ev->x) < SCROLL_THRESHOLD
+        && abs(us->start[1] - ev->y) < SCROLL_THRESHOLD)
+      return 0;
+    us->mode = SCROLLING;
+    break;
+  case SCROLLING:
+    scroll(u, dx, dy);
+    break;
+  }
+  return 1;
+}
+
+static int
+on_inout(struct uiobj *u, int inside)
+{
+  struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
+  if (us) {
+    us->mode = NORMAL;
+    log_printf(LOG_UI, "scroll state <- normal [%s]\n",
+               (inside) ? "in" : "out");
+  }
+  return 0;
+}
+
 static int
 on_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
-  struct uiobj *child;
-  int i, dx, dy;
 
   if (!(us && us->place.obj))
     return 0;
-  child = us->place.obj;
 
-  log_printf(LOG_UI, "scroll-on-input ev-state: %d\n", ev->state);
+  log_printf(LOG_UI, "scroll-on-input mode %d ev-state: %d\n", us->mode,
+             ev->state);
   switch (ev->type) {
   case IN_PTR_MOVE:
     if (ev->state == 0)
       return 0;
-    log_printf(LOG_UI, "scroll-on-input ev-delta: [%d %d]\n", ev->dx, ev->dy);
-    dx = ev->dx * child->reqsize[0] / u->g.r[2];
-    dy = ev->dy * child->reqsize[1] / u->g.r[3];
-    if (dx == 0 && dy == 0)
-      return 0;
-    us->pos[0] -= dx;
-    us->pos[1] -= dy;
-    log_printf(LOG_UI, "scroll-on-input pos: [%d %d]\n", us->pos[0],
-               us->pos[1]);
-    u->flags |= UI_IS_DIRTY;
-    child->flags |= UI_IS_DIRTY;
-    resize(u);
-    memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
-    for (i = 0; i < 2; ++i)
-      if (us->pos[i] < 0)
-        us->pos[i] = 0;
-      else if (us->pos[i] > child->reqsize[i])
-        us->pos[i] = child->reqsize[i];
-    log_printf(LOG_UI, "            new pos: [%d %d]\n", us->pos[0],
-               us->pos[1]);
+    on_ptr_move(u, ev);
     return 1;
-  default: return 0;
+
+  case IN_PTR_UP:
+  case IN_PTR_DOWN:
+    us->mode = NORMAL;
+    log_printf(LOG_UI, "scroll state <- normal [ptr-up/down]\n");
+    return 0;
+
+  default:
+    return 0;
   }
 }
 
@@ -205,6 +264,7 @@ static struct uiobj_ops scroll_ops = {
   .resize = resize,
   .get_children = get_children,
   .on_input = on_input,
+  .on_inout_pointer = on_inout
 };
 
 int

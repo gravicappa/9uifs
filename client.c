@@ -215,7 +215,7 @@ client_input_event(struct input_event *ev)
     return;
 
   switch (ev->type) {
-    case IN_PTR_MOVE: 
+    case IN_PTR_MOVE:
       len = snprintf(buf, sizeof(buf), "m %u %u %u %d %d %u\n", ev->id,
                      ev->x, ev->y, ev->dx, ev->dy, ev->state);
       put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
@@ -223,7 +223,7 @@ client_input_event(struct input_event *ev)
       break;
 
     case IN_PTR_DOWN:
-    case IN_PTR_UP: 
+    case IN_PTR_UP:
       type = (ev->type == IN_PTR_DOWN) ? 1 : 0;
       len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, ev->id,
                      ev->x, ev->y, ev->key);
@@ -232,7 +232,7 @@ client_input_event(struct input_event *ev)
       break;
 
     case IN_KEY_DOWN:
-    case IN_KEY_UP: 
+    case IN_KEY_UP:
       type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
       len = snprintf(buf, sizeof(buf), "%u %u %u %lu\n", type, ev->key,
                      ev->state, ev->unicode);

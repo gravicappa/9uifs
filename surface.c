@@ -75,7 +75,7 @@ size_clunk(struct p9_connection *c)
   unsigned int w, h;
   int mode = c->t.pfid->open_mode;
 
-  if (!(fid->aux && s->img 
+  if (!(fid->aux && s->img
       && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR)))
     return;
 
