@@ -93,6 +93,7 @@ blit_image(Image dst, int dx, int dy, int dw, int dh,
   imlib_context_set_anti_alias(1);
   imlib_context_set_blend(0);
   imlib_blend_image_onto_image(src, 0, sx, dy, sw, sh, dx, dy, dw, dh);
+  imlib_context_set_blend(1);
 }
 
 void
