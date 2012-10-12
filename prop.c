@@ -304,6 +304,7 @@ intarr_open(struct p9_connection *c)
     off += len;
     sep = " ";
   }
+  p->arr = a;
   fid->aux = a;
 }
 
