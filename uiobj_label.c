@@ -15,6 +15,7 @@
 #include "uiobj.h"
 #include "config.h"
 #include "client.h"
+#include "font.h"
 
 enum button_state {
   BTN_NORMAL,
@@ -37,13 +38,26 @@ rm_uilabel(struct file *f)
 }
 
 static void
+update_font(struct prop *font_prop)
+{
+  struct uiobj *u = font_prop->aux;
+  struct prop_buf *p = (struct prop_buf *)font_prop;
+  struct uiobj_label *x = (struct uiobj_label *)u->data;
+  Font fn;
+
+  if (!x || !p->buf || !(fn = font_from_str(p->buf->b)))
+    return;
+  free_font(x->font);
+  x->font = fn;
+  ui_prop_update_default(font_prop);
+}
+
+static void
 draw(struct uiobj *u, struct uicontext *uc)
 {
   unsigned int fg, bg;
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   struct surface *blit = &uc->v->blit;
-
-  log_printf(LOG_UI, "label.draw '%s'\n", x->text.buf ? x->text.buf->b : 0);
 
   bg = u->bg.i;
   fg = x->fg.i;
@@ -51,7 +65,7 @@ draw(struct uiobj *u, struct uicontext *uc)
   if (bg && 0xff000000)
     fill_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], bg);
   if (fg && 0xff000000 && x->text.buf)
-    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, 0,
+    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, x->font,
                     x->text.buf->used - 1, x->text.buf->b);
 }
 
@@ -60,9 +74,9 @@ update_size(struct uiobj *u)
 {
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   int w = 0, h = 0;
-  if (x->text.buf)
-    multi_get_utf8_size(0, x->text.buf->used - 1, x->text.buf->b, &w, &h);
-  log_printf(LOG_UI, ">> label.update_size [%d %d]\n", w, h);
+  struct arr *buf = x->text.buf;
+  if (buf)
+    multi_get_utf8_size(x->font, buf->used - 1, buf->b, &w, &h);
   u->reqsize[0] = w;
   u->reqsize[1] = h;
 }
@@ -97,8 +111,8 @@ init_uilabel(struct uiobj *u)
     free(x);
     return -1;
   }
-  x->text.p.update = x->fg.p.update = x->font_str.p.update
-      = ui_prop_update_default;
+  x->text.p.update = x->fg.p.update = ui_prop_update_default;
+  x->font_str.p.update = update_font;
   u->ops = &label_ops;
   u->data = x;
   u->fs.rm = rm_uilabel;
@@ -148,7 +162,7 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
   if (frame && 0xff000000)
     draw_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], frame);
   if (fg && 0xff000000 && b->text.buf)
-    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, 0,
+    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, b->font,
                     b->text.buf->used - 1, b->text.buf->b);
 }
 

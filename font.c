@@ -1,16 +1,32 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "9p.h"
 #include "fs.h"
 #include "fstypes.h"
 #include "fsutil.h"
 #include "draw.h"
+#include "config.h"
+#include "util.h"
 
-const char *
-font_file(const char *name, const char *style)
+Font
+font_from_str(const char *str)
 {
-  return name;
+  static char buf[64];
+  const char *s = str, *name = str;
+  int size = DEFAULT_FONT_SIZE;
+
+  s = strpbrk(str, ":\n");
+  if (s) {
+    snprintf(buf, sizeof(buf), "%.*s", s - str, str);
+    name = buf;
+    str = s + 1;
+  }
+  s = strpbrk(str, ":\n");
+  if (s)
+    size = atoi(str);
+  return create_font(name, size, "");
 }
 
 int

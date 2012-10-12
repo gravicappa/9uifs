@@ -1,6 +1,6 @@
 #define DEFAULT_FONT_DIR "data"
-#define DEFAULT_FONT "cmunrm"
-#define DEFAULT_FONT_SIZE 14
+#define DEFAULT_FONT "sans"
+#define DEFAULT_FONT_SIZE 12
 
 #define DEFAULT_BG 0xffffffff
 

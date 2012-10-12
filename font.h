@@ -2,7 +2,7 @@
 #define FONT_I "i"
 #define FONT_BI "bi"
 
-const char *font_file(const char *name, const char *style);
+Font font_from_str(const char *str);
 int init_fonts();
 void free_fonts();
 
