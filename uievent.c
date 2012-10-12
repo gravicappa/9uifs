@@ -138,7 +138,7 @@ ui_keyboard(struct view *v, struct input_event *ev)
   struct uiobj *u = (struct uiobj *)v->uisel;
   int type;
 
-  if (u && u->ops->on_key && u->ops->on_key(u, ev))
+  if (u && u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
 
   type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
