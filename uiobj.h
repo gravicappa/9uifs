@@ -33,9 +33,6 @@ struct uiobj_ops {
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
   int (*on_input)(struct uiobj *u, struct input_event *ev);
-  int (*on_key)(struct uiobj *u, struct input_event *ev);
-  int (*on_move_pointer)(struct uiobj *u, struct input_event *ev);
-  int (*on_press_pointer)(struct uiobj *u, struct input_event *ev);
   int (*on_inout_pointer)(struct uiobj *u, int inside);
   struct file *(*get_children)(struct uiobj *u);
 };

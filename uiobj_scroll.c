@@ -182,8 +182,6 @@ resize(struct uiobj *u)
     }
   }
   ui_place_with_padding(&us->place, r);
-  log_printf(LOG_UI, "scroll.resize [%d %d %d %d]\n", child->g.r[0],
-             child->g.r[1], child->g.r[2], child->g.r[3]);
   us->prevobj = child;
 }
 
@@ -203,8 +201,6 @@ scroll(struct uiobj *u, int dx, int dy)
 
   us->pos[0] -= dx;
   us->pos[1] -= dy;
-  log_printf(LOG_UI, "scroll-on-input pos: [%d %d]\n", us->pos[0],
-             us->pos[1]);
   for (i = 0; i < 2; ++i) {
     m = child->reqsize[i] - child->viewport.r[i + 2];
     if (us->pos[i] < 0)
