@@ -1,3 +1,6 @@
+struct file;
+struct arr;
+
 void read_data_fn(struct p9_connection *c, int size, char *buf);
 void write_data_fn(struct p9_connection *c, int size, char *buf);
 void write_buf_fn(struct p9_connection *c, int delta, struct arr **buf);

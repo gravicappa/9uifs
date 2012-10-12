@@ -43,12 +43,11 @@ ctl_open(struct p9_connection *c)
 {
   struct ctl_context *cc;
 
-  cc = (struct ctl_context *)malloc(sizeof(struct ctl_context));
+  cc = (struct ctl_context *)calloc(1, sizeof(struct ctl_context));
   if (!cc) {
     P9_SET_STR(c->r.ename, "out of memory");
     return;
   }
-  memset(cc, 0, sizeof(*cc));
   c->t.pfid->aux = cc;
   c->t.pfid->rm = ctl_rm;
 }

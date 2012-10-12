@@ -31,6 +31,7 @@
 #include "ui.h"
 #include "view.h"
 #include "config.h"
+#include "font.h"
 
 struct client *clients = 0;
 struct client *selected_client = 0;
@@ -52,10 +53,9 @@ add_client(int server_fd, int msize)
   if (fd < 0)
     return 0;
   log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
-  c = (struct client *)malloc(sizeof(struct client));
+  c = (struct client *)calloc(1, sizeof(struct client));
   if (!c)
     die("Cannot allocate memory");
-  memset(c, 0, sizeof(*c));
   c->fd = fd;
   c->read = 0;
   c->size = 0;
@@ -88,10 +88,10 @@ add_client(int server_fd, int msize)
   c->fs_images.qpath = new_qid(FS_IMAGES);
   add_file(&c->fs, &c->fs_images);
 
-  c->fs_fonts.name = "fonts";
-  c->fs_fonts.mode = 0700 | P9_DMDIR;
-  c->fs_fonts.qpath = new_qid(FS_NONE);
-  add_file(&c->fs, &c->fs_fonts);
+  if (init_fonts_fs(&c->fs_fonts) == 0) {
+    c->fs_fonts.name = "fonts";
+    add_file(&c->fs, &c->fs_fonts);
+  }
 
   c->fs_comm.name = "comm";
   c->fs_comm.mode = 0700 | P9_DMDIR;

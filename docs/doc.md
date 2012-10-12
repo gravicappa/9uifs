@@ -29,17 +29,17 @@
     /
       event
       pointer
-      kbd
+      keyboard
       joystick
-      geometry
+      g
+      visible
       blit/
-      gl/
-      ui_control -> dir/panel01
-      ui_tree/
-        .
-        .
-        .
-        .
+      gles/
+      uiplace/
+        padding
+        path -> dir/_panel01
+        sticky -> 'tblr'
+      uisel -> dir/_button01
       canvas/
 
 ### view/event
@@ -125,8 +125,7 @@ Release pointer
 ## ui
 
       /
-        uievent
-        items/
+        dir/
           _new01/
             evfilter
             type ->
@@ -135,8 +134,7 @@ Release pointer
             type -> grid
             visible -> 0 | 1
             restraint -> Maxwidth Minwidth Maxheight Minheight
-            parents
-            view
+            container
             items/
               01/
                 path -> buttons/_ok
@@ -157,19 +155,14 @@ Release pointer
               text -> Ok
               font -> sans:10:Bold
               g -> X Y W H
-              parents
-              view
+              container
             _cancel/
               evfilter
               type -> button
               visible -> 0 | 1
-              maxwidth
-              minwidth
-              maxheight
-              minheight
+              restraint -> Maxwidth Minwidth Maxheight Minheight
               text -> Cancel
-              parents
-              view
+              container
 
 ### ui/uievent
 

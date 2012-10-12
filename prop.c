@@ -35,10 +35,9 @@ prop_alloc(struct p9_connection *c, int size)
 {
   struct p9_fid *fid = c->t.pfid;
 
-  fid->aux = malloc(size);
+  fid->aux = calloc(1, size);
   if (!fid->aux)
     return -1;
-  memset(fid->aux, 0, size);
   fid->rm = aux_free;
   return 0;
 }
@@ -233,14 +232,11 @@ rect_open(struct p9_connection *c)
   struct p9_fid *fid = c->t.pfid;
 
   p = (struct prop_rect *)fid->file;
-  fid->aux = malloc(RECT_BUF_SIZE);
-  memset(fid->aux, 0, RECT_BUF_SIZE);
+  fid->aux = calloc(1, RECT_BUF_SIZE);
   fid->rm = aux_free;
   if (!(c->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, RECT_BUF_SIZE, "%d %d %d %d", p->r[0], p->r[1],
              p->r[2], p->r[3]);
-  else
-    memset(fid->aux, 0, RECT_BUF_SIZE);
 }
 
 void
@@ -304,7 +300,7 @@ intarr_open(struct p9_connection *c)
     off += len;
     sep = " ";
   }
-  p->arr = a;
+  p->arr = arr;
   fid->aux = a;
 }
 

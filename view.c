@@ -103,10 +103,9 @@ mk_view(int x, int y, int w, int h)
 {
   struct view *v;
 
-  v = (struct view *)malloc(sizeof(struct view));
+  v = (struct view *)calloc(1, sizeof(struct view));
   if (!v)
     die("Cannot allocate memory");
-  memset(v, 0, sizeof(*v));
   v->g.r[0] = x;
   v->g.r[1] = y;
   v->g.r[2] = w;

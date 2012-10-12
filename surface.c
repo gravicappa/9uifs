@@ -42,12 +42,11 @@ size_open(struct p9_connection *c)
   struct surface *s = get_surface(c);
   struct p9_fid *fid = c->t.pfid;
 
-  fid->aux = malloc(size_buf_len);
+  fid->aux = calloc(1, size_buf_len);
   if (!fid->aux) {
     P9_SET_STR(c->r.ename, "out of memory");
     return;
   }
-  memset(fid->aux, 0, size_buf_len);
   if (!(c->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
   fid->rm = size_fid_rm;

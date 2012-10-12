@@ -301,10 +301,9 @@ init_uiscroll(struct uiobj *u)
   struct uiobj_scroll *x;
 
   u->data = 0;
-  x = (struct uiobj_scroll *)malloc(sizeof(struct uiobj_scroll));
+  x = (struct uiobj_scroll *)calloc(1, sizeof(struct uiobj_scroll));
   if (!x)
     return -1;
-  memset(x, 0, sizeof(struct uiobj_scroll));
   ui_init_container_items(&x->c, "items");
   x->c.fs_items.fs = 0;
   x->c.fs_items.mode = 0500 | P9_DMDIR;

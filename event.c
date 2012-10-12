@@ -67,12 +67,11 @@ event_open(struct p9_connection *c)
   struct file *f = (struct file *)fid->file;
   struct ev_pool *pool = (struct ev_pool *)f;
 
-  lsr = (struct ev_listener *)malloc(sizeof(struct ev_listener));
+  lsr = (struct ev_listener *)calloc(1, sizeof(struct ev_listener));
   if (!lsr) {
     P9_SET_STR(c->r.ename, "out of memory");
     return;
   }
-  memset(lsr, 0, sizeof(*lsr));
   lsr->next = pool->listeners;
   pool->listeners = lsr;
   lsr->tag = P9_NOTAG;

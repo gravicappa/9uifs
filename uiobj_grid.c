@@ -425,10 +425,9 @@ int
 init_uigrid(struct uiobj *u)
 {
   struct uiobj_grid *g;
-  u->data = malloc(sizeof(struct uiobj_grid));
+  u->data = calloc(1, sizeof(struct uiobj_grid));
   if (!u->data)
     return -1;
-  memset(u->data, 0, sizeof(struct uiobj_grid));
   g = (struct uiobj_grid *)u->data;
 
   g->fs_cols_opts.coord = 0;

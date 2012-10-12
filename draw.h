@@ -48,5 +48,6 @@ void blit_image(Image dst, int dx, int dy, int dw, int dh,
 void draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str);
 int get_utf8_size(Font font, int len, char *str, int *w, int *h);
 
-Font create_font(const char *name, int size);
+Font create_font(const char *name, int size, const char *style);
 void free_font(Font font);
+const char **font_list(int *n);

@@ -59,10 +59,9 @@ static struct file *
 items_mkdir(char *name, struct client *client)
 {
   struct uiobj_dir *d;
-  d = (struct uiobj_dir *)malloc(sizeof(struct uiobj_dir));
+  d = (struct uiobj_dir *)calloc(1, sizeof(struct uiobj_dir));
   if (!d)
     return 0;
-  memset(d, 0, sizeof(*d));
   d->fs.name = name;
   d->fs.mode = 0700 | P9_DMDIR;
   d->fs.qpath = new_qid(FS_UIDIR);
@@ -223,10 +222,9 @@ mk_uiobj(struct client *client)
   int r;
   struct uiobj *u;
 
-  u = (struct uiobj *)malloc(sizeof(struct uiobj));
+  u = (struct uiobj *)calloc(1, sizeof(struct uiobj));
   if (!u)
     return 0;
-  memset(u, 0, sizeof(*u));
   u->client = client;
   u->ops = 0;
   u->fs.mode = 0500 | P9_DMDIR;
@@ -682,12 +680,11 @@ create_place(struct p9_connection *c)
   u = ((struct uiobj_container *)c->t.pfid->file)->u;
   if (!u->data)
     return;
-  up = (struct uiplace *)malloc(sizeof(struct uiplace));
+  up = (struct uiplace *)calloc(1, sizeof(struct uiplace));
   if (!up) {
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
     return;
   }
-  memset(up, 0, sizeof(*up));
 
   up->fs.name = strndup(c->t.name, c->t.name_len);
   up->fs.owns_name = 1;
@@ -771,8 +768,7 @@ ui_init_uiplace(struct view *v)
 {
   struct uiplace *up;
 
-  up = (struct uiplace *)malloc(sizeof(struct uiplace));
-  memset(up, 0, sizeof(*up));
+  up = (struct uiplace *)calloc(1, sizeof(struct uiplace));
   if (!up || ui_init_place(up, 1))
     return -1;
   v->uiplace = &up->fs;

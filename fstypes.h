@@ -10,5 +10,7 @@ enum {
   FS_UIDIR,
   FS_UIPLACE,
   FS_UIPLACE_DIR,
-  FS_PROP
+  FS_PROP,
+  FS_FONTS,
+  FS_FNT_LIST,
 };

@@ -113,7 +113,7 @@ init_fonts()
 {
   imlib_add_path_to_font_path(DEFAULT_FONT_DIR);
   if (!default_font)
-    default_font = create_font(DEFAULT_FONT, DEFAULT_FONT_SIZE);
+    default_font = create_font(DEFAULT_FONT, DEFAULT_FONT_SIZE, "");
 }
 
 int
@@ -127,10 +127,9 @@ init_screen(int w, int h)
   if (!screen.front)
     return -1;
   size = screen.front->w * screen.front->h * 4;
-  screen.s.pixels = (char *)malloc(size);
+  screen.s.pixels = (char *)calloc(1, size);
   if (!screen.s.pixels)
     return -1;
-  memset(screen.s.pixels, 0, size);
   screen.back = SDL_CreateRGBSurfaceFrom(screen.s.pixels,
                                          screen.s.w, screen.s.h, 32,
                                          screen.s.w * 4,
@@ -218,10 +217,16 @@ get_utf8_size(Font font, int len, char *str, int *w, int *h)
 }
 
 Font
-create_font(const char *name, int size)
+create_font(const char *name, int size, const char *style)
 {
   char buf[256];
+  int bold = 0, italic = 0;
 
+  for (; *style; ++style)
+    switch (*style) {
+      case 'b': case 'B': bold = 1; break;
+      case 'i': case 'I': italic = 1; break;
+    }
   snprintf(buf, sizeof(buf), "%s/%d", name, size);
   return imlib_load_font(buf);
 }
@@ -233,6 +238,12 @@ free_font(Font font)
     imlib_context_set_font(font);
     imlib_free_font();
   }
+}
+
+const char **
+font_list(int *n)
+{
+  return imlib_list_fonts(n);
 }
 
 int

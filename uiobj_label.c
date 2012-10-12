@@ -23,8 +23,9 @@ enum button_state {
 
 struct uiobj_label {
   struct prop_buf text;
-  struct prop_buf font;
+  struct prop_buf font_str;
   struct prop_int fg;
+  Font font;
   int state;
   unsigned int pressed_ms;
 };
@@ -86,18 +87,17 @@ init_uilabel(struct uiobj *u)
   struct uiobj_label *x;
 
   u->data = 0;
-  x = (struct uiobj_label *)malloc(sizeof(struct uiobj_label));
+  x = (struct uiobj_label *)calloc(1, sizeof(struct uiobj_label));
   if (!x)
     return -1;
-  memset(x, 0, sizeof(struct uiobj_label));
 
   if (init_prop_buf(&u->fs, &x->text, "text", 0, "", 0, u)
       || init_prop_colour(&u->fs, &x->fg, "foreground", 0, u)
-      || init_prop_buf(&u->fs, &x->font, "font", 0, "", 0, u)) {
+      || init_prop_buf(&u->fs, &x->font_str, "font", 0, "", 0, u)) {
     free(x);
     return -1;
   }
-  x->text.p.update = x->fg.p.update = x->font.p.update
+  x->text.p.update = x->fg.p.update = x->font_str.p.update
       = ui_prop_update_default;
   u->ops = &label_ops;
   u->data = x;
