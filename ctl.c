@@ -15,7 +15,7 @@ exec_cmd(struct ctl_file *f, int n, char *str)
   s = next_arg(&p);
   for (i = 0; f->cmd[i].name && strcmp(f->cmd[i].name, s); ++i) {}
   if (f->cmd[i].fn)
-    f->cmd[i].fn(&f->file, p);
+    f->cmd[i].fn(&f->f, p);
 }
 
 static void

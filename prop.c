@@ -389,9 +389,9 @@ static void
 init_prop_fs(struct prop *p, char *name, void *aux)
 {
   p->aux = aux;
-  p->fs.name = name;
-  p->fs.mode = 0600;
-  p->fs.qpath = new_qid(FS_PROP);
+  p->f.name = name;
+  p->f.mode = 0600;
+  p->f.qpath = new_qid(FS_PROP);
 }
 
 int
@@ -401,8 +401,8 @@ init_prop_int(struct file *root, struct prop_int *p, char *name, int x,
   memset(p, 0, sizeof(*p));
   init_prop_fs(&p->p, name, aux);
   p->i = x;
-  p->p.fs.fs = &int_fs;
-  add_file(root, &p->p.fs);
+  p->p.f.fs = &int_fs;
+  add_file(root, &p->p.f);
   return 0;
 }
 
@@ -418,14 +418,14 @@ init_prop_buf(struct file *root, struct prop_buf *p, char *name, int size,
     p->buf->b[size] = 0;
   } else
     memset(p->buf->b, 0, p->buf->size);
-  p->p.fs.fs = &buf_fs;
+  p->p.f.fs = &buf_fs;
   if (fixed_size) {
-    p->p.fs.fs = &fixed_buf_fs;
+    p->p.f.fs = &fixed_buf_fs;
     p->buf->used = size;
   }
-  p->p.fs.fs = (fixed_size) ? &fixed_buf_fs : &buf_fs;
-  p->p.fs.rm = prop_buf_rm;
-  add_file(root, &p->p.fs);
+  p->p.f.fs = (fixed_size) ? &fixed_buf_fs : &buf_fs;
+  p->p.f.rm = prop_buf_rm;
+  add_file(root, &p->p.f);
   return 0;
 }
 
@@ -436,8 +436,8 @@ init_prop_colour(struct file *root, struct prop_int *p, char *name,
   memset(p, 0, sizeof(*p));
   init_prop_fs(&p->p, name, aux);
   p->i = rgba;
-  p->p.fs.fs = &colour_fs;
-  add_file(root, &p->p.fs);
+  p->p.f.fs = &colour_fs;
+  add_file(root, &p->p.f);
   return 0;
 }
 
@@ -446,8 +446,8 @@ init_prop_rect(struct file *root, struct prop_rect *p, char *name, void *aux)
 {
   memset(p, 0, sizeof(*p));
   init_prop_fs(&p->p, name, aux);
-  p->p.fs.fs = &rect_fs;
-  add_file(root, &p->p.fs);
+  p->p.f.fs = &rect_fs;
+  add_file(root, &p->p.f);
   return 0;
 }
 
@@ -459,7 +459,7 @@ init_prop_intarr(struct file *root, struct prop_intarr *p, char *name, int n,
   init_prop_fs(&p->p, name, aux);
   p->n = n;
   p->arr = arr;
-  p->p.fs.fs = &intarr_fs;
-  add_file(root, &p->p.fs);
+  p->p.f.fs = &intarr_fs;
+  add_file(root, &p->p.f);
   return 0;
 }

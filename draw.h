@@ -18,13 +18,13 @@
        (RGBA_READ_HEX(s[6]) << 4) | (RGBA_READ_HEX(s[7])), \
        (RGBA_READ_HEX(s[0]) << 4) | (RGBA_READ_HEX(s[1])))
 
-typedef void *Image;
-typedef void *Font;
+typedef void *UImage;
+typedef void *UFont;
 
 struct screen {
   int w;
   int h;
-  Image blit;
+  UImage blit;
   char *pixels;
 };
 
@@ -34,20 +34,20 @@ void refresh_screen();
 struct screen *default_screen();
 
 void set_cliprect(int x, int y, int w, int h);
-void fill_rect(Image dst, int x, int y, int w, int h, unsigned int c);
-void draw_rect(Image dst, int x, int y, int w, int h, unsigned int c);
+void fill_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
+void draw_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
 
-Image create_image(int w, int h);
-void free_image(Image img);
-void *image_get_data(Image img, int mutable);
-void image_put_back_data(Image img, void *data);
-Image resize_image(Image img, int w, int h, int flags);
-void blit_image(Image dst, int dx, int dy, int dw, int dh,
-                Image src, int sx, int sy, int sw, int sh);
+UImage create_image(int w, int h, void *pixels);
+void free_image(UImage img);
+void *image_get_data(UImage img, int mutable);
+void image_put_back_data(UImage img, void *data);
+UImage resize_image(UImage img, int w, int h, int flags);
+void blit_image(UImage dst, int dx, int dy, int dw, int dh,
+                UImage src, int sx, int sy, int sw, int sh);
 
-void draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str);
-int get_utf8_size(Font font, int len, char *str, int *w, int *h);
+void draw_utf8(UImage dst, int x, int y, int c, UFont fnt, int len, char *s);
+int get_utf8_size(UFont font, int len, char *str, int *w, int *h);
 
-Font create_font(const char *name, int size, const char *style);
-void free_font(Font font);
+UFont create_font(const char *name, int size, const char *style);
+void free_font(UFont font);
 const char **font_list(int *n);

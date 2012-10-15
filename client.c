@@ -69,38 +69,38 @@ add_client(int server_fd, int msize)
 
   memset(c->buf, 0xff, msize);
 
-  c->fs.name = "/";
-  c->fs.mode = 0500 | P9_DMDIR;
-  c->fs.qpath = new_qid(FS_ROOT);
+  c->f.name = "/";
+  c->f.mode = 0500 | P9_DMDIR;
+  c->f.qpath = new_qid(FS_ROOT);
 
   c->ev.f.name = "event";
   init_event(&c->ev);
-  add_file(&c->fs, &c->ev.f);
+  add_file(&c->f, &c->ev.f);
 
-  c->fs_views.name = "views";
-  c->fs_views.mode = 0700 | P9_DMDIR;
-  c->fs_views.qpath = new_qid(FS_VIEWS);
-  c->fs_views.fs = &fs_views;
-  add_file(&c->fs, &c->fs_views);
+  c->f_views.name = "views";
+  c->f_views.mode = 0700 | P9_DMDIR;
+  c->f_views.qpath = new_qid(FS_VIEWS);
+  c->f_views.fs = &fs_views;
+  add_file(&c->f, &c->f_views);
 
-  c->fs_images.name = "images";
-  c->fs_images.mode = 0700 | P9_DMDIR;
-  c->fs_images.qpath = new_qid(FS_IMAGES);
-  add_file(&c->fs, &c->fs_images);
+  c->f_images.name = "images";
+  c->f_images.mode = 0700 | P9_DMDIR;
+  c->f_images.qpath = new_qid(FS_IMAGES);
+  add_file(&c->f, &c->f_images);
 
-  if (init_fonts_fs(&c->fs_fonts) == 0) {
-    c->fs_fonts.name = "fonts";
-    add_file(&c->fs, &c->fs_fonts);
+  if (init_fonts_fs(&c->f_fonts) == 0) {
+    c->f_fonts.name = "fonts";
+    add_file(&c->f, &c->f_fonts);
   }
 
-  c->fs_comm.name = "comm";
-  c->fs_comm.mode = 0700 | P9_DMDIR;
-  c->fs_comm.qpath = new_qid(FS_NONE);
-  add_file(&c->fs, &c->fs_comm);
+  c->f_comm.name = "comm";
+  c->f_comm.mode = 0700 | P9_DMDIR;
+  c->f_comm.qpath = new_qid(FS_NONE);
+  add_file(&c->f, &c->f_comm);
 
   if (ui_init_ui(c) == 0) {
     c->ui->name = "ui";
-    add_file(&c->fs, c->ui);
+    add_file(&c->f, c->ui);
   }
   if (clients)
     clients->prev = c;
@@ -128,7 +128,7 @@ rm_client(struct client *c)
   if (c->buf)
     free(c->buf);
   free_fids(&c->fids);
-  rm_file(&c->fs);
+  rm_file(&c->f);
   if (!clients) {
     free(c);
     return;
@@ -219,7 +219,7 @@ client_input_event(struct input_event *ev)
       len = snprintf(buf, sizeof(buf), "m %u %u %u %d %d %u\n", ev->id,
                      ev->x, ev->y, ev->dx, ev->dy, ev->state);
       put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
-      ui_pointer_move(selected_view, ev);
+      ui_pointer_event(selected_view, ev);
       break;
 
     case IN_PTR_DOWN:
@@ -228,7 +228,7 @@ client_input_event(struct input_event *ev)
       len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, ev->id,
                      ev->x, ev->y, ev->key);
       put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
-      ui_pointer_press(selected_view, ev);
+      ui_pointer_event(selected_view, ev);
       break;
 
     case IN_KEY_DOWN:
@@ -249,9 +249,9 @@ update_views(struct client *c)
   struct view *v;
   int changed = 0;
 
-  for (vf = c->fs_views.child; vf; vf = vf->next) {
+  for (vf = c->f_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
-    if ((v->flags & VIEW_IS_VISIBLE) && (v->flags & VIEW_IS_DIRTY)) {
+    if ((v->flags & VIEW_VISIBLE) && (v->flags & VIEW_DIRTY)) {
       ui_update_view(v);
       changed = 1;
     }
@@ -266,11 +266,11 @@ draw_views(struct client *c)
   struct view *v;
   int changed = 0;
 
-  for (vf = c->fs_views.child; vf; vf = vf->next) {
+  for (vf = c->f_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
-    if (v->flags & VIEW_IS_VISIBLE)
+    if (v->flags & VIEW_VISIBLE)
       changed |= draw_view((struct view *)vf);
-    v->flags &= ~VIEW_IS_DIRTY;
+    v->flags &= ~VIEW_DIRTY;
   }
   return changed;
 }

@@ -283,7 +283,7 @@ fs_attach(struct p9_connection *c)
   fid = add_fid(c->t.fid, &cl->fids, c->msize);
   fid->owns_uid = 1;
   fid->uid = strndup(c->t.uname, c->t.uname_len);
-  attach_fid(fid, &cl->fs);
+  attach_fid(fid, &cl->f);
 }
 
 static void

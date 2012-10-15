@@ -13,15 +13,15 @@
 #include "client.h"
 
 struct gridopt {
-  struct file fs;
+  struct file f;
   struct uiobj_grid *grid;
   int coord;
 };
 
 struct uiobj_grid {
   struct uiobj_container c;
-  struct gridopt fs_cols_opts;
-  struct gridopt fs_rows_opts;
+  struct gridopt f_cols_opts;
+  struct gridopt f_rows_opts;
   int nrows;
   int ncols;
   struct uiplace **grid;
@@ -29,7 +29,7 @@ struct uiobj_grid {
   int *cols_opts;
 };
 
-#define UIGRID_IS_EXPAND (1 << 24)
+#define UIGRID_EXPAND (1 << 24)
 #define UIGRID_DEFAULT_FLAGS 0
 
 #define UIGRID_CELL_SIZE(x) ((x) & 0x00ffffff)
@@ -43,7 +43,7 @@ update_grid_cellcount(struct uiobj_grid *g, int *pnc, int *pnr)
   struct file *f;
   struct uiplace *up;
 
-  for (nr = nc = 0, f = g->c.fs_items.child; f; f = f->next) {
+  for (nr = nc = 0, f = g->c.f_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
     if (up->obj) {
       if (up->place.r[0] < 0)
@@ -107,7 +107,7 @@ update_grid_grid(struct uiobj_grid *g)
     g->nrows = nr;
   }
   memset(g->grid, 0, x);
-  for (f = g->c.fs_items.child; f; f = f->next) {
+  for (f = g->c.f_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
     if (up->obj)
       g->grid[up->place.r[0] + up->place.r[1] * nc] = up;
@@ -162,7 +162,7 @@ iter_spanned_cells(struct uiobj_grid *g, int coord)
     opts = g->cols_opts;
     lim = g->ncols;
   }
-  for (f = g->c.fs_items.child; f; f = f->next) {
+  for (f = g->c.f_items.child; f; f = f->next) {
     up = (struct uiplace *)f;
     ni = up->place.r[coord + 2];
     if (up->obj && ni > 1) {
@@ -219,7 +219,7 @@ resize_grid_dim(int ndims, int *dims, int req, int dim)
   int *pd;
 
   for (pd = dims, x = 0, n = 0, i = 0; i < ndims; ++i, ++pd)
-    if (*pd & UIGRID_IS_EXPAND)
+    if (*pd & UIGRID_EXPAND)
       ++n;
   if (dim >= req && n) {
     pd = dims;
@@ -227,7 +227,7 @@ resize_grid_dim(int ndims, int *dims, int req, int dim)
     dx = x / n;
     rem = x % n;
     for (pd = dims, i = 0; i < ndims; ++i, ++pd, --rem)
-      if (*pd & UIGRID_IS_EXPAND)
+      if (*pd & UIGRID_EXPAND)
         *pd += dx + ((rem > 0) ? 1 : 0);
   }
 }
@@ -293,7 +293,7 @@ static void
 update_grid(struct uiobj_grid *g)
 {
   struct file *f;
-  for (f = g->c.fs_items.child; f; f = f->next)
+  for (f = g->c.f_items.child; f; f = f->next)
     ui_propagate_dirty((struct uiplace *)f);
 }
 
@@ -411,7 +411,7 @@ static struct file *
 get_children(struct uiobj *u)
 {
   struct uiobj_container *c = (struct uiobj_container *)u->data;
-  return (c) ? c->fs_items.child : 0;
+  return (c) ? c->f_items.child : 0;
 }
 
 static struct uiobj_ops grid_ops = {
@@ -430,29 +430,29 @@ init_uigrid(struct uiobj *u)
     return -1;
   g = (struct uiobj_grid *)u->data;
 
-  g->fs_cols_opts.coord = 0;
-  g->fs_cols_opts.grid = g;
-  g->fs_cols_opts.fs.name = "colsopts";
-  g->fs_cols_opts.fs.mode = 0600;
-  g->fs_cols_opts.fs.qpath = new_qid(0);
-  g->fs_cols_opts.fs.fs = &opts_fs;
-  add_file(&u->fs, &g->fs_cols_opts.fs);
+  g->f_cols_opts.coord = 0;
+  g->f_cols_opts.grid = g;
+  g->f_cols_opts.f.name = "colsopts";
+  g->f_cols_opts.f.mode = 0600;
+  g->f_cols_opts.f.qpath = new_qid(0);
+  g->f_cols_opts.f.fs = &opts_fs;
+  add_file(&u->f, &g->f_cols_opts.f);
 
 
-  g->fs_rows_opts.coord = 1;
-  g->fs_rows_opts.grid = g;
-  g->fs_rows_opts.fs.name = "rowsopts";
-  g->fs_rows_opts.fs.mode = 0600;
-  g->fs_rows_opts.fs.qpath = new_qid(0);
-  g->fs_rows_opts.fs.fs = &opts_fs;
-  add_file(&u->fs, &g->fs_rows_opts.fs);
+  g->f_rows_opts.coord = 1;
+  g->f_rows_opts.grid = g;
+  g->f_rows_opts.f.name = "rowsopts";
+  g->f_rows_opts.f.mode = 0600;
+  g->f_rows_opts.f.qpath = new_qid(0);
+  g->f_rows_opts.f.fs = &opts_fs;
+  add_file(&u->f, &g->f_rows_opts.f);
 
   ui_init_container_items(&g->c, "items");
   g->c.u = u;
-  add_file(&u->fs, &g->c.fs_items);
+  add_file(&u->f, &g->c.f_items);
   u->ops = &grid_ops;
-  u->flags |= UI_IS_CONTAINER;
-  u->fs.rm = rm_uigrid;
+  u->flags |= UI_CONTAINER;
+  u->f.rm = rm_uigrid;
 
   return 0;
 }

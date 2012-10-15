@@ -15,25 +15,32 @@ LDFLAGS = $LDFLAGS `{sdl-config --static-libs}
 CFLAGS = $CFLAGS -DX_DISPLAY_MISSING
 LDFLAGS = $LDFLAGS -lImlib2
 
+exe = $name
+
+<| test -f $target.mk && cat $target.mk || echo
+
 obj = config.$O 9pmsg.$O fs.$O main_sdl.$O util.$O net.$O client.$O \
 			fsutil.$O fs.$O 9pdbg.$O surface.c view.c event.$O ctl.$O wm.$O \
 			ui.$O uievent.$O prop.$O uiobj_grid.$O uiobj_scroll.$O uiobj_label.$O \
-			text.$O font.$O
+			text.$O font.$O stb_image.$O
 
 docs = docs/doc.html
 
-all:V: $name
+all:V: $exe
+
+dbg:V:
+	echo $CC
 
 clean:V:
-  rm -f *.$O $name
+  rm -f *.$O $exe
 
 docs:V: $docs
 
 
-$name.exe: $obj
+$exe.exe: $obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
 
-$name: $obj
+$exe: $obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
 
 test/test_arr: test/test_arr.c util.o
@@ -45,18 +52,18 @@ test/test_path: test/test_path.c util.o
 %: %.c
   $CC $CFLAGS -o $target $prereq
 
-run:V: $name
+run:V: $exe
   ulimit -c unlimited
-  ./$name -d uc >[2=1] | tee uifs.log
+  ./$exe -d uc >[2=1] | tee uifs.log
 
-valgrind:V: $name
+valgrind:V: $exe
   flags=()
   flags=($flags '--read-var-info=yes')
   flags=($flags '--track-origins=yes')
   if (~ $check '*leak*') flags=($flags '--leak-check=full')
 	if not true
-  valgrind '--suppressions=test/xlib.supp' $flags ./$name -d ugc >[2=1] \
-	| tee $name.log
+  valgrind '--suppressions=test/xlib.supp' $flags ./$exe -d ugc >[2=1] \
+	| tee $exe.log
 
 %.html: %.md
   sundown <$prereq >$target

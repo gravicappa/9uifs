@@ -161,9 +161,9 @@ struct p9_fid {
   unsigned int fid;
   struct p9_qid qid;
   char open_mode;
-  unsigned int iounit;
-  int owns_uid;
+  char owns_uid;
   char *uid;
+  unsigned int iounit;
   void (*rm)(struct p9_fid *);
   void *file;
   void *aux;
@@ -195,4 +195,3 @@ struct p9_fs {
 };
 
 int p9_process_treq(struct p9_connection *c, struct p9_fs *fs);
-

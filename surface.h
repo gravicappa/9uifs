@@ -1,12 +1,16 @@
 struct surface {
-  struct file fs;
-  struct ctl_file fs_ctl;
-  struct file fs_size;
-  struct file fs_pixels;
-  struct file fs_format;
+  struct file f;
+  struct ctl_file f_ctl;
+  struct file f_size;
+  struct file f_pixels;
+  struct file f_format;
+  struct file f_png;
   unsigned int w;
   unsigned int h;
-  Image img;
+  UImage img;
+  int flags;
+  void (*update)(struct surface *s);
+  void *aux;
 };
 
 struct surface *mk_surface(int w, int h);

@@ -26,7 +26,7 @@ struct uiobj_label {
   struct prop_buf text;
   struct prop_buf font_str;
   struct prop_int fg;
-  Font font;
+  UFont font;
   int state;
   unsigned int pressed_ms;
 };
@@ -43,7 +43,7 @@ update_font(struct prop *font_prop)
   struct uiobj *u = font_prop->aux;
   struct prop_buf *p = (struct prop_buf *)font_prop;
   struct uiobj_label *x = (struct uiobj_label *)u->data;
-  Font fn;
+  UFont fn;
 
   if (!x || !p->buf || !(fn = font_from_str(p->buf->b)))
     return;
@@ -105,9 +105,9 @@ init_uilabel(struct uiobj *u)
   if (!x)
     return -1;
 
-  if (init_prop_buf(&u->fs, &x->text, "text", 0, "", 0, u)
-      || init_prop_colour(&u->fs, &x->fg, "foreground", 0, u)
-      || init_prop_buf(&u->fs, &x->font_str, "font", 0, "", 0, u)) {
+  if (init_prop_buf(&u->f, &x->text, "text", 0, "", 0, u)
+      || init_prop_colour(&u->f, &x->fg, "foreground", 0, u)
+      || init_prop_buf(&u->f, &x->font_str, "font", 0, "", 0, u)) {
     free(x);
     return -1;
   }
@@ -115,7 +115,7 @@ init_uilabel(struct uiobj *u)
   x->font_str.p.update = update_font;
   u->ops = &label_ops;
   u->data = x;
-  u->fs.rm = rm_uilabel;
+  u->f.rm = rm_uilabel;
   u->bg.i = DEFAULT_LABEL_BG;
   x->fg.i = DEFAULT_LABEL_FG;
   return 0;
@@ -130,8 +130,8 @@ update_btn(struct uiobj *u, struct uicontext *uc)
     t = cur_time_ms - b->pressed_ms ;
     if (b->pressed_ms > 0 && t > BTN_PRESS_TIME_MS) {
       b->state = BTN_NORMAL;
-      u->flags |= UI_IS_DIRTY;
-      log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
+      u->flags |= UI_DIRTY;
+      log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
     }
   }
 }
@@ -175,8 +175,8 @@ press_button(struct uiobj *u, int by_kbd)
     put_ui_event(&u->client->ev, u->client, "press_button\t$o\n", u);
   if (by_kbd)
     b->pressed_ms = cur_time_ms;
-  u->flags |= UI_IS_DIRTY;
-  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
+  u->flags |= UI_DIRTY;
+  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
 }
 
 static int
@@ -206,8 +206,8 @@ on_btn_input(struct uiobj *u, struct input_event *ev)
     break;
   default: return 0;
   }
-  u->flags |= UI_IS_DIRTY;
-  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
+  u->flags |= UI_DIRTY;
+  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
   return 1;
 }
 
@@ -217,8 +217,8 @@ on_btn_inout_pointer(struct uiobj *u, int inside)
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   if (!inside) {
     x->state = BTN_NORMAL;
-    u->flags |= UI_IS_DIRTY;
-    log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->fs.name, __LINE__);
+    u->flags |= UI_DIRTY;
+    log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
   }
   return 1;
 }

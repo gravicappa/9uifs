@@ -8,7 +8,7 @@ struct ctl_context {
 };
 
 struct ctl_file {
-  struct file file;
+  struct file f;
   struct ctl_cmd *cmd;
 };
 

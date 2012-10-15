@@ -61,11 +61,11 @@ event_length(struct client *c, const char *fmt, va_list args)
           break;
         case 'v':
           v = va_arg(args, struct view *);
-          n += strlen(v->fs.name);
+          n += strlen(v->f.name);
           break;
         case 'o':
           u = va_arg(args, struct uiobj *);
-          n += file_path_len(&u->fs, c->ui);
+          n += file_path_len(&u->f, c->ui);
           break;
         default: n++; break;
       }
@@ -112,12 +112,12 @@ put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...)
           break;
         case 'v':
           v = va_arg(args, struct view *);
-          n = sprintf(b + j, "%s", v->fs.name);
+          n = sprintf(b + j, "%s", v->f.name);
           j += n;
           break;
         case 'o':
           u = va_arg(args, struct uiobj *);
-          n = file_path(size - j, buf + j, &u->fs, c->ui);
+          n = file_path(size - j, buf + j, &u->f, c->ui);
           j += n;
           break;
         default: b[j++] = fmt[i]; break;
@@ -151,12 +151,6 @@ ui_keyboard(struct view *v, struct input_event *ev)
   return 0;
 }
 
-struct pointer_finder {
-  int x;
-  int y;
-  struct uiobj *u;
-};
-
 static int
 inside_uiobj(int x, int y, struct uiobj *u)
 {
@@ -165,24 +159,6 @@ inside_uiobj(int x, int y, struct uiobj *u)
     return 0;
   r = u->viewport.r;
   return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
-}
-
-static void
-pointer_enter_exit(struct view *v, struct uiobj *sel, int x, int y)
-{
-  struct uiobj *pointed = (struct uiobj *)v->uipointed;
-  if (pointed != sel) {
-    if (pointed) {
-      if (pointed->ops->on_inout_pointer)
-        pointed->ops->on_inout_pointer(pointed, 0);
-      /* TODO: global pointer exit event */
-    }
-    if (sel) {
-      if (sel->ops->on_inout_pointer)
-        sel->ops->on_inout_pointer(sel, 1);
-      /* TODO: global pointer enter event */
-    }
-  }
 }
 
 struct input_context {
@@ -205,7 +181,6 @@ input_event_after_fn(struct uiplace *up, void *aux)
   if (!ctx->over)
     ctx->over = u;
 
-  if (0) pointer_enter_exit(ctx->v, u, ev->x, ev->y);
   if (u->ops->on_input && u->ops->on_input(u, ev)) {
     ctx->u = u;
     return 0;
@@ -214,7 +189,7 @@ input_event_after_fn(struct uiplace *up, void *aux)
 }
 
 static void
-enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
+enter_exit(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
 {
   struct uiobj *obj, *last;
 
@@ -227,6 +202,8 @@ enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
       break;
     else if (obj->ops->on_inout_pointer)
       obj->ops->on_inout_pointer(obj, 0);
+    if (obj->flags & UI_INOUT_EV)
+      put_ui_event(&v->ev, v->c, "ptr_out\t$o\n", obj);
     if  (obj->parent && obj->parent->parent)
       obj = obj->parent->parent->obj;
     else
@@ -238,6 +215,8 @@ enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
       break;
     else if (obj->ops->on_inout_pointer)
       obj->ops->on_inout_pointer(obj, 1);
+    if (obj->flags & UI_INOUT_EV)
+      put_ui_event(&v->ev, v->c, "ptr_in\t$o\n", obj);
     if  (obj->parent && obj->parent->parent)
       obj = obj->parent->parent->obj;
     else
@@ -246,7 +225,7 @@ enter_exit(struct uiobj *prev, struct uiobj *u, int x, int y)
 }
 
 int
-ui_pointer_press(struct view *v, struct input_event *ev)
+ui_pointer_event(struct view *v, struct input_event *ev)
 {
   struct input_context ctx = {ev, 0, 0, v};
   int type;
@@ -254,13 +233,13 @@ ui_pointer_press(struct view *v, struct input_event *ev)
   walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
 
   log_printf(LOG_UI, "ui_pointer_press ev.type: %d u: %s\n", ev->type,
-             (ctx.u) ? ctx.u->fs.name : "(nil)");
+             (ctx.u) ? ctx.u->f.name : "(nil)");
 
-  enter_exit((struct uiobj *)v->uipointed, ctx.over, ev->x, ev->y);
+  enter_exit(v, (struct uiobj *)v->uipointed, ctx.over, ev->x, ev->y);
   v->uipointed = (struct file *)ctx.over;
 
   if (ctx.u)
-    v->uisel = &ctx.u->fs;
+    v->uisel = &ctx.u->f;
 
   switch (ev->type) {
   case IN_PTR_DOWN:
@@ -276,15 +255,9 @@ ui_pointer_press(struct view *v, struct input_event *ev)
                    type, ev->x, ev->y, ev->key, v, ctx.u);
     return 1;
   case IN_PTR_MOVE:
-    v->uipointed = &ctx.u->fs;
+    v->uipointed = &ctx.u->f;
     break;
   default:;
   }
   return 0;
-}
-
-int
-ui_pointer_move(struct view *v, struct input_event *ev)
-{
-  return ui_pointer_press(v, ev);
 }

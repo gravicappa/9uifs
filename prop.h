@@ -1,7 +1,7 @@
 struct arr;
 
 struct prop {
-  struct file fs;
+  struct file f;
   void (*update)(struct prop *self);
   void *aux;
 };

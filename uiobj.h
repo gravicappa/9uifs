@@ -1,21 +1,11 @@
-enum uisticky {
-  UI_STICK_START = 1,
-  UI_STICK_END = 2,
-};
-
-struct uiplacement {
-  int pos;
-  int span;
-  enum uisticky sticky;
-};
-
 enum uiflags {
-  UI_IS_CONTAINER = (1 << 0),
-  UI_IS_DIRTY = (1 << 1),
-  UI_IS_DISABLED = (1 << 2),
+  UI_CONTAINER = (1 << 0),
+  UI_DIRTY = (1 << 1),
+  UI_DISABLED = (1 << 2),
   UI_KBD_EV = (1 << 3),
   UI_PRESS_PTR_EV = (1 << 4),
   UI_MOVE_PTR_EV = (1 << 5),
+  UI_INOUT_EV = (1 << 6)
 };
 
 struct uiplace;
@@ -38,7 +28,7 @@ struct uiobj_ops {
 };
 
 struct uiobj {
-  struct file fs;
+  struct file f;
 
   struct prop_buf type;
   struct prop_int bg;
@@ -48,8 +38,8 @@ struct uiobj {
   struct prop_rect g;
   struct prop_rect viewport;
 
-  struct file fs_evfilter;
-  struct file fs_parent;
+  struct file f_evfilter;
+  struct file f_parent;
 
   struct uiobj_ops *ops;
 
@@ -61,7 +51,7 @@ struct uiobj {
 };
 
 struct uiplace {
-  struct file fs;
+  struct file f;
 
   struct uiobj *obj;
   struct prop_buf path;
@@ -69,7 +59,7 @@ struct uiplace {
   struct prop_rect padding;
   struct prop_rect place;
 
-  struct file fs_place;
+  struct file f_place;
 
   void (*detach)(struct uiplace *self);
 
@@ -79,7 +69,7 @@ struct uiplace {
 };
 
 struct uiobj_container {
-  struct file fs_items;
+  struct file f_items;
   struct uiobj *u;
 };
 

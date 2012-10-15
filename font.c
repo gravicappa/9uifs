@@ -10,7 +10,7 @@
 #include "config.h"
 #include "util.h"
 
-Font
+UFont
 font_from_str(const char *str)
 {
   static char buf[64];
@@ -119,22 +119,22 @@ static struct p9_fs list_fs = {
 };
 
 int
-init_fonts_fs(struct file *fs)
+init_fonts_fs(struct file *root)
 {
   struct file *f;
 
   f = calloc(2, sizeof(struct file));
   if (!f)
     return -1;
-  fs->mode = 0700 | P9_DMDIR;
-  fs->qpath = new_qid(FS_FONTS);
+  root->mode = 0700 | P9_DMDIR;
+  root->qpath = new_qid(FS_FONTS);
 
   f[0].name = "list";
   f[0].mode = 0400;
   f[0].qpath = new_qid(FS_FNT_LIST);
   f[0].fs = &list_fs;
   f[0].rm = rm_fonts;
-  add_file(fs, &f[0]);
+  add_file(root, &f[0]);
 
   return 0;
 }

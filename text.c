@@ -3,27 +3,27 @@
 #include "util.h"
 
 void
-multi_draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
+multi_draw_utf8(UImage dst, int x, int y, int c, UFont fnt, int len, char *s)
 {
   int i, j, dx, dy;
 
-  if (!(str && len))
+  if (!(s && len))
     return;
   for (i = j = 0; i < len; ++i)
-    if (str[i] == '\n' || str[i] == '\r') {
+    if (s[i] == '\n' || s[i] == '\r') {
       if (j < i) {
-        draw_utf8(dst, x, y, c, font, i - j, str + j);
-        get_utf8_size(font, i - j, str + j, &dx, &dy);
+        draw_utf8(dst, x, y, c, fnt, i - j, s + j);
+        get_utf8_size(fnt, i - j, s + j, &dx, &dy);
         y += dy;
       }
       j = i + 1;
     }
   if (j < i)
-    draw_utf8(dst, x, y, c, font, i - j, str + j);
+    draw_utf8(dst, x, y, c, fnt, i - j, s + j);
 }
 
 void
-multi_get_utf8_size(Font font, int len, char *str, int *w, int *h)
+multi_get_utf8_size(UFont font, int len, char *str, int *w, int *h)
 {
   int x, y, x1, y1, i, j;
 

@@ -189,7 +189,7 @@ static struct file *
 get_children(struct uiobj *u)
 {
   struct uiobj_container *c = (struct uiobj_container *)u->data;
-  return (c) ? c->fs_items.child : 0;
+  return (c) ? c->f_items.child : 0;
 }
 
 static void
@@ -208,8 +208,8 @@ scroll(struct uiobj *u, int dx, int dy)
     else if (us->pos[i] > m)
       us->pos[i] = m;
   }
-  u->flags |= UI_IS_DIRTY;
-  child->flags |= UI_IS_DIRTY;
+  u->flags |= UI_DIRTY;
+  child->flags |= UI_DIRTY;
   resize(u);
   memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
 }
@@ -251,9 +251,9 @@ on_inout(struct uiobj *u, int inside)
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   if (us) {
     us->mode = NORMAL;
-    u->flags |= UI_IS_DIRTY;
+    u->flags |= UI_DIRTY;
     if (us->place.obj)
-      us->place.obj->flags |= UI_IS_DIRTY;
+      us->place.obj->flags |= UI_DIRTY;
   }
   return 0;
 }
@@ -276,8 +276,8 @@ on_input(struct uiobj *u, struct input_event *ev)
   case IN_PTR_UP:
   case IN_PTR_DOWN:
     us->mode = NORMAL;
-    u->flags |= UI_IS_DIRTY;
-    us->place.obj->flags |= UI_IS_DIRTY;
+    u->flags |= UI_DIRTY;
+    us->place.obj->flags |= UI_DIRTY;
     return 0;
 
   default:
@@ -305,24 +305,24 @@ init_uiscroll(struct uiobj *u)
   if (!x)
     return -1;
   ui_init_container_items(&x->c, "items");
-  x->c.fs_items.fs = 0;
-  x->c.fs_items.mode = 0500 | P9_DMDIR;
+  x->c.f_items.fs = 0;
+  x->c.f_items.mode = 0500 | P9_DMDIR;
 
-  if (init_prop_intarr(&u->fs, &x->pos_fs, "scrollpos", 2, x->pos, u)
-      || init_prop_intarr(&u->fs, &x->expand_fs, "expand", 2, x->expand, u)
+  if (init_prop_intarr(&u->f, &x->pos_fs, "scrollpos", 2, x->pos, u)
+      || init_prop_intarr(&u->f, &x->expand_fs, "expand", 2, x->expand, u)
       || ui_init_place(&x->place, 0)
       || arr_memcpy(&x->place.sticky.buf, 5, 0, 5, "tblr") < 0) {
     free(x);
     return -1;
   }
   x->pos_fs.p.update = x->expand_fs.p.update = ui_prop_update_default;
-  x->place.fs.name = "_";
+  x->place.f.name = "_";
   x->place.padding.r[0] = x->place.padding.r[1] = x->place.padding.r[2]
       = x->place.padding.r[3] = 0;
-  add_file(&x->c.fs_items, &x->place.fs);
+  add_file(&x->c.f_items, &x->place.f);
   u->ops = &scroll_ops;
   u->data = x;
   x->c.u = u;
-  add_file(&u->fs, &x->c.fs_items);
+  add_file(&u->f, &x->c.f_items);
   return 0;
 }

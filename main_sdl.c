@@ -24,7 +24,7 @@ int scr_h = 200;
 int frame_ms = 1000 / 30;
 char *server_host = 0;
 struct sdl_screen screen;
-Font default_font = 0;
+UFont default_font = 0;
 
 void
 fill_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
@@ -43,7 +43,7 @@ draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
 }
 
 void *
-image_get_data(Image img, int mutable)
+image_get_data(UImage img, int mutable)
 {
   imlib_context_set_image(img);
   if (mutable)
@@ -52,29 +52,39 @@ image_get_data(Image img, int mutable)
 }
 
 void
-image_put_back_data(Image img, void *data)
+image_put_back_data(UImage img, void *data)
 {
   imlib_context_set_image(img);
   imlib_image_put_back_data((DATA32 *)data);
 }
 
 void
-free_image(Image img)
+free_image(UImage img)
 {
+  if (!img)
+    return;
   imlib_context_set_image(img);
   imlib_free_image();
 }
 
-Image
-create_image(int w, int h)
+UImage
+create_image(int w, int h, void *data)
 {
-  return imlib_create_image(w, h);
+  Imlib_Image img;
+  if (data)
+    img = imlib_create_image_using_copied_data(w, h, (DATA32 *)data);
+  else
+    img = imlib_create_image(w, h);
+  imlib_context_set_image(img);
+  log_printf(LOG_UI, "image alpha: %d\n", imlib_image_has_alpha());
+  imlib_image_set_has_alpha(1);
+  return img;
 }
 
-Image
-resize_image(Image img, int w, int h, int flags)
+UImage
+resize_image(UImage img, int w, int h, int flags)
 {
-  Image newimg;
+  UImage newimg;
 
   imlib_context_set_image(img);
   imlib_context_set_anti_alias(1);
@@ -86,14 +96,13 @@ resize_image(Image img, int w, int h, int flags)
 }
 
 void
-blit_image(Image dst, int dx, int dy, int dw, int dh,
-           Image src, int sx, int sy, int sw, int sh)
+blit_image(UImage dst, int dx, int dy, int dw, int dh,
+           UImage src, int sx, int sy, int sw, int sh)
 {
   imlib_context_set_image(dst);
   imlib_context_set_anti_alias(1);
-  imlib_context_set_blend(0);
-  imlib_blend_image_onto_image(src, 0, sx, dy, sw, sh, dx, dy, dw, dh);
   imlib_context_set_blend(1);
+  imlib_blend_image_onto_image(src, 0, sx, dy, sw, sh, dx, dy, dw, dh);
 }
 
 void
@@ -127,9 +136,10 @@ init_screen(int w, int h)
   if (!screen.front)
     return -1;
   size = screen.front->w * screen.front->h * 4;
-  screen.s.pixels = (char *)calloc(1, size);
+  screen.s.pixels = (char *)malloc(size);
   if (!screen.s.pixels)
     return -1;
+  memset(screen.s.pixels, 0xff, size);
   screen.back = SDL_CreateRGBSurfaceFrom(screen.s.pixels,
                                          screen.s.w, screen.s.h, 32,
                                          screen.s.w * 4,
@@ -140,11 +150,13 @@ init_screen(int w, int h)
     return -1;
   }
   screen.s.blit
-      = imlib_create_image_using_data(w, h, (DATA32 *) screen.s.pixels);
+      = imlib_create_image_using_data(w, h, (DATA32 *)screen.s.pixels);
   if (!screen.s.blit) {
     SDL_FreeSurface(screen.back);
     free(screen.s.pixels);
   }
+  imlib_context_set_image(screen.s.blit);
+  imlib_image_set_has_alpha(0);
   init_fonts();
   return 0;
 }
@@ -178,7 +190,7 @@ refresh_screen()
 }
 
 void
-draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
+draw_utf8(UImage dst, int x, int y, int c, UFont font, int len, char *str)
 {
   char let;
 
@@ -197,7 +209,7 @@ draw_utf8(Image dst, int x, int y, int c, Font font, int len, char *str)
 }
 
 int
-get_utf8_size(Font font, int len, char *str, int *w, int *h)
+get_utf8_size(UFont font, int len, char *str, int *w, int *h)
 {
   char let;
 
@@ -216,23 +228,17 @@ get_utf8_size(Font font, int len, char *str, int *w, int *h)
   return 0;
 }
 
-Font
+UFont
 create_font(const char *name, int size, const char *style)
 {
   char buf[256];
-  int bold = 0, italic = 0;
 
-  for (; *style; ++style)
-    switch (*style) {
-      case 'b': case 'B': bold = 1; break;
-      case 'i': case 'I': italic = 1; break;
-    }
   snprintf(buf, sizeof(buf), "%s/%d", name, size);
   return imlib_load_font(buf);
 }
 
 void
-free_font(Font font)
+free_font(UFont font)
 {
   if (font) {
     imlib_context_set_font(font);
@@ -243,7 +249,7 @@ free_font(Font font)
 const char **
 font_list(int *n)
 {
-  return imlib_list_fonts(n);
+  return (const char **)imlib_list_fonts(n);
 }
 
 int

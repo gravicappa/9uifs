@@ -15,12 +15,12 @@ struct client {
   char *buf;
 
   int flags;
-  struct file fs;
+  struct file f;
   struct ev_pool ev;
-  struct file fs_views;
-  struct file fs_images;
-  struct file fs_fonts;
-  struct file fs_comm;
+  struct file f_views;
+  struct file f_images;
+  struct file f_fonts;
+  struct file f_comm;
 
   struct file *ui;
 
