@@ -16,6 +16,7 @@ CFLAGS = $CFLAGS -DX_DISPLAY_MISSING
 LDFLAGS = $LDFLAGS -lImlib2
 
 exe = $name
+run_flags = -s 400x300
 
 <| test -f $target.mk && cat $target.mk || echo
 
@@ -54,7 +55,7 @@ test/test_path: test/test_path.c util.o
 
 run:V: $exe
   ulimit -c unlimited
-  ./$exe -d uc >[2=1] | tee uifs.log
+  ./$exe $run_flags -d uc >[2=1] | tee uifs.log
 
 valgrind:V: $exe
   flags=()
@@ -62,7 +63,8 @@ valgrind:V: $exe
   flags=($flags '--track-origins=yes')
   if (~ $check '*leak*') flags=($flags '--leak-check=full')
 	if not true
-  valgrind '--suppressions=test/xlib.supp' $flags ./$exe -d ugc >[2=1] \
+  valgrind '--suppressions=test/xlib.supp' $flags \
+	./$exe $run_flags -d ugc >[2=1] \
 	| tee $exe.log
 
 %.html: %.md

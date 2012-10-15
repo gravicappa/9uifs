@@ -232,9 +232,6 @@ ui_pointer_event(struct view *v, struct input_event *ev)
 
   walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
 
-  log_printf(LOG_UI, "ui_pointer_press ev.type: %d u: %s\n", ev->type,
-             (ctx.u) ? ctx.u->f.name : "(nil)");
-
   enter_exit(v, (struct uiobj *)v->uipointed, ctx.over, ev->x, ev->y);
   v->uipointed = (struct file *)ctx.over;
 

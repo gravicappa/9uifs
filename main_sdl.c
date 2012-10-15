@@ -338,8 +338,12 @@ parse_args(int argc, char **argv)
         case 'm': logmask |= LOG_MSG; break;
         case 'u': logmask |= LOG_UI; break;
         }
-    else
-      die("Usage: d [-d logmask]");
+    else if (!strcmp(argv[i], "-s") && i + 1 < argc) {
+      if (sscanf(argv[++i], "%dx%d", &scr_w, &scr_h) != 2 || scr_w <= 0
+          || scr_h <= 0)
+        die("Wrong resolution.");
+    } else
+      die("Usage: uifs [-d logmask] [-s WxH]");
   log_printf(LOG_CLIENT, "logging: client\n");
   log_printf(LOG_DATA, "logging: data\n");
   log_printf(LOG_DBG, "logging: dbg\n");
