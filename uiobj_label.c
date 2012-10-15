@@ -81,17 +81,8 @@ update_size(struct uiobj *u)
   u->reqsize[1] = h;
 }
 
-static void
-resize(struct uiobj *u)
-{
-  log_printf(LOG_UI, ">> label.resize [%d %d %d %d]\n",
-             u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3]);
-  log_printf(LOG_UI, "     reqsize: [%d %d]\n", u->reqsize[0], u->reqsize[1]);
-}
-
 static struct uiobj_ops label_ops = {
   .draw = draw,
-  .resize = resize,
   .update_size = update_size
 };
 
@@ -226,7 +217,6 @@ on_btn_inout_pointer(struct uiobj *u, int inside)
 static struct uiobj_ops btn_ops = {
   .update = update_btn,
   .draw = draw_btn,
-  .resize = resize,
   .update_size = update_size,
   .on_input = on_btn_input,
   .on_inout_pointer = on_btn_inout_pointer
