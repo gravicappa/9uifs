@@ -8,4 +8,8 @@
 #include <sys/socket.h>
 #endif
 
+int init_network(void);
+void free_network(void);
 int net_listen(const char *host, int port);
+int nonblock_socket(int s);
+int net_wouldblock();

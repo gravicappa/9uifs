@@ -58,7 +58,7 @@ init_uiimage(struct uiobj *u)
   struct uiobj_image *x;
 
   x = calloc(1, sizeof(struct uiobj_image));
-  if (!x || init_prop_buf(&u->f, &x->path, "path", 0, "", 0, u) 
+  if (!x || init_prop_buf(&u->f, &x->path, "path", 0, "", 0, u)
       || init_surface(&x->s, 0, 0))
     return -1;
   x->s.f.name = "blit";

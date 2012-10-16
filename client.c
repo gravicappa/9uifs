@@ -4,17 +4,8 @@
 #include <unistd.h>
 #include <Imlib2.h>
 
-#ifdef WIN32
-#include <winsock2.h>
-#define socklen_t int
-#else
-#include <netdb.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#endif
-
 #include "util.h"
+#include "net.h"
 #include "input.h"
 #include "9p.h"
 #include "9pdbg.h"
@@ -23,7 +14,6 @@
 #include "geom.h"
 #include "event.h"
 #include "client.h"
-#include "net.h"
 #include "ctl.h"
 #include "draw.h"
 #include "surface.h"
@@ -50,7 +40,7 @@ add_client(int server_fd, int msize)
 
   addr_len = sizeof(addr);
   fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
-  if (fd < 0)
+  if (fd < 0 || nonblock_socket(fd))
     return 0;
   log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
   c = (struct client *)calloc(1, sizeof(struct client));
@@ -154,37 +144,35 @@ process_client_io(struct client *c)
   int r;
   unsigned int size;
 
-  r = recv(c->fd, c->inbuf + c->read, c->c.msize - c->read, 0);
-  if (r <= 0)
-    return -1;
-  c->read += r;
-  if (c->read < 4)
-    return 0;
   do {
-    log_printf(LOG_DATA, "; <- ");
-    log_print_data(10, c->read, (unsigned char *)c->inbuf);
-    size = unpack_uint4((unsigned char *)c->inbuf);
-    log_printf(LOG_DATA, ";   size: %d\n", size);
-    if (size < 7 || size > c->c.msize)
-      return -1;
-    log_printf(LOG_DATA, ";   c->read: %d\n", c->read);
-    if (size > c->read)
+    r = recv(c->fd, c->inbuf + c->read, c->c.msize - c->read, 0);
+    if (r == 0)
       return 0;
+    if (r < 0)
+      return net_wouldblock() ? 0 : -1;
+    c->read += r;
+    if (c->read < 4)
+      return 0;
+    do {
+      size = unpack_uint4((unsigned char *)c->inbuf);
+      if (size < 7 || size > c->c.msize)
+        return -1;
+      if (size <= c->read) {
+        if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
+          return -1;
 
-    if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
-      return -1;
-    if (logmask & LOG_MSG)
-      p9_print_msg(&c->c.t, "<<");
+        c->c.r.deferred = 0;
+        if(p9_process_treq(&c->c, &fs))
+          return -1;
+        if (!c->c.r.deferred && client_send_resp(c))
+          return -1;
 
-    c->c.r.deferred = 0;
-    if(p9_process_treq(&c->c, &fs))
-      return -1;
-    if (!c->c.r.deferred && client_send_resp(c))
-      return -1;
-
-    memmove(c->inbuf, c->inbuf + size, c->c.msize - size);
-    c->read -= size;
-  } while (c->read);
+        memmove(c->inbuf, c->inbuf + size, c->c.msize - size);
+        c->read -= size;
+      } else
+        break;
+    } while (c->read);
+  } while (0);
   return 0;
 }
 

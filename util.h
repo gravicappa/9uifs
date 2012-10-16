@@ -1,9 +1,10 @@
 enum log_masks {
-  LOG_CLIENT = 1,
-  LOG_DATA = 2,
-  LOG_DBG = 4,
-  LOG_MSG = 8,
-  LOG_UI = 16,
+  LOG_ERR = 1,
+  LOG_CLIENT = 2,
+  LOG_DATA = 4,
+  LOG_DBG = 8,
+  LOG_MSG = 16,
+  LOG_UI = 32,
 };
 
 #define containerof(ptr, type, member) \

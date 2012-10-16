@@ -10,6 +10,7 @@
 #include "fs.h"
 #include "event.h"
 #include "client.h"
+#include "profile.h"
 
 struct sdl_screen {
   struct screen s;
@@ -262,7 +263,9 @@ main_loop(int server_fd)
   unsigned int prev_draw_ms = 0, time_ms;
 
   while (running) {
+    profile_start(PROF_LOOP);
     time_ms = SDL_GetTicks();
+    profile_start(PROF_EVENTS);
     while (SDL_PollEvent(&ev)) {
       /*log_printf(LOG_DBG, "#SDL ev.type: %d\n", ev.type);*/
       switch (ev.type) {
@@ -302,13 +305,19 @@ main_loop(int server_fd)
         break;
       }
     }
+    profile_end(PROF_EVENTS);
+    profile_start(PROF_IO);
     if (process_clients(server_fd, time_ms, frame_ms))
       running = 0;
+    profile_end(PROF_IO);
+    profile_start(PROF_DRAW);
     if (time_ms - prev_draw_ms > frame_ms) {
       if (draw_clients())
         refresh_screen();
       prev_draw_ms = time_ms;
     }
+    profile_end(PROF_DRAW);
+    profile_end(PROF_LOOP);
   }
   return 0;
 }
@@ -360,6 +369,8 @@ main(int argc, char **argv)
 
   parse_args(argc, argv);
 
+  if (init_network())
+    die("Cannot initialize network");
   fd = net_listen(server_host, server_port);
   if (fd < 0)
     die("Cannot create listening socket");
@@ -367,6 +378,8 @@ main(int argc, char **argv)
     die("Cannot init SDL");
   main_loop(fd);
   free_screen();
+  free_network();
   SDL_Quit();
+  profile_show();
   return 0;
 }
