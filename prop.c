@@ -252,9 +252,9 @@ rect_write(struct p9_connection *c)
 }
 
 void
-rect_clunk(struct p9_connection *c)
+rect_clunk_fn(struct p9_connection *c, int deffill)
 {
-  int r[4];
+  int r[4], i, n;
   struct prop_rect *p;
   char *s = (char *)c->t.pfid->aux;
   int mode = c->t.pfid->open_mode;
@@ -263,13 +263,29 @@ rect_clunk(struct p9_connection *c)
     return;
 
   p = (struct prop_rect *)c->t.pfid->file;
-  if (sscanf(s, "%d %d %d %d", &r[0], &r[1], &r[2], &r[3]) != 4)
+  n = sscanf(s, "%d %d %d %d", &r[0], &r[1], &r[2], &r[3]);
+  if (deffill == -1 && n != 4)
     return;
   if (p) {
-    memcpy(p->r, r, sizeof(r));
+    for (i = 0; i < 4 && i < n; ++i)
+      p->r[i] = r[i];
+    for (; i < 4; ++i)
+      p->r[i] = deffill;
     if (p->p.update)
       p->p.update(&p->p);
   }
+}
+
+void
+rect_clunk(struct p9_connection *c)
+{
+  rect_clunk_fn(c, -1);
+}
+
+void
+rect_defzero_clunk(struct p9_connection *c)
+{
+  rect_clunk_fn(c, 0);
 }
 
 void
@@ -378,6 +394,13 @@ struct p9_fs rect_fs = {
   .clunk = rect_clunk
 };
 
+struct p9_fs rect_defzero_fs = {
+  .open = rect_open,
+  .read = rect_read,
+  .write = rect_write,
+  .clunk = rect_defzero_clunk
+};
+
 struct p9_fs intarr_fs = {
   .open = intarr_open,
   .read = intarr_read,
@@ -442,11 +465,12 @@ init_prop_colour(struct file *root, struct prop_int *p, char *name,
 }
 
 int
-init_prop_rect(struct file *root, struct prop_rect *p, char *name, void *aux)
+init_prop_rect(struct file *root, struct prop_rect *p, char *name,
+               int defzero, void *aux)
 {
   memset(p, 0, sizeof(*p));
   init_prop_fs(&p->p, name, aux);
-  p->p.f.fs = &rect_fs;
+  p->p.f.fs = (defzero) ? &rect_defzero_fs : &rect_fs;
   add_file(root, &p->p.f);
   return 0;
 }

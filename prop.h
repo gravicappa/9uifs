@@ -34,7 +34,7 @@ int init_prop_int(struct file *root, struct prop_int *p, char *name, int x,
 int init_prop_buf(struct file *root, struct prop_buf *p, char *name, int size,
                   char *x, int fixed_size, void *aux);
 int init_prop_rect(struct file *root, struct prop_rect *p, char *name,
-                   void *aux);
+                   int defzero, void *aux);
 int init_prop_intarr(struct file *root, struct prop_intarr *p, char *name,
                      int n, int *arr, void *aux);
 

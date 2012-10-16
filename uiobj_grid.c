@@ -96,13 +96,13 @@ update_grid_grid(struct uiobj_grid *g)
 
   update_grid_cellcount(g, &nc, &nr);
   if (update_grid_opts(g, nc, nr))
-    die("Cannot allocate memory");
+    die("Cannot allocate memory [update-grid-grid]");
   x = nc * nr * sizeof(struct uiplace *);
   log_printf(LOG_UI, "update_grid_grid [%d %d]\n", nc, nr);
   if (nc != g->ncols || nr != g->nrows || !g->grid) {
     g->grid = (struct uiplace **)realloc(g->grid, x);
     if (nc > 0 && nr > 0 && !g->grid)
-      die("Cannot allocate memory");
+      die("Cannot allocate memory [update-grid-grid realloc grid]");
     g->ncols = nc;
     g->nrows = nr;
   }
@@ -269,7 +269,17 @@ resize_grid(struct uiobj *u)
           h += UIGRID_CELL_SIZE(prowh[a]);
         r[2] = w;
         r[3] = h;
+        log_printf(LOG_UI, "grid %s place %s [%d %d %d %d]\n",
+                   u->f.name, up->obj->f.name, r[0], r[1], r[2], r[3]);
+        log_printf(LOG_UI, "  reqsize: [%d %d]\n",
+                   up->obj->reqsize[0], up->obj->reqsize[1]);
+        log_printf(LOG_UI, "  padding: [%d %d %d %d]\n",
+                   up->padding.r[0], up->padding.r[1], up->padding.r[2],
+                   up->padding.r[3]);
         ui_place_with_padding(up, r);
+        log_printf(LOG_UI, "  [%d %d %d %d]\n",
+                   up->obj->g.r[0], up->obj->g.r[1], up->obj->g.r[2],
+                   up->obj->g.r[3]);
       }
       x += UIGRID_CELL_SIZE(*pcolw);
     }

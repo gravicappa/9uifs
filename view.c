@@ -55,15 +55,14 @@ views_create(struct p9_connection *c)
     rm_view(&v->f);
     return;
   }
-  res = init_prop_rect(&v->f, &v->g, "g", v);
+  v->f.owns_name = 1;
+  res = init_prop_rect(&v->f, &v->g, "g", 1, v);
   if (res) {
     P9_SET_STR(c->r.ename, "cannot create view");
     rm_view(&v->f);
     return;
   }
-
   v->g.p.f.mode = 0400;
-  v->f.owns_name = 1;
   add_file(&cl->f_views, &v->f);
   wm_on_create_view(v);
   resp_file_create(c, &v->f);

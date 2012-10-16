@@ -58,14 +58,15 @@ draw(struct uiobj *u, struct uicontext *uc)
   unsigned int fg, bg;
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   struct surface *blit = &uc->v->blit;
+  int *r = u->g.r;
 
   bg = u->bg.i;
   fg = x->fg.i;
 
   if (bg && 0xff000000)
-    fill_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], bg);
+    fill_rect(blit->img, r[0], r[1], r[2], r[3], bg);
   if (fg && 0xff000000 && x->text.buf)
-    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, x->font,
+    multi_draw_utf8(blit->img, r[0], r[1], fg, x->font,
                     x->text.buf->used - 1, x->text.buf->b);
 }
 

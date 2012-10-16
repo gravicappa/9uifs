@@ -75,9 +75,10 @@ create_image(int w, int h, void *data)
     img = imlib_create_image_using_copied_data(w, h, (DATA32 *)data);
   else
     img = imlib_create_image(w, h);
-  imlib_context_set_image(img);
-  log_printf(LOG_UI, "image alpha: %d\n", imlib_image_has_alpha());
-  imlib_image_set_has_alpha(1);
+  if (img) {
+    imlib_context_set_image(img);
+    imlib_image_set_has_alpha(1);
+  }
   return img;
 }
 
@@ -102,7 +103,7 @@ blit_image(UImage dst, int dx, int dy, int dw, int dh,
   imlib_context_set_image(dst);
   imlib_context_set_anti_alias(1);
   imlib_context_set_blend(1);
-  imlib_blend_image_onto_image(src, 0, sx, dy, sw, sh, dx, dy, dw, dh);
+  imlib_blend_image_onto_image(src, 0, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 void
@@ -349,6 +350,7 @@ parse_args(int argc, char **argv)
   log_printf(LOG_DBG, "logging: dbg\n");
   log_printf(LOG_MSG, "logging: msg\n");
   log_printf(LOG_UI, "logging: ui\n");
+  fprintf(stderr, "resolution: %d x %d\n", scr_w, scr_h);
 }
 
 int
