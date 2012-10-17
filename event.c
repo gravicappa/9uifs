@@ -43,8 +43,8 @@ event_rm_fid(struct p9_fid *fid)
   struct ev_pool *pool = (struct ev_pool *)f;
   struct ev_listener *lsr = (struct ev_listener *)fid->aux, *p;
 
-  log_printf(LOG_DBG, "event_rm_fid lsr: %p\n", lsr);
-
+  if (!pool)
+    return;
   if (lsr == pool->listeners)
     pool->listeners = pool->listeners->next;
   else {
