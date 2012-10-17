@@ -26,11 +26,7 @@ rm_file(struct file *f)
   if (!f)
     return;
 
-  log_printf(LOG_DBG, "# rm_file '%s'\n", f->name);
-  log_printf(LOG_DBG, "#   detach fids\n");
-
   detach_file_fids(f);
-  log_printf(LOG_DBG, "#   done detaching fids\n");
   if (f->owns_name && f->name) {
     free(f->name);
     f->name = 0;
@@ -55,7 +51,7 @@ rm_file(struct file *f)
 }
 
 struct file *
-find_file(struct file *root, int size, char *name)
+get_file(struct file *root, int size, char *name)
 {
   struct file *t;
 
@@ -334,7 +330,7 @@ fs_walk(struct p9_connection *c)
   }
   t = f;
   for (i = 0; i < c->t.nwname; ++i) {
-    t = find_file(t, c->t.wname_len[i], c->t.wname[i]);
+    t = get_file(t, c->t.wname_len[i], c->t.wname[i]);
     if (!t)
       break;
     c->r.wqid[c->r.nwqid].type = t->mode >> 24;
@@ -399,18 +395,15 @@ fs_create(struct p9_connection *c)
     return;
   f = (struct file *)c->t.pfid->file;
   if (!(f->mode & P9_DMDIR)) {
-    c->r.ename = "Not a directory";
-    c->r.ename_len = strlen(c->r.ename);
+    P9_SET_STR(c->r.ename, "Not a directory");
     return;
   }
-  if (find_file(f, c->t.name_len, c->t.name)) {
-    c->r.ename = "File exists";
-    c->r.ename_len = strlen(c->r.ename);
+  if (get_file(f, c->t.name_len, c->t.name)) {
+    P9_SET_STR(c->r.ename, "File exists");
     return;
   }
   if (!(f->fs && f->fs->create)) {
-    c->r.ename = "Operation not permitted";
-    c->r.ename_len = strlen(c->r.ename);
+    P9_SET_STR(c->r.ename, "Operation not permitted");
     return;
   }
   f->fs->create(c);

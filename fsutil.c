@@ -66,7 +66,7 @@ write_bool_fn(struct p9_connection *c, int oldval)
 }
 
 struct file *
-find_file_path(struct file *root, int size, char *name)
+find_file(struct file *root, int size, char *name)
 {
   struct file *t = root;
   char *p, *q;
@@ -77,10 +77,10 @@ find_file_path(struct file *root, int size, char *name)
     if (q) {
       size -= q - p + 1;
       if (q > p)
-        t = find_file(t, q - p, p);
+        t = get_file(t, q - p, p);
       p = q + 1;
     } else
-      return find_file(t, size, p);
+      return get_file(t, size, p);
   }
   return 0;
 }

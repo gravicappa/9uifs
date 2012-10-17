@@ -82,6 +82,7 @@ struct uicontext {
   int dirty;
   struct view *v;
   int clip[4];
+  struct uiobj *dirtyobj;
 };
 
 struct uiobj *mk_uiobj();

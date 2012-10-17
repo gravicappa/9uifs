@@ -393,9 +393,10 @@ intersect_clip(int *r, int *c1, int *c2)
     if (r[i] + r[i + 2] > t)
       r[i + 2] = t - r[i];
   }
-  log_printf(LOG_UI, "[%d %d %d %d] ^ [%d %d %d %d] = [%d %d %d %d]\n",
-             c1[0], c1[1], c1[2], c1[3],
-             c2[0], c2[1], c2[2], c2[3], r[0], r[1], r[2], r[3]);
+  if (0)
+    log_printf(LOG_UI, "[%d %d %d %d] ^ [%d %d %d %d] = [%d %d %d %d]\n",
+               c1[0], c1[1], c1[2], c1[3],
+               c2[0], c2[1], c2[2], c2[3], r[0], r[1], r[2], r[3]);
 }
 
 static int
@@ -421,16 +422,16 @@ draw_obj(struct uiplace *up, void *aux)
 
   if (up && up->obj) {
     u = up->obj;
-    dirty = (ctx->v->flags & VIEW_DIRTY) || (u->flags & UI_DIRTY);
+    dirty = ((ctx->v->flags & VIEW_DIRTY) || (u->flags & UI_DIRTY)
+            || ctx->dirtyobj);
     if (!dirty)
       return 1;
+    if (!ctx->dirtyobj)
+      ctx->dirtyobj = u;
     memcpy(up->clip, clip, sizeof(up->clip));
     intersect_clip(r, clip, u->viewport.r);
     memcpy(clip, r, sizeof(ctx->clip));
     set_cliprect(clip[0], clip[1], clip[2], clip[3]);
-    log_printf(LOG_UI, "set_clip [%d %d %d %d]\n", clip[0], clip[1], clip[2],
-               clip[3]);
-    log_printf(LOG_UI, "draw %s\n", u->f.name);
     if (u->ops->draw) {
       u->ops->draw(u, ctx);
       ctx->dirty = 1;
@@ -448,16 +449,17 @@ draw_over_obj(struct uiplace *up, void *aux)
 
   if (up && up->obj) {
     u = up->obj;
-    dirty = (ctx->v->flags & VIEW_DIRTY) || (u->flags & UI_DIRTY);
+    dirty = ((ctx->v->flags & VIEW_DIRTY) || (u->flags & UI_DIRTY)
+            || ctx->dirtyobj);
     if (dirty && u->ops->draw_over) {
       u->ops->draw_over(u, ctx);
       ctx->dirty = 1;
     }
+    if (ctx->dirtyobj == u)
+      ctx->dirtyobj = 0;
     if (dirty) {
       memcpy(clip, up->clip, sizeof(ctx->clip));
       set_cliprect(clip[0], clip[1], clip[2], clip[3]);
-      log_printf(LOG_UI, "set_clip [%d %d %d %d]\n", clip[0], clip[1], clip[2],
-                 clip[3]);
     }
     u->flags &= ~UI_DIRTY;
   }
@@ -621,7 +623,7 @@ upd_path(struct prop *p)
   buf = pb->buf;
   if (buf && buf->used > 0) {
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    place_uiobj(up, (struct uiobj *)find_file_path(c->ui, buf->used, buf->b));
+    place_uiobj(up, (struct uiobj *)find_file(c->ui, buf->used, buf->b));
     if (!up->obj)
       pb->buf->used = 0;
   }

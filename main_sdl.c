@@ -22,6 +22,7 @@ int server_fd = -1;
 int server_port = 5558;
 int scr_w = 320;
 int scr_h = 200;
+int show_cursor = 1;
 int frame_ms = 1000 / 30;
 char *server_host = 0;
 struct sdl_screen screen;
@@ -327,6 +328,7 @@ sdl_init(int w, int h)
 {
   if (SDL_Init(SDL_INIT_VIDEO) < 0)
     return -1;
+  SDL_ShowCursor(show_cursor);
 
   if (init_screen(w, h))
     return -1;
@@ -352,14 +354,15 @@ parse_args(int argc, char **argv)
       if (sscanf(argv[++i], "%dx%d", &scr_w, &scr_h) != 2 || scr_w <= 0
           || scr_h <= 0)
         die("Wrong resolution.");
-    } else
+    } else if (!strcmp(argv[i], "-nocursor"))
+      show_cursor = 0;
+    else
       die("Usage: uifs [-d logmask] [-s WxH]");
   log_printf(LOG_CLIENT, "logging: client\n");
   log_printf(LOG_DATA, "logging: data\n");
   log_printf(LOG_DBG, "logging: dbg\n");
   log_printf(LOG_MSG, "logging: msg\n");
   log_printf(LOG_UI, "logging: ui\n");
-  fprintf(stderr, "resolution: %d x %d\n", scr_w, scr_h);
 }
 
 int
