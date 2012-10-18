@@ -98,7 +98,6 @@ update_grid_grid(struct uiobj_grid *g)
   if (update_grid_opts(g, nc, nr))
     die("Cannot allocate memory [update-grid-grid]");
   x = nc * nr * sizeof(struct uiplace *);
-  log_printf(LOG_UI, "update_grid_grid [%d %d]\n", nc, nr);
   if (nc != g->ncols || nr != g->nrows || !g->grid) {
     g->grid = (struct uiplace **)realloc(g->grid, x);
     if (nc > 0 && nr > 0 && !g->grid)
@@ -176,7 +175,8 @@ iter_spanned_cells(struct uiobj_grid *g, int coord)
         ds = t / lim;
         mds = t % lim;
         for (i = 0; i < ni - 1; ++i, --mds)
-          opts[j + i] = ds + (mds > 0) ? 1 : 0;
+          opts[j + i] = UIGRID_SET_CELL_SIZE(opts[j + i],
+                                             ds + (mds > 0) ? 1 : 0);
       }
     }
   }
@@ -188,7 +188,6 @@ update_grid_size(struct uiobj *u)
   int i, ni, s, *opts;
   struct uiobj_grid *g = (struct uiobj_grid *)u->data;
 
-  log_printf(LOG_UI, "# update_grid_size g: %p\n", g);
   if (!g)
     return;
   update_grid_grid(g);
@@ -227,7 +226,7 @@ resize_grid_dim(int ndims, int *dims, int req, int dim)
     rem = dim % n;
     for (pd = dims, i = 0; i < ndims; ++i, ++pd, --rem)
       if (*pd & UIGRID_EXPAND)
-        *pd = x + ((rem > 0) ? 1 : 0);
+        *pd = UIGRID_SET_CELL_SIZE(*pd, x + ((rem > 0) ? 1 : 0));
   }
 }
 
@@ -268,23 +267,12 @@ resize_grid(struct uiobj *u)
           h += UIGRID_CELL_SIZE(prowh[a]);
         r[2] = w;
         r[3] = h;
-        log_printf(LOG_UI, "grid %s place %s [%d %d %d %d]\n",
-                   u->f.name, up->obj->f.name, r[0], r[1], r[2], r[3]);
-        log_printf(LOG_UI, "  reqsize: [%d %d]\n",
-                   up->obj->reqsize[0], up->obj->reqsize[1]);
-        log_printf(LOG_UI, "  padding: [%d %d %d %d]\n",
-                   up->padding.r[0], up->padding.r[1], up->padding.r[2],
-                   up->padding.r[3]);
         ui_place_with_padding(up, r);
-        log_printf(LOG_UI, "  [%d %d %d %d]\n",
-                   up->obj->g.r[0], up->obj->g.r[1], up->obj->g.r[2],
-                   up->obj->g.r[3]);
       }
       x += UIGRID_CELL_SIZE(*pcolw);
     }
     y += UIGRID_CELL_SIZE(*prowh);
   }
-  log_printf(LOG_UI, "grid resize done\n");
 }
 
 static void
@@ -446,7 +434,6 @@ init_uigrid(struct uiobj *u)
   g->f_cols_opts.f.qpath = new_qid(0);
   g->f_cols_opts.f.fs = &opts_fs;
   add_file(&u->f, &g->f_cols_opts.f);
-
 
   g->f_rows_opts.coord = 1;
   g->f_rows_opts.grid = g;
