@@ -182,11 +182,8 @@ detach_file_fids(struct file *file)
 {
   struct fid *f;
 
-  log_printf(LOG_DBG, "detach_file_fids: %s\n", file->name);
-  for (f = file->fids; f; f = f->fnext) {
-    log_printf(LOG_DBG, "  fid: %p\n", f);
+  for (f = file->fids; f; f = f->fnext)
     f->f.file = 0;
-  }
 }
 
 void
@@ -389,8 +386,6 @@ fs_create(struct p9_connection *c)
 {
   struct file *f;
 
-  log_printf(LOG_DBG, "; fs_create '%.*s'\n", c->t.name_len, c->t.name);
-
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
@@ -442,19 +437,21 @@ file_stat(struct file *f, struct p9_stat *s, char *uid)
 }
 
 static void
-fs_readdir(struct p9_fid *fid, struct file *f, struct p9_connection *c)
+fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
-  struct file *t;
-  unsigned long off = 0, s, count;
+  struct file *t, *f;
+  unsigned long off, s, count;
   struct p9_stat stat;
 
-  for (t = f->child; t && off < c->t.offset; t = t->next) {
-    file_stat(t, &stat, fid->uid);
-    s = p9_stat_size(&stat);
+  for (off = 0, f = dir->child; f; f = f->next) {
+    file_stat(f, &stat, fid->uid);
+    s = p9_stat_size(&stat) + 2;
+    if (off + s > c->t.offset)
+      break;
     off += s;
   }
-  if (!t) {
+  if (!f) {
     c->r.count = 0;
     return;
   }
@@ -464,14 +461,12 @@ fs_readdir(struct p9_fid *fid, struct file *f, struct p9_connection *c)
   }
   count = c->t.count;
   off = 0;
-  for (; t; t = t->next) {
-    file_stat(t, &stat, fid->uid);
+  for (; f; f = f->next) {
+    file_stat(f, &stat, fid->uid);
     if (p9_pack_stat(count, cl->buf + off, &stat))
       break;
     s = stat.size + 2;
     off += s;
-    if (count < s)
-      break;
     count -= s;
   }
   c->r.data = cl->buf;
@@ -531,7 +526,6 @@ fs_clunk(struct p9_connection *c)
   if (get_req_fid(c) && !c->t.pfid)
     return;
   f = (struct file *)c->t.pfid->file;
-  if (0) log_printf(LOG_DBG, "; fs_clunk '%s'\n", f ? f->name : "(nil)");
   if (f && f->fs && f->fs->clunk)
     f->fs->clunk(c);
   rm_fid(c->t.pfid, &cl->fids);
@@ -546,7 +540,6 @@ fs_remove(struct p9_connection *c)
   if (get_req_fid(c) && !c->t.pfid)
     return;
   f = (struct file *)c->t.pfid->file;
-  log_printf(LOG_DBG, "; fs_remove '%s'\n", f ? f->name : "(nil)");
   if (f) {
     if (f->fs && f->fs->remove)
       f->fs->remove(c);
