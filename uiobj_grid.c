@@ -215,20 +215,19 @@ update_grid_size(struct uiobj *u)
 static void
 resize_grid_dim(int ndims, int *dims, int req, int dim)
 {
-  int dx, x, i, n, rem;
+  int x, i, n, rem;
   int *pd;
 
-  for (pd = dims, x = 0, n = 0, i = 0; i < ndims; ++i, ++pd)
+  for (pd = dims, n = 0, i = 0; i < ndims; ++i, ++pd)
     if (*pd & UIGRID_EXPAND)
       ++n;
   if (dim >= req && n) {
     pd = dims;
-    x = dim - req;
-    dx = x / n;
-    rem = x % n;
+    x = dim / n;
+    rem = dim % n;
     for (pd = dims, i = 0; i < ndims; ++i, ++pd, --rem)
       if (*pd & UIGRID_EXPAND)
-        *pd += dx + ((rem > 0) ? 1 : 0);
+        *pd = x + ((rem > 0) ? 1 : 0);
   }
 }
 
