@@ -174,12 +174,13 @@ resize(struct uiobj *u)
 
   for (i = 0; i < 2; ++i) {
     r[i] = u->g.r[i];
-    r[i + 2] = child->reqsize[i];
+    r[i + 2] = (us->expand[i]) ? u->g.r[i + 2] : child->reqsize[i];
     us->scrollopts[i] = 0;
     if (child->reqsize[i] > u->g.r[2 + i]) {
       r[i] -= us->pos[i];
       us->scrollopts[i] = 1;
-    }
+    } else
+      us->pos[i] = 0;
   }
   ui_place_with_padding(&us->place, r);
   us->prevobj = child;
@@ -192,25 +193,43 @@ get_children(struct uiobj *u)
   return (c) ? c->f_items.child : 0;
 }
 
+static int
+scroll_obj(struct uiplace *up, void *aux)
+{
+  int i, *delta = aux;
+  struct uiobj *u = up->obj;
+  if (u) {
+    for (i = 0; i < 2; ++i)
+      u->g.r[i] -= delta[i];
+    for (i = 0; i < 4; ++i)
+      u->viewport.r[i] = u->g.r[i];
+  }
+  return 1;
+}
+
 static void
 scroll(struct uiobj *u, int dx, int dy)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child = us->place.obj;
-  int i, m;
+  int i, m, d[2];
 
+  d[0] = us->pos[0];
+  d[1] = us->pos[1];
   us->pos[0] -= dx;
   us->pos[1] -= dy;
   for (i = 0; i < 2; ++i) {
     m = child->reqsize[i] - child->viewport.r[i + 2];
-    if (us->pos[i] < 0)
+    if (us->pos[i] < 0 || m < 0)
       us->pos[i] = 0;
     else if (us->pos[i] > m)
       us->pos[i] = m;
+    d[i] = us->pos[i] - d[i];
   }
   u->flags |= UI_DIRTY;
   child->flags |= UI_DIRTY;
-  resize(u);
+  if (u->parent)
+    walk_view_tree(&us->place, scroll_obj, 0, d);
   memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
 }
 

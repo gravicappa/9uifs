@@ -440,7 +440,7 @@ static void
 fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
-  struct file *t, *f;
+  struct file *f;
   unsigned long off, s, count;
   struct p9_stat stat;
 

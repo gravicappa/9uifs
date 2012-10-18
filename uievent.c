@@ -191,7 +191,7 @@ input_event_after_fn(struct uiplace *up, void *aux)
 static void
 enter_exit(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
 {
-  struct uiobj *obj, *last;
+  struct uiobj *obj, *last = 0;
 
   if (prev == u)
     return;

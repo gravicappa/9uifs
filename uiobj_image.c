@@ -42,7 +42,6 @@ draw(struct uiobj *u, struct uicontext *ctx)
   struct surface *s = img->cur;
   int *r = u->g.r;
 
-  log_printf(LOG_UI, "image draw [%d %d %d %d]\n", r[0], r[1], r[2], r[3]);
   if (s->img)
     blit_image(blit->img, r[0], r[1], r[2], r[3], s->img, 0, 0, s->w, s->h);
 }

@@ -275,6 +275,7 @@ main_loop(int server_fd)
         break;
       case SDL_MOUSEMOTION:
         in_ev.type = IN_PTR_MOVE;
+        in_ev.id = 0;
         in_ev.ms = time_ms;
         in_ev.x = ev.motion.x;
         in_ev.y = ev.motion.y;
@@ -286,6 +287,7 @@ main_loop(int server_fd)
       case SDL_MOUSEBUTTONUP:
       case SDL_MOUSEBUTTONDOWN:
         in_ev.type = (ev.type == SDL_MOUSEBUTTONUP) ? IN_PTR_UP : IN_PTR_DOWN;
+        in_ev.id = 0;
         in_ev.ms = time_ms;
         in_ev.x = ev.button.x;
         in_ev.y = ev.button.y;
