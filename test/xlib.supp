@@ -1,0 +1,34 @@
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Param
+	writev(vector[...])
+	fun:writev
+	#obj:/usr/lib/libX11.so.6.3.0
+}
+
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Param
+	writev(vector[...])
+	fun:writev
+	obj:*
+
+	#obj:/usr/lib/libX11.so.6.3.0
+}
+
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Cond
+	obj:/usr/lib/libSDL-1.2.so.0.11.4
+	obj:/usr/lib/libSDL-1.2.so.0.11.4
+	obj:*
+}
+
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Param
+	writev(vector[...])
+	fun:writev
+	obj:/usr/lib/libxcb.so.1.1.0
+	obj:/usr/lib/libX11.so.6.3.0
+}

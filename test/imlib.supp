@@ -1,0 +1,26 @@
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Addr4
+	fun:imlib_font_load_joined
+	fun:imlib_load_font
+	fun:init_fonts
+	fun:init_screen
+	fun:sdl_init
+	fun:main
+}
+
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Addr4
+	fun:imlib_font_load_joined
+	fun:imlib_load_font
+	fun:font_from_str
+	fun:update_font
+	fun:prop_clunk
+	fun:fs_clunk
+	fun:p9_process_treq
+	fun:process_client_io
+	fun:process_clients
+	fun:main_loop
+	fun:main
+}

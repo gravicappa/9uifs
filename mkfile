@@ -63,11 +63,12 @@ valgrind:V: $exe
   flags=()
   flags=($flags '--read-var-info=yes')
   flags=($flags '--track-origins=yes')
+  flags=($flags '--gen-suppressions=yes')
+  flags=($flags '--suppressions=test/xlib.supp')
+  flags=($flags '--suppressions=test/imlib.supp')
   if (~ $check '*leak*') flags=($flags '--leak-check=full')
 	if not true
-  valgrind '--suppressions=test/xlib.supp' $flags \
-	./$exe $run_flags -d ugc >[2=1] \
-	| tee $exe.log
+  valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
 
 %.html: %.md
   sundown <$prereq >$target

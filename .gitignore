@@ -3,5 +3,8 @@
 core
 vgcore.*
 uifs
+uifs.mini2440
 *.log
 mnt
+test
+gmon.out
