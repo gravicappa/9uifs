@@ -333,30 +333,39 @@ write_uint1(struct p9_stream *s, unsigned char x)
 static void
 write_uint2(struct p9_stream *s, unsigned short x)
 {
-  s->buf[s->off++] = x & 0xff;
-  s->buf[s->off++] = (x >> 8) & 0xff;
+  unsigned char *buf = s->buf;
+  unsigned int off = s->off;
+  buf[off] = x & 0xff;
+  buf[off + 1] = (x >> 8) & 0xff;
+  s->off = off + 2;
 }
 
 static void
 write_uint4(struct p9_stream *s, unsigned int x)
 {
-  s->buf[s->off++] = x & 0xff;
-  s->buf[s->off++] = (x >> 8) & 0xff;
-  s->buf[s->off++] = (x >> 16) & 0xff;
-  s->buf[s->off++] = (x >> 24) & 0xff;
+  unsigned char *buf = s->buf;
+  unsigned int off = s->off;
+  buf[off] = x & 0xff;
+  buf[off + 1] = (x >> 8) & 0xff;
+  buf[off + 2] = (x >> 16) & 0xff;
+  buf[off + 3] = (x >> 24) & 0xff;
+  s->off = off + 4;
 }
 
 static void
 write_uint8(struct p9_stream *s, unsigned long long x)
 {
-  s->buf[s->off++] = x & 0xff;
-  s->buf[s->off++] = (x >> 8) & 0xff;
-  s->buf[s->off++] = (x >> 16) & 0xff;
-  s->buf[s->off++] = (x >> 24) & 0xff;
-  s->buf[s->off++] = (x >> 32) & 0xff;
-  s->buf[s->off++] = (x >> 40) & 0xff;
-  s->buf[s->off++] = (x >> 48) & 0xff;
-  s->buf[s->off++] = (x >> 56) & 0xff;
+  unsigned char *buf = s->buf;
+  unsigned int off = s->off;
+  buf[off] = x & 0xff;
+  buf[off + 1] = (x >> 8) & 0xff;
+  buf[off + 2] = (x >> 16) & 0xff;
+  buf[off + 3] = (x >> 24) & 0xff;
+  buf[off + 4] = (x >> 32) & 0xff;
+  buf[off + 5] = (x >> 40) & 0xff;
+  buf[off + 6] = (x >> 48) & 0xff;
+  buf[off + 7] = (x >> 56) & 0xff;
+  s->off = off + 8;
 }
 
 static void
@@ -402,10 +411,12 @@ static unsigned short
 read_uint2(struct p9_stream *s, int *err)
 {
   unsigned short x;
+  unsigned int off = s->off;
+  unsigned char *buf = s->buf;
 
-  if (*err |= (s->off + 2 > s->size))
+  if (*err |= (off + 2 > s->size))
     return 0;
-  x = s->buf[s->off] | (s->buf[s->off + 1] << 8);
+  x = buf[off] | (buf[off + 1] << 8);
   s->off += 2;
   return x;
 }
@@ -413,15 +424,14 @@ read_uint2(struct p9_stream *s, int *err)
 static unsigned int
 read_uint4(struct p9_stream *s, int *err)
 {
-  unsigned int x;
+  unsigned int x, off = s->off;
+  unsigned char *buf = s->buf;
 
-  if (*err |= (s->off + 4 > s->size))
+  if (*err |= (off + 4 > s->size))
     return 0;
 
-  x = (s->buf[s->off]
-       | (s->buf[s->off + 1] << 8)
-       | (s->buf[s->off + 2] << 16)
-       | (s->buf[s->off + 3] << 24));
+  x = (buf[off] | (buf[off + 1] << 8) | (buf[off + 2] << 16)
+       | (buf[off + 3] << 24));
   s->off += 4;
   return x;
 }

@@ -8,6 +8,7 @@ struct client {
   struct arr *flushed;
   struct arr *deferred;
   int fd;
+  int off;
   int read;
   int size;
   char *inbuf;
@@ -37,7 +38,6 @@ extern unsigned int cur_time_ms;
 
 struct client *add_client(int server_fd, int msize);
 void rm_client(struct client *c);
-int process_client_io(struct client *c);
 int client_send_resp(struct client *c);
 
 struct input_event;

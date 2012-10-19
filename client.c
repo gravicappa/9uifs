@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <Imlib2.h>
+#include <errno.h>
 
 #include "util.h"
 #include "net.h"
@@ -47,12 +48,10 @@ add_client(int server_fd, int msize)
   if (!c)
     die("Cannot allocate memory");
   c->fd = fd;
-  c->read = 0;
-  c->size = 0;
   c->c.msize = msize;
-  c->inbuf = (char *)malloc(msize);
-  c->outbuf = (char *)malloc(msize);
-  c->buf = (char *)malloc(msize);
+  c->inbuf = malloc(msize);
+  c->outbuf = malloc(msize);
+  c->buf = malloc(msize);
 
   if (!(c->inbuf && c->outbuf && c->buf))
     die("Cannot allocate memory");
@@ -104,11 +103,10 @@ add_client(int server_fd, int msize)
 void
 rm_client(struct client *c)
 {
-  log_printf(LOG_CLIENT, "; rm_client %p\n", c);
-
   if (!c)
     return;
 
+  log_printf(LOG_CLIENT, "# Removing client %p (fd: %d)\n", c, c->fd);
   if (c->fd >= 0)
     close(c->fd);
   if (c->inbuf)
@@ -132,47 +130,52 @@ rm_client(struct client *c)
   free(c);
 }
 
-unsigned int
+static unsigned int
 unpack_uint4(unsigned char *buf)
 {
   return buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
 }
 
-int
+static int
 process_client_io(struct client *c)
 {
   int r;
-  unsigned int size;
+  unsigned int size, off;
+  char *buf = c->inbuf;
 
   do {
-    r = recv(c->fd, c->inbuf + c->read, c->c.msize - c->read, 0);
+    if (c->read >= c->c.msize - (c->c.msize >> 4)) {
+      memmove(buf, buf + c->off, c->read - c->off);
+      c->read -= c->off;
+      c->off = 0;
+    }
+    r = recv(c->fd, buf + c->read, c->c.msize - c->read, 0);
     if (r == 0)
       return 0;
     if (r < 0)
-      return net_wouldblock() ? 0 : -1;
+      return (net_wouldblock())? 0 : -1;
     c->read += r;
     if (c->read < 4)
       return 0;
-    do {
-      size = unpack_uint4((unsigned char *)c->inbuf);
+    off = c->off;
+    while (c->read - off >= 4) {
+      size = unpack_uint4((unsigned char *)buf + off);
       if (size < 7 || size > c->c.msize)
         return -1;
-      if (size <= c->read) {
-        if (p9_unpack_msg(c->c.msize, c->inbuf, &c->c.t))
-          return -1;
-
-        c->c.r.deferred = 0;
-        if(p9_process_treq(&c->c, &fs))
-          return -1;
-        if (!c->c.r.deferred && client_send_resp(c))
-          return -1;
-
-        memmove(c->inbuf, c->inbuf + size, c->c.msize - size);
-        c->read -= size;
-      } else
+      if (off + size > c->read)
         break;
-    } while (c->read);
-  } while (0);
+      if (p9_unpack_msg(size, buf + off, &c->c.t))
+        return -1;
+      c->c.r.deferred = 0;
+      if (p9_process_treq(&c->c, &fs))
+        return -1;
+      if (!c->c.r.deferred && client_send_resp(c))
+        return -1;
+      off += size;
+      size = 0;
+    }
+    c->off = off;
+  } while (1);
   return 0;
 }
 
@@ -183,11 +186,7 @@ client_send_resp(struct client *c)
 
   if (p9_pack_msg(c->c.msize, c->outbuf, &c->c.r))
     return -1;
-  if (logmask & LOG_MSG)
-    p9_print_msg(&c->c.r, ">>");
   outsize = unpack_uint4((unsigned char *)c->outbuf);
-  log_printf(LOG_DATA, "; -> ");
-  log_print_data(LOG_DATA, outsize, (unsigned char *)c->outbuf);
   if (send(c->fd, c->outbuf, outsize, 0) <= 0)
     return -1;
   return 0;
@@ -307,7 +306,7 @@ process_clients(int server_fd, unsigned int time_ms, unsigned int frame_ms)
   tv.tv_sec = 0;
   tv.tv_usec = 1000 * frame_ms;
   r = select(m + 1, &fdset, 0, 0, &tv);
-  if (r < 0)
+  if (r < 0 && errno != EINTR && errno != 514)
     return -1;
   if (r > 0) {
     if (FD_ISSET(server_fd, &fdset))
