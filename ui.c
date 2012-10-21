@@ -10,7 +10,6 @@
 #include "fs.h"
 #include "fsutil.h"
 #include "fstypes.h"
-#include "geom.h"
 #include "event.h"
 #include "ctl.h"
 #include "draw.h"
@@ -282,7 +281,13 @@ static struct file *
 up_children(struct uiplace *up)
 {
   struct uiobj *u = up->obj;
+#if 1
   return (u && u->ops->get_children) ? u->ops->get_children(u) : 0;
+#else
+  return (u && u->ops->get_children)
+         ? ((struct uiobj_container *)u->data)->f_items.child
+         : 0;
+#endif
 }
 
 static int
@@ -292,15 +297,17 @@ walk_dummy_fn(struct uiplace *up, void *aux)
 }
 
 void
-walk_view_tree(struct uiplace *up,
-               int (*before_fn)(struct uiplace *, void *),
-               int (*after_fn)(struct uiplace *, void *),
-               void *aux)
+ui_walk_view_tree(struct uiplace *up,
+                  int (*before_fn)(struct uiplace *, void *),
+                  int (*after_fn)(struct uiplace *, void *),
+                  void *aux)
 {
   struct file *f;
   struct uiplace *x, *t;
 
-  if (0) log_printf(LOG_UI, ">> walk_view_tree\n");
+#if 0
+  log_printf(LOG_UI, ">> ui_walk_view_tree\n");
+#endif
 
   if (!up->obj)
     return;
@@ -310,37 +317,55 @@ walk_view_tree(struct uiplace *up,
 
   x = up;
   x->parent = 0;
-  if (0) log_printf(LOG_UI, "  0 x = up: %p '%s'\n", x, x->f.name);
+#if 0
+  log_printf(LOG_UI, "  0 x = up: %p '%s'\n", x, x->f.name);
+#endif
   do {
-    if (0) log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->f.name, up);
+#if 0
+    log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->f.name, up);
+#endif
     f = 0;
-    if (before_fn(x, aux) && x->obj)
+    if (x->obj && before_fn(x, aux))
       f = up_children(x);
     t = x;
-    if (0) log_printf(LOG_UI, "  2 f: %p\n", f);
+#if 0
+    log_printf(LOG_UI, "  2 f: %p\n", f);
+#endif
     if (f) {
       x = (struct uiplace *)f;
-      if (0) log_printf(LOG_UI, "  %s->parent <- %p\n", x->f.name, t);
+#if 0
+      log_printf(LOG_UI, "  %s->parent <- %p\n", x->f.name, t);
+#endif
       x->parent = t;
     } else if (x->f.next && x != up) {
-      if (0) log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
-                        x->f.name, x->f.next, x->parent);
+#if 0
+      log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
+                 x->f.name, x->f.next, x->parent);
+#endif
       if (!after_fn(x, aux))
         return;
       x = (struct uiplace *)x->f.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->f.next) {
-        if (0) log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->f.name);
+#if 0
+        if (0)
+          log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->f.name);
+#endif
         if (!after_fn(x, aux))
           return;
         x = x->parent;
       }
-      if (0) log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->f.name);
+#if 0
+      log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->f.name);
+#endif
       if (!after_fn(x, aux))
         return;
       if (x->parent) {
-        if (0) log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->f.name);
+#if 0
+        if (0)
+          log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->f.name);
+#endif
         if (!after_fn(x->parent, aux))
           return;
       }
@@ -353,7 +378,9 @@ walk_view_tree(struct uiplace *up,
         break;
     }
   } while (x && x != up);
-  if (0) log_printf(LOG_UI, ">>>> walk_view_tree done\n");
+#if 0
+  log_printf(LOG_UI, ">>>> ui_walk_view_tree done\n");
+#endif
 }
 
 static int
@@ -369,11 +396,11 @@ resize_place(struct uiplace *up, void *aux)
 {
   struct uiobj *u = up->obj;
 
-  if (!u)
-    return 1;
-  if (u->ops->resize)
-    u->ops->resize(u);
-  memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
+  if (u) {
+    if (u->ops->resize)
+      u->ops->resize(u);
+    memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
+  }
   return 1;
 }
 
@@ -783,10 +810,10 @@ ui_update_view(struct view *v)
   if (!(up && up->obj))
     return;
 
-  walk_view_tree((struct uiplace *)v->uiplace, 0, update_place_size, 0);
+  ui_walk_view_tree((struct uiplace *)v->uiplace, 0, update_place_size, 0);
   wm_view_size_request(v);
   ui_place_with_padding(up, v->g.r);
-  walk_view_tree(up, resize_place, 0, 0);
+  ui_walk_view_tree(up, resize_place, 0, 0);
 }
 
 int
@@ -800,8 +827,8 @@ ui_redraw_view(struct view *v)
 
   ctx.v = v;
   memcpy(ctx.clip, v->g.r, sizeof(ctx.clip));
-  walk_view_tree(up, 0, update_obj, &ctx);
-  walk_view_tree(up, draw_obj, draw_over_obj, &ctx);
+  ui_walk_view_tree(up, 0, update_obj, &ctx);
+  ui_walk_view_tree(up, draw_obj, draw_over_obj, &ctx);
   return ctx.dirty;
 }
 

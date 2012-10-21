@@ -175,6 +175,7 @@ static int
 on_btn_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
+  log_printf(LOG_UI, "btn input event\n", u->f.name);
   switch (ev->type) {
   case IN_PTR_DOWN:
     b->state = BTN_PRESSED;
@@ -207,10 +208,15 @@ static int
 on_btn_inout_pointer(struct uiobj *u, int inside)
 {
   struct uiobj_label *x = (struct uiobj_label *)u->data;
+#if 0
+  log_printf(LOG_UI, "btn %s %s\n", u->f.name, (inside) ? "in" : "out");
+#endif
   if (!inside) {
     x->state = BTN_NORMAL;
     u->flags |= UI_DIRTY;
+#if 0
     log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
+#endif
   }
   return 1;
 }

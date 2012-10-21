@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 #include "util.h"
-#include "geom.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
@@ -214,16 +213,18 @@ update_grid_size(struct uiobj *u)
 static void
 resize_grid_dim(int ndims, int *dims, int req, int dim)
 {
-  int x, i, n, rem;
+  int w, x, i, n, rem;
   int *pd;
 
-  for (pd = dims, n = 0, i = 0; i < ndims; ++i, ++pd)
+  for (w = 0, pd = dims, n = 0, i = 0; i < ndims; ++i, ++pd)
     if (*pd & UIGRID_EXPAND)
       ++n;
+    else
+      w += UIGRID_CELL_SIZE(*pd);
   if (dim >= req && n) {
     pd = dims;
-    x = dim / n;
-    rem = dim % n;
+    x = (dim  - w) / n;
+    rem = (dim - w) % n;
     for (pd = dims, i = 0; i < ndims; ++i, ++pd, --rem)
       if (*pd & UIGRID_EXPAND)
         *pd = UIGRID_SET_CELL_SIZE(*pd, x + ((rem > 0) ? 1 : 0));

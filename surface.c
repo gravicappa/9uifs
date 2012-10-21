@@ -271,8 +271,6 @@ init_surface(struct surface *s, int w, int h)
   s->f_png.qpath = new_qid(0);
   s->f_png.fs = &surface_png_fs;
   add_file(&s->f, &s->f_png);
-
-  log_printf(LOG_DBG, "init_surface %d %d p: %p\n", w, h, s);
   return 0;
 }
 

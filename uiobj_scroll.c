@@ -32,7 +32,7 @@ struct uiobj_scroll {
     WAITING,
     SCROLLING
   } mode;
-  int start[2];
+  int prev[2];
   unsigned int stop_ms;
 };
 
@@ -72,10 +72,11 @@ scroll_rect(int *r, struct uiobj *u, int coord)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child = us->place.obj;
-  int pos, len, reqsize = child->reqsize[coord];
+  int pos, len, reqsize = child->reqsize[coord], t;
 
-  pos = us->pos[coord] * u->viewport.r[coord + 2] / reqsize;
-  len = child->viewport.r[coord + 2] * u->viewport.r[coord + 2] / reqsize;
+  t = u->viewport.r[coord + 2] - SCROLL_SIZE;
+  pos = us->pos[coord] * t / reqsize;
+  len = child->viewport.r[coord + 2] * t / reqsize;
   if (len < MIN_SCROLL_LEN)
     len = MIN_SCROLL_LEN;
 
@@ -212,10 +213,10 @@ scroll(struct uiobj *u, int dx, int dy)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child = us->place.obj;
-  int i, m, d[2];
+  int i, m, p[2];
 
-  d[0] = us->pos[0];
-  d[1] = us->pos[1];
+  p[0] = us->pos[0];
+  p[1] = us->pos[1];
   us->pos[0] -= dx;
   us->pos[1] -= dy;
   for (i = 0; i < 2; ++i) {
@@ -224,12 +225,12 @@ scroll(struct uiobj *u, int dx, int dy)
       us->pos[i] = 0;
     else if (us->pos[i] > m)
       us->pos[i] = m;
-    d[i] = us->pos[i] - d[i];
+    p[i] = us->pos[i] - p[i];
   }
   u->flags |= UI_DIRTY;
   child->flags |= UI_DIRTY;
   if (u->parent)
-    walk_view_tree(&us->place, scroll_obj, 0, d);
+    ui_walk_view_tree(&us->place, scroll_obj, 0, p);
   memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
 }
 
@@ -247,18 +248,20 @@ on_ptr_move(struct uiobj *u, struct input_event *ev)
 
   switch (us->mode) {
   case NORMAL:
-    us->start[0] = ev->x;
-    us->start[1] = ev->y;
+    us->prev[0] = ev->x;
+    us->prev[1] = ev->y;
     us->mode = WAITING;
     break;
   case WAITING:
-    if (abs(us->start[0] - ev->x) < SCROLL_THRESHOLD
-        && abs(us->start[1] - ev->y) < SCROLL_THRESHOLD)
+    if (abs(ev->x - us->prev[0]) < SCROLL_THRESHOLD
+        && abs(ev->y - us->prev[1]) < SCROLL_THRESHOLD)
       return 0;
     us->mode = SCROLLING;
     break;
   case SCROLLING:
-    scroll(u, dx, dy);
+    scroll(u, ev->x - us->prev[0], ev->y - us->prev[1]);
+    us->prev[0] = ev->x;
+    us->prev[1] = ev->y;
     break;
   }
   return 1;

@@ -2,10 +2,11 @@
 
 enum viewflags {
   VIEW_DIRTY = (1 << 0),
-  VIEW_VISIBLE = (1 << 1),
-  VIEW_KBD_EV = (1 << 2),
-  VIEW_PRESS_PTR_EV = (1 << 3),
-  VIEW_MOVE_PTR_EV = (1 << 4),
+  VIEW_EV_DIRTY = (1 << 1),
+  VIEW_VISIBLE = (1 << 2),
+  VIEW_KBD_EV = (1 << 3),
+  VIEW_PRESS_PTR_EV = (1 << 4),
+  VIEW_MOVE_PTR_EV = (1 << 5),
 };
 
 struct view {

@@ -11,7 +11,6 @@
 #include "fs.h"
 #include "fsutil.h"
 #include "fstypes.h"
-#include "geom.h"
 #include "event.h"
 #include "ctl.h"
 #include "draw.h"
@@ -22,20 +21,6 @@
 #include "ui.h"
 #include "client.h"
 
-struct event_desc {
-  char *fmt;
-  struct view *v;
-  struct uiobj *u;
-  int kbd_type;
-  int kbd_keysym;
-  unsigned int kbd_unicode;
-  int ptr_type;
-  int ptr_x;
-  int ptr_y;
-  int ptr_state;
-  int ptr_btn;
-};
-
 static int
 event_length(struct client *c, const char *fmt, va_list args)
 {
@@ -43,7 +28,7 @@ event_length(struct client *c, const char *fmt, va_list args)
   struct view *v;
   struct uiobj *u;
 
-  for (i = 0, mode = 0; fmt[i]; ++i) {
+  for (i = 0, mode = 0; fmt[i]; ++i)
     if (!mode) {
       if (fmt[i] == '$')
         mode = 1;
@@ -71,7 +56,6 @@ event_length(struct client *c, const char *fmt, va_list args)
       }
       mode = 0;
     }
-  }
   return n + 1;
 }
 
@@ -94,7 +78,7 @@ put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...)
     size = n;
   }
 
-  for (i = 0, j = 0, mode = 0; fmt[i]; ++i) {
+  for (i = 0, j = 0, mode = 0; fmt[i]; ++i)
     if (!mode) {
       if (fmt[i] == '$')
         mode = 1;
@@ -124,7 +108,6 @@ put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...)
       }
       mode = 0;
     }
-  }
   put_event(c, ev, j, b);
   if (b != buf)
     free(b);
@@ -154,10 +137,7 @@ ui_keyboard(struct view *v, struct input_event *ev)
 static int
 inside_uiobj(int x, int y, struct uiobj *u)
 {
-  int *r;
-  if (!u)
-    return 0;
-  r = u->viewport.r;
+  int *r = u->viewport.r;
   return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
 }
 
@@ -169,18 +149,28 @@ struct input_context {
 };
 
 static int
-input_event_after_fn(struct uiplace *up, void *aux)
+input_event_fn(struct uiplace *up, void *aux)
 {
   struct input_context *ctx = (struct input_context *)aux;
   struct input_event *ev = ctx->ev;
   struct uiobj *u = up->obj;
 
-  if (!inside_uiobj(ev->x, ev->y, u))
+  if (0)
+    log_printf(LOG_UI, "input_event_fn %s\n", u ? u->f.name : "(nil)");
+
+  if (!(u && inside_uiobj(ev->x, ev->y, u)))
     return 1;
 
-  if (!ctx->over)
+  if (!ctx->over) {
+    if (0)
+      log_printf(LOG_UI, "input_event_fn over <- %s\n",
+                 u ? u->f.name : "(nil)");
     ctx->over = u;
+  }
 
+  if (0)
+    log_printf(LOG_UI, "input_event_fn on-input %s\n",
+               u ? u->f.name : "(nil)");
   if (u->ops->on_input && u->ops->on_input(u, ev)) {
     ctx->u = u;
     return 0;
@@ -188,14 +178,10 @@ input_event_after_fn(struct uiplace *up, void *aux)
   return 1;
 }
 
-static void
-enter_exit(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
+static struct uiobj *
+onexit(struct view *v, struct uiobj *obj, int x, int y)
 {
-  struct uiobj *obj, *last = 0;
-
-  if (prev == u)
-    return;
-  obj = prev;
+  struct uiobj *last = 0;
   while (obj) {
     last = obj;
     if (inside_uiobj(x, y, obj))
@@ -209,8 +195,18 @@ enter_exit(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
     else
       obj = 0;
   }
+  return last;
+}
+
+static void
+onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
+{
+  struct uiobj *obj;
+
+  if (prev == u)
+    return;
   obj = u;
-  while (obj && obj != last) {
+  while (obj && obj != prev) {
     if (!inside_uiobj(x, y, obj))
       break;
     else if (obj->ops->on_inout_pointer)
@@ -229,10 +225,29 @@ ui_pointer_event(struct view *v, struct input_event *ev)
 {
   struct input_context ctx = {ev, 0, 0, v};
   int type;
+  struct uiobj *t, *obj;
+  struct uiplace *up, *parent;
 
-  walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_after_fn, &ctx);
-
-  enter_exit(v, (struct uiobj *)v->uipointed, ctx.over, ev->x, ev->y);
+  t = onexit(v, (struct uiobj *)v->uipointed, ev->x, ev->y);
+  if ((v->flags & VIEW_EV_DIRTY) || !t) {
+    ui_walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_fn, &ctx);
+  } else {
+    if (t->parent)
+      parent = t->parent->parent;
+    ui_walk_view_tree(t->parent, 0, input_event_fn, &ctx);
+    if (t->parent)
+      t->parent->parent = parent;
+    if (t->parent && t->parent->obj) {
+      up = t->parent->obj->parent;
+      for (up = t->parent->obj->parent; up && up->obj; up = up->parent) {
+        obj = up->obj;
+        if (obj->ops->on_input && obj->ops->on_input(obj, ev))
+          break;
+      }
+    }
+    onenter(v, t, ctx.over, ev->x, ev->y);
+  }
+  v->flags &= ~VIEW_EV_DIRTY;
   v->uipointed = (struct file *)ctx.over;
 
   if (ctx.u)
@@ -252,9 +267,23 @@ ui_pointer_event(struct view *v, struct input_event *ev)
                    type, ev->x, ev->y, ev->key, v, ctx.u);
     return 1;
   case IN_PTR_MOVE:
-    v->uipointed = &ctx.u->f;
     break;
   default:;
   }
   return 0;
 }
+
+#if 0
+void
+evmask_open(struct p9_connection *con)
+{
+  ;
+}
+
+static struct p9_fs eventmask_fs = {
+  .open = evmask_open,
+  .read = evmask_read,
+  .write = evmask_write,
+  .clunk = evmask_clunk,
+};
+#endif

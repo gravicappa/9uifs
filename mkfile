@@ -7,8 +7,9 @@ CC = gcc
 O = o
 #CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
 CFLAGS = -Wall -O0 -g 
-#CFLAGS = $CFLAGS -pg
-#LDFLAGS = -pg
+
+CFLAGS = $CFLAGS -pg
+LDFLAGS = -pg
 
 CFLAGS = $CFLAGS `{sdl-config --cflags}
 #LDFLAGS = $LDFLAGS -static
@@ -57,7 +58,7 @@ test/test_path: test/test_path.c util.o
 
 run:V: $exe
   ulimit -c unlimited
-  ./$exe $run_flags -d uc >[2=1] | tee uifs.log
+  ./$exe $run_flags -d ugc >[2=1] | tee uifs.log
 
 valgrind:V: $exe
   flags=()
@@ -68,6 +69,7 @@ valgrind:V: $exe
   flags=($flags '--suppressions=test/imlib.supp')
   if (~ $check '*leak*') flags=($flags '--leak-check=full')
 	if not true
+	flags=('--tool=callgrind')
   valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
 
 %.html: %.md

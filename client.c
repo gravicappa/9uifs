@@ -12,7 +12,6 @@
 #include "9pdbg.h"
 #include "fs.h"
 #include "fstypes.h"
-#include "geom.h"
 #include "event.h"
 #include "client.h"
 #include "ctl.h"
@@ -35,14 +34,15 @@ struct client *
 add_client(int server_fd, int msize)
 {
   struct client *c;
-  int fd;
+  int fd, opt = 1;
   struct sockaddr_in addr;
-  socklen_t addr_len;
+  socklen_t len;
 
-  addr_len = sizeof(addr);
-  fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
+  len = sizeof(addr);
+  fd = accept(server_fd, (struct sockaddr *)&addr, &len);
   if (fd < 0 || nonblock_socket(fd))
     return 0;
+  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
   log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
   c = (struct client *)calloc(1, sizeof(struct client));
   if (!c)
@@ -239,6 +239,7 @@ update_views(struct client *c)
   for (vf = c->f_views.child; vf; vf = vf->next) {
     v = (struct view *)vf;
     if ((v->flags & VIEW_VISIBLE) && (v->flags & VIEW_DIRTY)) {
+      v->flags |= VIEW_EV_DIRTY;
       ui_update_view(v);
       changed = 1;
     }

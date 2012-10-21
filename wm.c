@@ -1,7 +1,6 @@
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
-#include "geom.h"
 #include "event.h"
 #include "client.h"
 #include "ctl.h"
@@ -11,13 +10,13 @@
 #include "view.h"
 
 void
-wm_new_view_geom(struct rect *r)
+wm_new_view_geom(int *r)
 {
   struct screen *s = default_screen();
-  r->x = 0;
-  r->y = 0;
-  r->w = s->w;
-  r->h = s->h;
+  r[0] = 0;
+  r[1] = 0;
+  r[2] = s->w;
+  r[3] = s->h;
 }
 
 void

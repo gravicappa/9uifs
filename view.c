@@ -9,7 +9,6 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "ctl.h"
-#include "geom.h"
 #include "draw.h"
 #include "surface.h"
 #include "event.h"
@@ -35,15 +34,15 @@ views_create(struct p9_connection *c)
 {
   struct client *cl = (struct client *)c;
   struct view *v;
-  struct rect r;
+  int r[4];
   int res;
 
   if (!(c->t.perm & P9_DMDIR)) {
     P9_SET_STR(c->r.ename, "wrong view create perm");
     return;
   }
-  wm_new_view_geom(&r);
-  v = mk_view(r.x, r.y, r.w, r.h);
+  wm_new_view_geom(r);
+  v = mk_view(r[0], r[1], r[2], r[3]);
   if (!v) {
     P9_SET_STR(c->r.ename, "cannot create view");
     return;

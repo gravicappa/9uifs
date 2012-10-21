@@ -103,9 +103,9 @@ int ui_init_place(struct uiplace *up, int setup);
 
 void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
 
-void walk_view_tree(struct uiplace *up,
-                    int (*before_fn)(struct uiplace *, void *),
-                    int (*after_fn)(struct uiplace *, void *),
-                    void *aux);
+void ui_walk_view_tree(struct uiplace *up,
+                       int (*before_fn)(struct uiplace *, void *),
+                       int (*after_fn)(struct uiplace *, void *),
+                       void *aux);
 
 int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);

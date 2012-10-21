@@ -8,16 +8,26 @@
 #include "client.h"
 #include "fstypes.h"
 
+struct ev_listener {
+  struct ev_listener *next;
+  struct file *file;
+  unsigned short tag;
+  unsigned int time_ms;
+  unsigned int count;
+  struct arr *buf;
+};
+
 static int buf_delta = 512;
+
+/* TODO: think about accumulating events within given timelimit to
+  decrease IO for some cases. */
 
 void
 put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
 {
   struct ev_listener *lsr;
 
-  log_printf(LOG_DBG, ">> put_event pool: %p\n", pool);
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
-    log_printf(LOG_DBG, "  lsr: %p\n", lsr);
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
     if (lsr->tag != P9_NOTAG) {
@@ -32,6 +42,7 @@ put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
         return;
       arr_delete(&lsr->buf, 0, c->c.r.count);
       lsr->tag = P9_NOTAG;
+      lsr->time_ms = 0;
     }
   }
 }
@@ -77,7 +88,6 @@ event_open(struct p9_connection *c)
   lsr->tag = P9_NOTAG;
   fid->aux = lsr;
   fid->rm = event_rm_fid;
-  log_printf(LOG_DBG, "event_open lsr: %p\n", lsr);
 }
 
 void
@@ -86,8 +96,9 @@ event_read(struct p9_connection *c)
   struct ev_listener *lsr = (struct ev_listener *)c->t.pfid->aux;
   struct client *cl = (struct client *)c;
 
-  log_printf(LOG_DBG, "# event_read (buf: %u)\n",
-             (lsr->buf) ? lsr->buf->used : 0);
+  if (0)
+    log_printf(LOG_DBG, "# event_read (buf: %u)\n",
+               (lsr->buf) ? lsr->buf->used : 0);
 
   if (!(lsr->buf && lsr->buf->used)) {
     if (lsr->tag != P9_NOTAG) {
@@ -99,6 +110,7 @@ event_read(struct p9_connection *c)
     c->r.deferred = 1;
     return;
   }
+  lsr->time_ms = cur_time_ms;
   c->r.count = (c->t.count < lsr->buf->used) ? c->t.count : lsr->buf->used;
   c->r.data = cl->buf;
   memcpy(c->r.data, lsr->buf->b, c->r.count);

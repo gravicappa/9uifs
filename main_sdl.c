@@ -10,7 +10,6 @@
 #include "fs.h"
 #include "event.h"
 #include "client.h"
-#include "profile.h"
 
 struct sdl_screen {
   struct screen s;
@@ -24,6 +23,7 @@ int scr_w = 320;
 int scr_h = 200;
 int show_cursor = 1;
 int frame_ms = 1000 / 30;
+int moveptr_events_interval_ms = 10;
 char *server_host = 0;
 struct sdl_screen screen;
 UFont default_font = 0;
@@ -262,27 +262,33 @@ main_loop(int server_fd)
   struct input_event in_ev;
   int running = 1;
   unsigned int prev_draw_ms = 0, time_ms;
+  unsigned int prev_motion_event_ms = SDL_GetTicks();
+  unsigned int prev_x[8], prev_y[8];
 
   while (running) {
-    profile_start(PROF_LOOP);
     time_ms = SDL_GetTicks();
-    profile_start(PROF_EVENTS);
-    while (SDL_PollEvent(&ev)) {
-      /*log_printf(LOG_DBG, "#SDL ev.type: %d\n", ev.type);*/
+    while (SDL_PollEvent(&ev))
       switch (ev.type) {
       case SDL_QUIT:
         running = 0;
         break;
       case SDL_MOUSEMOTION:
-        in_ev.type = IN_PTR_MOVE;
-        in_ev.id = 0;
-        in_ev.ms = time_ms;
-        in_ev.x = ev.motion.x;
-        in_ev.y = ev.motion.y;
-        in_ev.dx = ev.motion.xrel;
-        in_ev.dy = ev.motion.yrel;
-        in_ev.state = ev.motion.state;
-        client_input_event(&in_ev);
+        if (time_ms - prev_motion_event_ms > moveptr_events_interval_ms) {
+          in_ev.type = IN_PTR_MOVE;
+          in_ev.id = 0;
+          in_ev.ms = time_ms;
+          in_ev.x = ev.motion.x;
+          in_ev.y = ev.motion.y;
+          in_ev.dx = ev.motion.xrel;
+          in_ev.dy = ev.motion.yrel;
+          in_ev.dx = ev.motion.x - prev_x[in_ev.id];
+          in_ev.dy = ev.motion.y - prev_y[in_ev.id];
+          in_ev.state = ev.motion.state;
+          client_input_event(&in_ev);
+          prev_x[in_ev.id] = in_ev.x;
+          prev_y[in_ev.id] = in_ev.y;
+          prev_motion_event_ms = time_ms;
+        }
         break;
       case SDL_MOUSEBUTTONUP:
       case SDL_MOUSEBUTTONDOWN:
@@ -307,20 +313,13 @@ main_loop(int server_fd)
         client_input_event(&in_ev);
         break;
       }
-    }
-    profile_end(PROF_EVENTS);
-    profile_start(PROF_IO);
     if (process_clients(server_fd, time_ms, frame_ms))
       running = 0;
-    profile_end(PROF_IO);
-    profile_start(PROF_DRAW);
     if (time_ms - prev_draw_ms > frame_ms) {
       if (draw_clients())
         refresh_screen();
       prev_draw_ms = time_ms;
     }
-    profile_end(PROF_DRAW);
-    profile_end(PROF_LOOP);
   }
   return 0;
 }
@@ -385,6 +384,5 @@ main(int argc, char **argv)
   free_screen();
   free_network();
   SDL_Quit();
-  profile_show();
   return 0;
 }
