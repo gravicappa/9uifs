@@ -22,6 +22,7 @@
 #include "view.h"
 #include "config.h"
 #include "font.h"
+#include "images.h"
 
 struct client *clients = 0;
 struct client *selected_client = 0;
@@ -72,10 +73,8 @@ add_client(int server_fd, int msize)
   c->f_views.fs = &fs_views;
   add_file(&c->f, &c->f_views);
 
-  c->f_images.name = "images";
-  c->f_images.mode = 0700 | P9_DMDIR;
-  c->f_images.qpath = new_qid(FS_IMAGES);
-  add_file(&c->f, &c->f_images);
+  c->images = init_image_dir("images");
+  add_file(&c->f, c->images);
 
   if (init_fonts_fs(&c->f_fonts) == 0) {
     c->f_fonts.name = "fonts";

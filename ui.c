@@ -73,7 +73,6 @@ items_mkdir(char *name, struct client *client)
 static void
 items_create(struct p9_connection *c)
 {
-  struct uiobj *u;
   struct file *f;
   struct uiobj_dir *dir;
   char *name;
@@ -88,17 +87,18 @@ items_create(struct p9_connection *c)
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
     return;
   }
-  if (name[0] == UI_NAME_PREFIX) {
-    u = mk_uiobj(dir->c);
-    u->f.name = name;
-    u->f.owns_name = 1;
-    resp_file_create(c, &u->f);
-    add_file(&dir->f, &u->f);
-  } else {
+  if (name[0] == UI_NAME_PREFIX)
+    f = (struct file *)mk_uiobj(dir->c);
+  else
     f = items_mkdir(name, dir->c);
-    f->owns_name = 1;
-    add_file(&dir->f, f);
+  if (!f) {
+    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+    return;
   }
+  f->name = name;
+  f->owns_name = 1;
+  resp_file_create(c, f);
+  add_file(&dir->f, f);
 }
 
 static void

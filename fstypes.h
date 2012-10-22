@@ -13,5 +13,6 @@ enum {
   FS_PROP,
   FS_FONTS,
   FS_FNT_LIST,
-  FS_SURFACE
+  FS_SURFACE,
+  FS_IMGDIR
 };

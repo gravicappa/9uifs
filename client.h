@@ -19,10 +19,10 @@ struct client {
   struct file f;
   struct ev_pool ev;
   struct file f_views;
-  struct file f_images;
   struct file f_fonts;
   struct file f_comm;
 
+  struct file *images;
   struct file *ui;
 
   struct view *selected_view;
