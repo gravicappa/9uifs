@@ -11,11 +11,7 @@
           data
           size
       fonts/
-        ctl
-        sans/
-        sans-serif/
-        monospace/
-        decorative/
+        list
         ...
       ui/
       store/
@@ -50,16 +46,14 @@
 
 Move pointer
 
-    m P X Y Btn-bitmask
-    m P X Y Dx Dy Btn-bitmask (?)
+    m P X Y Dx Dy Btn-bitmask
 
 * _P_: pointer index (for multitouch interfaces)
 * _X_, _Y_: pointer coordinates
-* _Dx_, _Dy_: delta from previous coordinates (?)
+* _Dx_, _Dy_: delta from previous coordinates
 * _Btn-bitmask_: bit-mask of button press
 
 > Maybe _Btn-bitmask_ should be a list of pressed buttons
-> Maybe _Dx_, _Dy_ is useful
 
 Press pointer
 
@@ -90,14 +84,13 @@ Release pointer
 
     /
       ctl
-      pixels
+      rgba
       size
-      format
 
 - *ctl*:
 - *size*: contains string `width height` which defines size in pixels.
-- *pixels*: contains `width × height × bytes-per-pixel` bytes of pixel data.
-- *format*: `RGBA8`, probably optional
+- *rgba*: contains `width × height × bytes-per-pixel` bytes of RGBA pixel
+          data.
 
 ### blit/ctl
 
@@ -116,9 +109,23 @@ Release pointer
 
 ### images
 
+    /
+      imagedir1/
+        _image1
+        _image2
+        imagedir2/
+          _image3
+      imagedir3/
+        _image4
+      _image5
+      ...
+
 *to be defined*
 
 ### fonts
+
+    /
+      list
 
 *to be defined*
 
