@@ -173,6 +173,7 @@ struct p9_connection {
   int msize;
   struct p9_msg t;
   struct p9_msg r;
+  void *buf;
   void *flushed;
   void *aux;
 };

@@ -1,5 +1,5 @@
 struct client {
-  struct p9_connection c;
+  struct p9_connection con;
   struct client *next;
   struct client *prev;
 
@@ -13,7 +13,6 @@ struct client {
   int size;
   char *inbuf;
   char *outbuf;
-  char *buf;
 
   int flags;
   struct file f;

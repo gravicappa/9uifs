@@ -120,26 +120,38 @@ static void
 pixels_read(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  char *pix;
+  unsigned int size;
 
   if (!s->img)
     return;
-  pix = (char *)image_get_data(s->img, 0);
-  read_data_fn(c, s->w * s->h * 4, pix);
+  size = s->w * s->h * 4;
+  c->r.count = 0;
+  if (c->t.offset >= size)
+    return;
+  c->r.count = c->t.count;
+  if (c->t.offset + c->t.count > size)
+    c->r.count = size - c->t.offset;
+  image_read_rgba(s->img, c->t.offset, c->r.count, c->buf);
+  c->r.data = c->buf;
 }
 
 static void
 pixels_write(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
-  char *pix;
+  unsigned int size;
 
   if (!s->img)
     return;
-  pix = (char *)image_get_data(s->img, 1);
-  write_data_fn(c, s->w * s->h * 4, pix);
-  image_put_back_data(s->img, pix);
-  s->flags |= SURFACE_DIRTY;
+  size = s->w * s->h * 4;
+  c->r.count = c->t.count;
+  if (c->t.offset >= size)
+    return;
+  if (c->t.offset + c->t.count > size)
+    c->r.count = size - c->t.offset;
+  image_write_rgba(s->img, c->t.offset, c->r.count, c->t.data);
+  if (c->r.count)
+    s->flags |= SURFACE_DIRTY;
 }
 
 static void
@@ -171,8 +183,8 @@ png_clunk(struct p9_connection *c)
 {
   struct surface *s = get_surface(c);
   struct arr *buf = c->t.pfid->aux;
-  unsigned char *pixels, *p;
-  int w, h, n, i, t;
+  unsigned char *pixels;
+  int w, h, n;
   UImage newimg;
 
   if (!(buf && buf->used))
@@ -181,12 +193,6 @@ png_clunk(struct p9_connection *c)
                                  &n, 4);
   if (!pixels)
     return;
-  for (i = w * h, p = pixels; i; --i, p += 4) {
-    t = p[0];
-    p[0] = p[2];
-    p[1] = p[1];
-    p[2] = t;
-  }
   newimg = create_image(w, h, pixels);
   free(pixels);
   if (!newimg)

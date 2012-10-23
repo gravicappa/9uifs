@@ -437,9 +437,8 @@ file_stat(struct file *f, struct p9_stat *s, char *uid)
 }
 
 static void
-fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *c)
+fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
   struct file *f;
   unsigned long off, s, count;
   struct p9_stat stat;
@@ -447,30 +446,30 @@ fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *c)
   for (off = 0, f = dir->child; f; f = f->next) {
     file_stat(f, &stat, fid->uid);
     s = p9_stat_size(&stat) + 2;
-    if (off + s > c->t.offset)
+    if (off + s > con->t.offset)
       break;
     off += s;
   }
   if (!f) {
-    c->r.count = 0;
+    con->r.count = 0;
     return;
   }
-  if (off != c->t.offset) {
-    P9_SET_STR(c->r.ename, "Illegal seek");
+  if (off != con->t.offset) {
+    P9_SET_STR(con->r.ename, "Illegal seek");
     return;
   }
-  count = c->t.count;
+  count = con->t.count;
   off = 0;
   for (; f; f = f->next) {
     file_stat(f, &stat, fid->uid);
-    if (p9_pack_stat(count, cl->buf + off, &stat))
+    if (p9_pack_stat(count, con->buf + off, &stat))
       break;
     s = stat.size + 2;
     off += s;
     count -= s;
   }
-  c->r.data = cl->buf;
-  c->r.count = off;
+  con->r.data = con->buf;
+  con->r.count = off;
 }
 
 static void

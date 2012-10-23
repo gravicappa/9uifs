@@ -37,10 +37,13 @@ void set_cliprect(int x, int y, int w, int h);
 void fill_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
 void draw_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
 
-UImage create_image(int w, int h, void *pixels);
+UImage create_image(int w, int h, void *rgba);
 void free_image(UImage img);
-void *image_get_data(UImage img, int mutable);
-void image_put_back_data(UImage img, void *data);
+void image_write_rgba(UImage img, unsigned int off_bytes, int len_bytes,
+                      void *rgba);
+void image_read_rgba(UImage img, unsigned int off_bytes, int len_bytes,
+                    void *rgba);
+int image_get_size(UImage img, int *w, int *h);
 UImage resize_image(UImage img, int w, int h, int flags);
 void blit_image(UImage dst, int dx, int dy, int dw, int dh,
                 UImage src, int sx, int sy, int sw, int sh);

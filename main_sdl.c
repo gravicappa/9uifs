@@ -44,22 +44,6 @@ draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
   imlib_image_draw_rectangle(x, y, w, h);
 }
 
-void *
-image_get_data(UImage img, int mutable)
-{
-  imlib_context_set_image(img);
-  if (mutable)
-    return imlib_image_get_data();
-  return imlib_image_get_data_for_reading_only();
-}
-
-void
-image_put_back_data(UImage img, void *data)
-{
-  imlib_context_set_image(img);
-  imlib_image_put_back_data((DATA32 *)data);
-}
-
 void
 free_image(UImage img)
 {
@@ -70,18 +54,113 @@ free_image(UImage img)
 }
 
 UImage
-create_image(int w, int h, void *data)
+create_image(int w, int h, void *rgba)
 {
   Imlib_Image img;
-  if (data)
-    img = imlib_create_image_using_copied_data(w, h, (DATA32 *)data);
-  else
-    img = imlib_create_image(w, h);
-  if (img) {
-    imlib_context_set_image(img);
-    imlib_image_set_has_alpha(1);
-  }
+
+  img = imlib_create_image(w, h);
+  if (!img)
+    return 0;
+  imlib_context_set_image(img);
+  imlib_image_set_has_alpha(1);
+  if (rgba)
+    image_write_rgba(img, 0, w * h * 4, rgba);
   return img;
+}
+
+void
+image_write_rgba(UImage img, unsigned int off_bytes, int len_bytes,
+                 void *rgba)
+{
+  unsigned char *src = rgba;
+  DATA32 *pixels, *dst, pix;
+  int w, h, size;
+
+  if (!img)
+    return;
+  imlib_context_set_image(img);
+  w = imlib_image_get_width();
+  h = imlib_image_get_height();
+  size = w * h * 4;
+  if (size <= off_bytes)
+    return;
+  if (off_bytes + len_bytes >= size)
+    len_bytes = size - off_bytes;
+  pixels = imlib_image_get_data();
+  dst = pixels + (off_bytes >> 2);
+  pix = *dst;
+  switch (off_bytes & 3) {
+  case 1:
+    if (len_bytes-- > 0)
+      pix = (pix & 0xffff00ff) | (*src++ << 8);
+  case 2:
+    if (len_bytes-- > 0)
+      pix = (pix & 0xffffff00) | *src++;
+  case 3:
+    if (len_bytes-- > 0)
+      pix = (pix & 0x00ffffff) | (*src++ << 24);
+  }
+  if (off_bytes & 3)
+    *dst++ = pix;
+  for (; len_bytes >= 4; len_bytes -= 4, src += 4, ++dst)
+    *dst = src[2] | (src[1] << 8) | (src[0] << 16) | (src[3] << 24);
+  if (len_bytes) {
+    pix = *dst;
+    switch (len_bytes) {
+    case 3: pix = (pix & 0xffffff00) | src[2];
+    case 2: pix = (pix & 0xffff00ff) | (src[1] << 8);
+    case 1: pix = (pix & 0xff00ffff) | (src[0] << 16);
+    }
+    *dst = pix;
+  }
+  imlib_image_put_back_data(pixels);
+}
+
+void
+image_read_rgba(UImage img, unsigned int off_bytes, int len_bytes, void *rgba)
+{
+  DATA32 *src;
+  unsigned char *dst = rgba;
+  int w, h, pix, size;
+
+  if (!img)
+    return;
+  imlib_context_set_image(img);
+  w = imlib_image_get_width();
+  h = imlib_image_get_height();
+  size = w * h * 4;
+  if (size <= off_bytes)
+    return;
+  if (off_bytes + len_bytes >= size)
+    len_bytes = size - off_bytes;
+  src = imlib_image_get_data_for_reading_only() + (off_bytes >> 2);
+  pix = *src;
+  switch (off_bytes & 3) {
+  case 1:
+    if (len_bytes-- > 0)
+      *dst++ = (pix >> 8) & 0xff;
+  case 2:
+    if (len_bytes-- > 0)
+      *dst++ = pix & 0xff;
+  case 3:
+    if (len_bytes-- > 0)
+      *dst++ = pix >> 24;
+  }
+  if (off_bytes & 3)
+    pix = *(++src);
+  for (; len_bytes >= 4; pix = *src++, len_bytes -= 4) {
+    *dst++ = (pix >> 16) & 0xff;
+    *dst++ = (pix >> 8) & 0xff;
+    *dst++ = pix & 0xff;
+    *dst++ = pix >> 24;
+  }
+  if (len_bytes)
+    pix = *src;
+  switch (len_bytes) {
+  case 3: dst[2] = pix & 0xff;
+  case 2: dst[1] = (pix >> 8) & 0xff;
+  case 1: dst[0] = (pix >> 16) & 0xff;
+  }
 }
 
 UImage

@@ -49,15 +49,15 @@ add_client(int server_fd, int msize)
   if (!c)
     die("Cannot allocate memory");
   c->fd = fd;
-  c->c.msize = msize;
+  c->con.msize = msize;
   c->inbuf = malloc(msize);
   c->outbuf = malloc(msize);
-  c->buf = malloc(msize);
+  c->con.buf = malloc(msize);
 
-  if (!(c->inbuf && c->outbuf && c->buf))
+  if (!(c->inbuf && c->outbuf && c->con.buf))
     die("Cannot allocate memory");
 
-  memset(c->buf, 0xff, msize);
+  memset(c->con.buf, 0xff, msize);
 
   c->f.name = "/";
   c->f.mode = 0500 | P9_DMDIR;
@@ -112,8 +112,8 @@ rm_client(struct client *c)
     free(c->inbuf);
   if (c->outbuf)
     free(c->outbuf);
-  if (c->buf)
-    free(c->buf);
+  if (c->con.buf)
+    free(c->con.buf);
   free_fids(&c->fids);
   rm_file(&c->f);
   if (!clients) {
@@ -135,6 +135,19 @@ unpack_uint4(unsigned char *buf)
   return buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
 }
 
+int
+client_send_resp(struct client *c)
+{
+  unsigned int outsize;
+
+  if (p9_pack_msg(c->con.msize, c->outbuf, &c->con.r))
+    return -1;
+  outsize = unpack_uint4((unsigned char *)c->outbuf);
+  if (send(c->fd, c->outbuf, outsize, 0) <= 0)
+    return -1;
+  return 0;
+}
+
 static int
 process_client_io(struct client *c)
 {
@@ -143,15 +156,13 @@ process_client_io(struct client *c)
   char *buf = c->inbuf;
 
   do {
-    if (c->read >= c->c.msize - (c->c.msize >> 4)) {
+    if (c->read >= c->con.msize - (c->con.msize >> 4)) {
       memmove(buf, buf + c->off, c->read - c->off);
       c->read -= c->off;
       c->off = 0;
     }
-    r = recv(c->fd, buf + c->read, c->c.msize - c->read, 0);
-    if (r == 0)
-      return 0;
-    if (r < 0)
+    r = recv(c->fd, buf + c->read, c->con.msize - c->read, 0);
+    if (r <= 0)
       return (net_wouldblock())? 0 : -1;
     c->read += r;
     if (c->read < 4)
@@ -159,35 +170,22 @@ process_client_io(struct client *c)
     off = c->off;
     while (c->read - off >= 4) {
       size = unpack_uint4((unsigned char *)buf + off);
-      if (size < 7 || size > c->c.msize)
+      if (size < 7 || size > c->con.msize)
         return -1;
       if (off + size > c->read)
         break;
-      if (p9_unpack_msg(size, buf + off, &c->c.t))
+      if (p9_unpack_msg(size, buf + off, &c->con.t))
         return -1;
-      c->c.r.deferred = 0;
-      if (p9_process_treq(&c->c, &fs))
+      c->con.r.deferred = 0;
+      if (p9_process_treq(&c->con, &fs))
         return -1;
-      if (!c->c.r.deferred && client_send_resp(c))
+      if (!c->con.r.deferred && client_send_resp(c))
         return -1;
       off += size;
       size = 0;
     }
     c->off = off;
   } while (1);
-  return 0;
-}
-
-int
-client_send_resp(struct client *c)
-{
-  unsigned int outsize;
-
-  if (p9_pack_msg(c->c.msize, c->outbuf, &c->c.r))
-    return -1;
-  outsize = unpack_uint4((unsigned char *)c->outbuf);
-  if (send(c->fd, c->outbuf, outsize, 0) <= 0)
-    return -1;
   return 0;
 }
 

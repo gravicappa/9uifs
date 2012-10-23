@@ -31,16 +31,16 @@ put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
     if (lsr->tag != P9_NOTAG) {
-      c->c.r.tag = lsr->tag;
-      c->c.r.type = P9_RREAD;
-      c->c.r.count = lsr->count;
-      c->c.r.data = c->buf;
-      if (c->c.r.count > lsr->buf->used)
-        c->c.r.count = lsr->buf->used;
-      memcpy(c->buf, lsr->buf->b, c->c.r.count);
+      c->con.r.tag = lsr->tag;
+      c->con.r.type = P9_RREAD;
+      c->con.r.count = lsr->count;
+      c->con.r.data = c->con.buf;
+      if (c->con.r.count > lsr->buf->used)
+        c->con.r.count = lsr->buf->used;
+      memcpy(c->con.buf, lsr->buf->b, c->con.r.count);
       if (client_send_resp(c))
         return;
-      arr_delete(&lsr->buf, 0, c->c.r.count);
+      arr_delete(&lsr->buf, 0, c->con.r.count);
       lsr->tag = P9_NOTAG;
       lsr->time_ms = 0;
     }
@@ -91,10 +91,9 @@ event_open(struct p9_connection *c)
 }
 
 void
-event_read(struct p9_connection *c)
+event_read(struct p9_connection *con)
 {
-  struct ev_listener *lsr = (struct ev_listener *)c->t.pfid->aux;
-  struct client *cl = (struct client *)c;
+  struct ev_listener *lsr = (struct ev_listener *)con->t.pfid->aux;
 
   if (0)
     log_printf(LOG_DBG, "# event_read (buf: %u)\n",
@@ -102,28 +101,29 @@ event_read(struct p9_connection *c)
 
   if (!(lsr->buf && lsr->buf->used)) {
     if (lsr->tag != P9_NOTAG) {
-      P9_SET_STR(c->r.ename, "fid is already blocked on event");
+      P9_SET_STR(con->r.ename, "fid is already blocked on event");
       return;
     }
-    lsr->tag = c->t.tag;
-    lsr->count = c->t.count;
-    c->r.deferred = 1;
+    lsr->tag = con->t.tag;
+    lsr->count = con->t.count;
+    con->r.deferred = 1;
     return;
   }
   lsr->time_ms = cur_time_ms;
-  c->r.count = (c->t.count < lsr->buf->used) ? c->t.count : lsr->buf->used;
-  c->r.data = cl->buf;
-  memcpy(c->r.data, lsr->buf->b, c->r.count);
-  arr_delete(&lsr->buf, 0, c->r.count);
+  con->r.count = (con->t.count < lsr->buf->used)
+      ? con->t.count : lsr->buf->used;
+  con->r.data = con->buf;
+  memcpy(con->r.data, lsr->buf->b, con->r.count);
+  arr_delete(&lsr->buf, 0, con->r.count);
 }
 
 void
-event_flush(struct p9_connection *c)
+event_flush(struct p9_connection *con)
 {
-  struct ev_listener *lsr = (struct ev_listener *)c->t.pfid->aux;
+  struct ev_listener *lsr = (struct ev_listener *)con->t.pfid->aux;
   if (!lsr)
     return;
-  if (lsr->tag != c->t.oldtag)
+  if (lsr->tag != con->t.oldtag)
     return;
   lsr->tag = P9_NOTAG;
 }
