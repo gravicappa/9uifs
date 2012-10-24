@@ -16,6 +16,17 @@ read_data_fn(struct p9_connection *c, int size, char *buf)
 }
 
 void
+read_str_fn(struct p9_connection *c, int size, char *buf)
+{
+  int i;
+  char *s;
+  if (buf) {
+    for (s = buf, i = 0; i < size && *s; ++i, ++s) {}
+    read_data_fn(c, i, buf);
+  }
+}
+
+void
 write_data_fn(struct p9_connection *c, int size, char *buf)
 {
   c->r.count = c->t.count;

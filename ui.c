@@ -147,10 +147,11 @@ struct p9_fs prop_type_fs = {
 };
 
 static void
-rm_parent_fid(struct p9_fid *fid)
+rm_fid_aux(struct p9_fid *fid)
 {
   if (fid->aux)
     free(fid->aux);
+  fid->rm = 0;
 }
 
 static void
@@ -169,7 +170,7 @@ parent_open(struct p9_connection *c)
     die("Cannot allocate memory [1]");
   file_path(n, buf->b, &u->parent->f, cl->ui);
   fid->aux = buf;
-  c->t.pfid->rm = rm_parent_fid;
+  c->t.pfid->rm = rm_fid_aux;
 }
 
 static void
@@ -207,8 +208,6 @@ ui_rm_uiobj(struct file *f)
   up = u->parent;
   if (up) {
     up->obj = 0;
-    if (up->path.buf)
-      up->path.buf->used = 0;
     ui_propagate_dirty(up);
   }
   free(u);
@@ -515,8 +514,6 @@ rm_place(struct file *f)
     up->obj = 0;
     ui_propagate_dirty(up);
   }
-  if (up->path.buf)
-    free(up->path.buf);
   if (up->sticky.buf)
     free(up->sticky.buf);
 }
@@ -632,57 +629,102 @@ uiplace_prop_update_default(struct prop *p)
 }
 
 static void
-upd_path(struct prop *p)
+path_open(struct p9_connection *con)
 {
-  struct prop_buf *pb = (struct prop_buf *)p;
-  struct uiplace *up = (struct uiplace *)p->aux;
-  struct client *c;
+  struct uiplace *up;
+  struct p9_fid *fid = con->t.pfid;
+  int n;
+  struct arr *buf = 0;
+
+  up = containerof(fid->file, struct uiplace, f_path);
+  fid->aux = 0;
+  fid->rm = rm_fid_aux;
+
+  if (up->obj && !(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
+    n = file_path_len((struct file *)up->obj, up->obj->client->ui);
+    if (arr_memcpy(&buf, n, 0, n, 0))
+      die("Cannot allocate memory");
+    file_path(n, buf->b, (struct file *)up->obj, up->obj->client->ui);
+    fid->aux = buf;
+  }
+}
+
+static void
+path_write(struct p9_connection *con)
+{
+  write_buf_fn(con, 16, (struct arr **)&con->t.pfid->aux);
+}
+
+static void
+path_read(struct p9_connection *con)
+{
+  struct arr *arr = con->t.pfid->aux;
+  if (arr)
+    read_str_fn(con, arr->used, arr->b);
+}
+
+static void
+path_clunk(struct p9_connection *con)
+{
+  struct p9_fid *fid = con->t.pfid;
+  struct uiplace *up;
   struct uiobj *prevu;
+  struct client *client;
   struct arr *buf;
 
-  c = get_place_client(up);
+  if (!P9_WRITE_MODE(fid->open_mode))
+    return;
+
+  up = containerof(fid->file, struct uiplace, f_path);
+  client = get_place_client(up);
   prevu = up->obj;
   if (up->obj)
     unplace_uiobj(up);
-  if (!c)
-    return;
   up->obj = 0;
-  buf = pb->buf;
-  if (buf && buf->used > 0) {
+  buf = fid->aux;
+  if (client && buf && buf->used > 0) {
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    place_uiobj(up, (struct uiobj *)find_file(c->ui, buf->used, buf->b));
-    if (!up->obj)
-      pb->buf->used = 0;
+    place_uiobj(up, (struct uiobj *)find_file(client->ui, buf->used, buf->b));
   }
   if (up->obj != prevu)
-    uiplace_prop_update_default(p);
+    ui_propagate_dirty(up);
 }
+
+static struct p9_fs path_fs = {
+  .open = path_open,
+  .read = path_read,
+  .write = path_write,
+  .clunk = path_clunk
+};
 
 int
 ui_init_place(struct uiplace *up, int setup)
 {
-  int r;
+  int r = 0;
 
-  r = init_prop_buf(&up->f, &up->path, "path", 0, "", 0, up);
-  if (setup && !r) {
+  if (setup) {
     r = init_prop_buf(&up->f, &up->sticky, "sticky", 8, 0, 1, up)
         || init_prop_rect(&up->f, &up->padding, "padding", 1, up)
         || init_prop_rect(&up->f, &up->place, "place", 1, up);
     up->sticky.p.update = up->padding.p.update = up->place.p.update
         = uiplace_prop_update_default;
+    if (r) {
+      if (up->f.owns_name)
+        free(up->f.name);
+      free(up);
+      return -1;
+    }
   }
+  up->f_path.name = "path";
+  up->f_path.mode = 0600;
+  up->f_path.qpath = new_qid(0);
+  up->f_path.fs = &path_fs;
+  add_file(&up->f, &up->f_path);
+
   up->place.r[0] = -1;
   up->place.r[1] = -1;
   up->place.r[2] = 1;
   up->place.r[3] = 1;
-
-  if (r) {
-    if (up->f.owns_name)
-      free(up->f.name);
-    free(up);
-    return -1;
-  }
-  up->path.p.update = upd_path;
 
   up->f.mode = 0500 | P9_DMDIR;
   up->f.qpath = new_qid(FS_UIPLACE);

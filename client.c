@@ -208,8 +208,8 @@ client_input_event(struct input_event *ev)
 
     case IN_PTR_DOWN:
     case IN_PTR_UP:
-      type = (ev->type == IN_PTR_DOWN) ? 1 : 0;
-      len = snprintf(buf, sizeof(buf), "%u %u %u %u %u\n", type, ev->id,
+      type = (ev->type == IN_PTR_DOWN) ? 'd' : 'u';
+      len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, ev->id,
                      ev->x, ev->y, ev->key);
       put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
       ui_pointer_event(selected_view, ev);
@@ -217,7 +217,7 @@ client_input_event(struct input_event *ev)
 
     case IN_KEY_DOWN:
     case IN_KEY_UP:
-      type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
+      type = (ev->type == IN_KEY_DOWN) ? 'd' : 'u';
       len = snprintf(buf, sizeof(buf), "%u %u %u %lu\n", type, ev->key,
                      ev->state, ev->unicode);
       put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);

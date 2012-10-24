@@ -21,19 +21,18 @@ aux_free(struct p9_fid *fid)
 }
 
 void
-prop_clunk(struct p9_connection *c)
+prop_clunk(struct p9_connection *con)
 {
-  struct prop *p = (struct prop *)c->t.pfid->file;
-  int mode = c->t.pfid->open_mode;
+  struct prop *p = (struct prop *)con->t.pfid->file;
 
-  if (p && p->update && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR))
+  if (p && p->update && P9_WRITE_MODE(con->t.pfid->open_mode))
     p->update(p);
 }
 
 static int
-prop_alloc(struct p9_connection *c, int size)
+prop_alloc(struct p9_connection *con, int size)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
 
   fid->aux = calloc(1, size);
   if (!fid->aux)
@@ -43,62 +42,62 @@ prop_alloc(struct p9_connection *c, int size)
 }
 
 void
-prop_int_open(struct p9_connection *c, int size, const char *fmt)
+prop_int_open(struct p9_connection *con, int size, const char *fmt)
 {
   struct prop_int *p;
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
 
   p = (struct prop_int *)fid->file;
-  if (prop_alloc(c, size))
+  if (prop_alloc(con, size))
     die("Cannot allocate memory");
-  if (!(c->t.mode & P9_OTRUNC))
+  if (P9_WRITE_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, size, fmt, p->i);
 }
 
 int
-prop_int_clunk(struct p9_connection *c, const char *fmt)
+prop_int_clunk(struct p9_connection *con, const char *fmt)
 {
   int x;
   struct prop_int *p;
-  int mode = c->t.pfid->open_mode;
 
-  if (!c->t.pfid->aux)
+  if (!con->t.pfid->aux)
     return 0;
 
-  if ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR) {
-    p = (struct prop_int *)c->t.pfid->file;
-    if (sscanf((char *)c->t.pfid->aux, fmt, &x) != 1)
+  if (P9_WRITE_MODE(con->t.pfid->open_mode)) {
+    p = (struct prop_int *)con->t.pfid->file;
+    if (sscanf((char *)con->t.pfid->aux, fmt, &x) != 1)
       return -1;
     if (p)
       p->i = x;
   }
-  prop_clunk(c);
+  prop_clunk(con);
   return 0;
 }
 
 void
-prop_intdec_open(struct p9_connection *c)
+prop_intdec_open(struct p9_connection *con)
 {
-  prop_int_open(c, INT_BUF_SIZE, "%d");
+  prop_int_open(con, INT_BUF_SIZE, "%d");
 }
 
 void
-prop_intdec_read(struct p9_connection *c)
+prop_intdec_read(struct p9_connection *con)
 {
-  read_data_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
+  char *s = (char *)con->t.pfid->aux;
+  read_data_fn(con, strlen(s), s);
 }
 
 void
-prop_intdec_write(struct p9_connection *c)
+prop_intdec_write(struct p9_connection *con)
 {
-  write_data_fn(c, INT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
+  write_data_fn(con, INT_BUF_SIZE - 1, (char *)con->t.pfid->aux);
 }
 
 void
-prop_intdec_clunk(struct p9_connection *c)
+prop_intdec_clunk(struct p9_connection *con)
 {
-  if (prop_int_clunk(c, "%d"))
-    P9_SET_STR(c->r.ename, "Wrong number format");
+  if (prop_int_clunk(con, "%d"))
+    P9_SET_STR(con->r.ename, "Wrong number format");
 }
 
 static void
@@ -113,56 +112,52 @@ prop_buf_rm(struct file *f)
 }
 
 void
-prop_buf_open(struct p9_connection *c)
+prop_buf_open(struct p9_connection *con)
 {
-  struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
-  if ((c->t.mode & P9_OTRUNC) && p->buf) {
+  struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
+  if (P9_WRITE_MODE(con->t.mode) && (con->t.mode & P9_OTRUNC) && p->buf) {
     p->buf->used = 0;
     memset(p->buf->b, 0, p->buf->size);
   }
 }
 
 void
-prop_buf_read(struct p9_connection *c)
+prop_buf_read(struct p9_connection *con)
 {
-  struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
-  int i;
-  char *s;
-  if (p->buf) {
-    for (s = p->buf->b, i = 0; i < p->buf->used && *s; ++i, ++s) {}
-    read_data_fn(c, i, p->buf->b);
-  }
+  struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
+  if (p->buf)
+    read_str_fn(con, p->buf->used, p->buf->b);
 }
 
 void
-prop_fixed_buf_write(struct p9_connection *c)
+prop_fixed_buf_write(struct p9_connection *con)
 {
-  struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
+  struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
   if (p->buf) {
-    write_data_fn(c, p->buf->size - 1, p->buf->b);
+    write_data_fn(con, p->buf->size - 1, p->buf->b);
     p->buf->used = strlen(p->buf->b);
   }
 }
 
 void
-prop_buf_write(struct p9_connection *c)
+prop_buf_write(struct p9_connection *con)
 {
-  struct prop_buf *p = (struct prop_buf *)c->t.pfid->file;
-  write_buf_fn(c, 16, &p->buf);
+  struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
+  write_buf_fn(con, 16, &p->buf);
 }
 
 void
-prop_colour_open(struct p9_connection *c)
+prop_colour_open(struct p9_connection *con)
 {
   int size = 9, r, g, b, a;
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   struct prop_int *p;
 
-  if (prop_alloc(c, size)) {
-    P9_SET_STR(c->r.ename, "Cannot allocate memory");
+  if (prop_alloc(con, size)) {
+    P9_SET_STR(con->r.ename, "Cannot allocate memory");
     return;
   }
-  if (!(c->t.mode & P9_OTRUNC)) {
+  if (!(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
     p = (struct prop_int *)fid->file;
     r = (p->i >> 16) & 0xff;
     g = (p->i >> 8) & 0xff;
@@ -173,32 +168,31 @@ prop_colour_open(struct p9_connection *c)
 }
 
 void
-prop_colour_read(struct p9_connection *c)
+prop_colour_read(struct p9_connection *con)
 {
-  read_data_fn(c, 8, (char *)c->t.pfid->aux);
+  read_data_fn(con, 8, (char *)con->t.pfid->aux);
 }
 
 void
-prop_colour_write(struct p9_connection *c)
+prop_colour_write(struct p9_connection *con)
 {
-  write_data_fn(c, 8, (char *)c->t.pfid->aux);
+  write_data_fn(con, 8, (char *)con->t.pfid->aux);
 }
 
 void
-prop_colour_clunk(struct p9_connection *c)
+prop_colour_clunk(struct p9_connection *con)
 {
-  char *buf = (char *)c->t.pfid->aux;
   unsigned int n, r = 0, g = 0, b = 0, a = 0xff, len;
   struct prop_int *p;
-  struct p9_fid *fid = c->t.pfid;
-  int mode = c->t.pfid->open_mode;
+  struct p9_fid *fid = con->t.pfid;
+  char *buf = (char *)fid->aux;
 
   p = (struct prop_int *)fid->file;
 
   if (!buf)
     return;
 
-  if ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR) {
+  if (P9_WRITE_MODE(fid->open_mode)) {
     len = strlen(buf);
     if (len <= 4) {
       n = sscanf(buf, "%01x%01x%01x%01x", &r, &g, &b, &a);
@@ -219,50 +213,50 @@ prop_colour_clunk(struct p9_connection *c)
     if (p)
       p->i = (a << 24) | (r << 16) | (g << 8) | b;
   }
-  prop_clunk(c);
+  prop_clunk(con);
   return;
 error:
-    P9_SET_STR(c->r.ename, "Wrong colour format");
+    P9_SET_STR(con->r.ename, "Wrong colour format");
 }
 
 void
-rect_open(struct p9_connection *c)
+rect_open(struct p9_connection *con)
 {
   struct prop_rect *p;
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
 
   p = (struct prop_rect *)fid->file;
   fid->aux = calloc(1, RECT_BUF_SIZE);
   fid->rm = aux_free;
-  if (!(c->t.mode & P9_OTRUNC))
+  if (P9_WRITE_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, RECT_BUF_SIZE, "%d %d %d %d", p->r[0], p->r[1],
              p->r[2], p->r[3]);
 }
 
 void
-rect_read(struct p9_connection *c)
+rect_read(struct p9_connection *con)
 {
-  read_data_fn(c, strlen((char *)c->t.pfid->aux), (char *)c->t.pfid->aux);
+  char *s = (char *)con->t.pfid->aux;
+  read_data_fn(con, strlen(s), s);
 }
 
 void
-rect_write(struct p9_connection *c)
+rect_write(struct p9_connection *con)
 {
-  write_data_fn(c, RECT_BUF_SIZE - 1, (char *)c->t.pfid->aux);
+  write_data_fn(con, RECT_BUF_SIZE - 1, (char *)con->t.pfid->aux);
 }
 
 void
-rect_clunk_fn(struct p9_connection *c, int deffill)
+rect_clunk_fn(struct p9_connection *con, int deffill)
 {
   int r[4], i, n;
   struct prop_rect *p;
-  char *s = (char *)c->t.pfid->aux;
-  int mode = c->t.pfid->open_mode;
+  char *s = (char *)con->t.pfid->aux;
 
-  if (!s || !((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR))
+  if (!(s && P9_WRITE_MODE(con->t.pfid->open_mode)))
     return;
 
-  p = (struct prop_rect *)c->t.pfid->file;
+  p = (struct prop_rect *)con->t.pfid->file;
   n = sscanf(s, "%d %d %d %d", &r[0], &r[1], &r[2], &r[3]);
   if (deffill == -1 && n != 4)
     return;
@@ -277,23 +271,23 @@ rect_clunk_fn(struct p9_connection *c, int deffill)
 }
 
 void
-rect_clunk(struct p9_connection *c)
+rect_clunk(struct p9_connection *con)
 {
-  rect_clunk_fn(c, -1);
+  rect_clunk_fn(con, -1);
 }
 
 void
-rect_defzero_clunk(struct p9_connection *c)
+rect_defzero_clunk(struct p9_connection *con)
 {
-  rect_clunk_fn(c, 0);
+  rect_clunk_fn(con, 0);
 }
 
 void
-intarr_open(struct p9_connection *c)
+intarr_open(struct p9_connection *con)
 {
   struct prop_intarr *p;
-  struct p9_fid *fid = c->t.pfid;
-  int m, i, n, off, *arr, len;
+  struct p9_fid *fid = con->t.pfid;
+  int i, n, off, *arr, len;
   char buf[16], *sep = "";
   struct arr *a = 0;
 
@@ -301,8 +295,7 @@ intarr_open(struct p9_connection *c)
   fid->aux = 0;
 
   p = (struct prop_intarr *)fid->file;
-  m = c->t.mode;
-  if (((m & 3) == P9_OWRITE || (m & 3) == P9_ORDWR) && (m & P9_OTRUNC))
+  if (P9_WRITE_MODE(con->t.mode) && (con->t.mode & P9_OTRUNC))
     return;
   off = 0;
   arr = p->arr;
@@ -310,7 +303,7 @@ intarr_open(struct p9_connection *c)
   for (i = 0; i < n; ++i, ++arr) {
     len = snprintf(buf, sizeof(buf), "%s%d", sep, *arr >> 24);
     if (arr_memcpy(&a, 16, off, len + 1, buf) < 0) {
-      P9_SET_STR(c->r.ename, "out of memory");
+      P9_SET_STR(con->r.ename, "out of memory");
       return;
     }
     off += len;
@@ -321,32 +314,28 @@ intarr_open(struct p9_connection *c)
 }
 
 void
-intarr_read(struct p9_connection *c)
+intarr_read(struct p9_connection *con)
 {
-  struct arr *a = (struct arr *)c->t.pfid->aux;
+  struct arr *a = (struct arr *)con->t.pfid->aux;
   if (a)
-    read_data_fn(c, strlen(a->b), (char *)a->b);
+    read_data_fn(con, strlen(a->b), (char *)a->b);
 }
 
 void
-intarr_write(struct p9_connection *c)
+intarr_write(struct p9_connection *con)
 {
-  struct arr *a = ((struct arr *)c->t.pfid->aux);
-  write_buf_fn(c, 16, &a);
-  c->t.pfid->aux = a;
+  write_buf_fn(con, 16, (struct arr **)&con->t.pfid->aux);
 }
 
 void
-intarr_clunk(struct p9_connection *c)
+intarr_clunk(struct p9_connection *con)
 {
-  struct arr *arr = (struct arr *)c->t.pfid->aux;
+  struct arr *arr = (struct arr *)con->t.pfid->aux;
   int i, n, *ptr, x;
-  struct prop_intarr *p = (struct prop_intarr *)c->t.pfid->file;
+  struct prop_intarr *p = (struct prop_intarr *)con->t.pfid->file;
   char *s, *a;
-  int mode = c->t.pfid->open_mode;
 
-  if (!(arr && p && p->arr && p->n
-        && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR)))
+  if (!(arr && p && p->arr && p->n && P9_WRITE_MODE(con->t.pfid->open_mode)))
     return;
   n = p->n;
   ptr = p->arr;

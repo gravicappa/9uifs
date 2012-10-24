@@ -42,60 +42,51 @@ buf_fid_rm(struct p9_fid *fid)
 }
 
 static void
-size_open(struct p9_connection *c)
+size_open(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
-  int mode = c->t.mode;
 
   fid->aux = calloc(1, size_buf_len);
   if (!fid->aux) {
-    P9_SET_STR(c->r.ename, "out of memory");
+    P9_SET_STR(con->r.ename, "out of memory");
     return;
   }
-  log_printf(LOG_DBG, "surface/size open p: %p mode: %x size: [%d %d]\n",
-             s, mode, s->w, s->h);
-  log_printf(LOG_DBG, "             trunc: %d\n", mode & P9_OTRUNC);
-  log_printf(LOG_DBG, "             rdwr: %d\n", mode & P9_ORDWR);
-  log_printf(LOG_DBG, "             read: %d\n", mode & P9_OREAD);
-  if (!(mode & P9_OTRUNC) || (mode & P9_ORDWR) || (mode & P9_OREAD))
+  if (!(con->t.mode & P9_OTRUNC) || P9_READ_MODE(con->t.mode))
     snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
   fid->rm = buf_fid_rm;
 }
 
 static void
-size_read(struct p9_connection *c)
+size_read(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
-  read_data_fn(c, strlen((char *)fid->aux), (char *)fid->aux);
+  char *s = (char *)con->t.pfid->aux;
+  read_data_fn(con, strlen(s), s);
 }
 
 static void
-size_write(struct p9_connection *c)
+size_write(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
-  write_data_fn(c, size_buf_len - 1, (char *)fid->aux);
+  write_data_fn(con, size_buf_len - 1, (char *)con->t.pfid->aux);
 }
 
 static void
-size_clunk(struct p9_connection *c)
+size_clunk(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
   unsigned int w, h;
-  int mode = c->t.pfid->open_mode;
 
-  if (!(fid->aux && s->img
-      && ((mode & 3) == P9_OWRITE || (mode & 3) == P9_ORDWR)))
+  if (!(fid->aux && s->img && P9_WRITE_MODE(fid->open_mode)))
     return;
 
   if (sscanf((char *)fid->aux, "%u %u", &w, &h) != 2) {
-    P9_SET_STR(c->r.ename, "Wrong image file format");
+    P9_SET_STR(con->r.ename, "Wrong image file format");
     return;
   }
   if (s->w != w || s->h != h) {
     if (resize_surface(s, w, h)) {
-      P9_SET_STR(c->r.ename, "Cannot resize blit surface");
+      P9_SET_STR(con->r.ename, "Cannot resize blit surface");
       return;
     }
     if (s->update)
@@ -104,85 +95,85 @@ size_clunk(struct p9_connection *c)
 }
 
 static void
-pixels_open(struct p9_connection *c)
+pixels_open(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
 
   if (!s->img) {
-    P9_SET_STR(c->r.ename, "no image");
+    P9_SET_STR(con->r.ename, "no image");
     return;
   }
   s->flags &= ~SURFACE_DIRTY;
 }
 
 static void
-pixels_read(struct p9_connection *c)
+pixels_read(struct p9_connection *con)
 {
-  struct surface *s = get_surface(c);
+  struct surface *s = get_surface(con);
   unsigned int size;
 
   if (!s->img)
     return;
   size = s->w * s->h * 4;
-  c->r.count = 0;
-  if (c->t.offset >= size)
+  con->r.count = 0;
+  if (con->t.offset >= size)
     return;
-  c->r.count = c->t.count;
-  if (c->t.offset + c->t.count > size)
-    c->r.count = size - c->t.offset;
-  image_read_rgba(s->img, c->t.offset, c->r.count, c->buf);
-  c->r.data = c->buf;
+  con->r.count = con->t.count;
+  if (con->t.offset + con->t.count > size)
+    con->r.count = size - con->t.offset;
+  image_read_rgba(s->img, con->t.offset, con->r.count, con->buf);
+  con->r.data = con->buf;
 }
 
 static void
-pixels_write(struct p9_connection *c)
+pixels_write(struct p9_connection *con)
 {
-  struct surface *s = get_surface(c);
+  struct surface *s = get_surface(con);
   unsigned int size;
 
   if (!s->img)
     return;
   size = s->w * s->h * 4;
-  c->r.count = c->t.count;
-  if (c->t.offset >= size)
+  con->r.count = con->t.count;
+  if (con->t.offset >= size)
     return;
-  if (c->t.offset + c->t.count > size)
-    c->r.count = size - c->t.offset;
-  image_write_rgba(s->img, c->t.offset, c->r.count, c->t.data);
-  if (c->r.count)
+  if (con->t.offset + con->t.count > size)
+    con->r.count = size - con->t.offset;
+  image_write_rgba(s->img, con->t.offset, con->r.count, con->t.data);
+  if (con->r.count)
     s->flags |= SURFACE_DIRTY;
 }
 
 static void
-pixels_clunk(struct p9_connection *c)
+pixels_clunk(struct p9_connection *con)
 {
-  struct surface *s = get_surface(c);
+  struct surface *s = get_surface(con);
   if (s->update && (s->flags & SURFACE_DIRTY))
     s->update(s);
   s->flags &= ~SURFACE_DIRTY;
 }
 
 static void
-png_open(struct p9_connection *c)
+png_open(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   fid->aux = 0;
   fid->rm = buf_fid_rm;
 }
 
 static void
-png_write(struct p9_connection *c)
+png_write(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
-  write_buf_fn(c, 256, (struct arr **)&fid->aux);
+  struct p9_fid *fid = con->t.pfid;
+  write_buf_fn(con, 512, (struct arr **)&fid->aux);
 }
 
 static void
-png_clunk(struct p9_connection *c)
+png_clunk(struct p9_connection *con)
 {
-  struct surface *s = get_surface(c);
-  struct arr *buf = c->t.pfid->aux;
+  struct surface *s = get_surface(con);
+  struct arr *buf = con->t.pfid->aux;
   unsigned char *pixels;
   int w, h, n;
   UImage newimg;
@@ -265,7 +256,7 @@ init_surface(struct surface *s, int w, int h)
   s->f_size.fs = &surface_size_fs;
   add_file(&s->f, &s->f_size);
 
-  s->f_pixels.name = "pixels";
+  s->f_pixels.name = "rgba";
   s->f_pixels.mode = 0600;
   s->f_pixels.qpath = new_qid(0);
   s->f_pixels.fs = &surface_pixels_fs;

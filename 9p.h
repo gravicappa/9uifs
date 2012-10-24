@@ -146,6 +146,11 @@ struct p9_msg {
   struct p9_fid *pfid;
 };
 
+#define P9_WRITE_MODE(mode) \
+  ((((mode) & 3) == P9_OWRITE) || (((mode) & 3) == P9_ORDWR))
+#define P9_READ_MODE(mode) \
+  ((((mode) & 3) == P9_OREAD) || (((mode) & 3) == P9_ORDWR))
+
 #define P9_SET_STR(f, str) do { \
     f = (str); \
     f ## _len = strlen((str)); \

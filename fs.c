@@ -223,162 +223,154 @@ attach_fid(struct p9_fid *fid, struct file *file)
 }
 
 int
-get_req_fid(struct p9_connection *c)
+get_req_fid(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
 
-  c->t.pfid = get_fid(c->t.fid, &cl->fids);
-  if (!c->t.pfid) {
-    P9_SET_STR(c->r.ename, "fid unknown or out of range");
+  con->t.pfid = get_fid(con->t.fid, &cl->fids);
+  if (!con->t.pfid) {
+    P9_SET_STR(con->r.ename, "fid unknown or out of range");
     return -1;
   }
-  if (!c->t.pfid->file) {
-    P9_SET_STR(c->r.ename, "file has been removed");
+  if (!con->t.pfid->file) {
+    P9_SET_STR(con->r.ename, "file has been removed");
     return -1;
   }
   return 0;
 }
 
 static void
-fs_version(struct p9_connection *c)
+fs_version(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
 
-  if (strncmp(P9_VERSION, c->t.version, c->t.version_len) != 0) {
-    c->t.ename = "Protocol not supported";
-    c->t.ename_len = strlen(c->t.ename);
+  if (strncmp(P9_VERSION, con->t.version, con->t.version_len) != 0) {
+    P9_SET_STR(con->t.ename, "Protocol not supported");
     return;
   }
-  if (c->msize > c->t.msize)
-    c->msize = c->t.msize;
-  c->r.msize = c->msize;
-  c->r.version = P9_VERSION;
-  c->r.version_len = strlen(c->r.version);
+  if (con->msize > con->t.msize)
+    con->msize = con->t.msize;
+  con->r.msize = con->msize;
+  P9_SET_STR(con->r.version, P9_VERSION);
   reset_fids(&cl->fids);
 }
 
 static void
-fs_attach(struct p9_connection *c)
+fs_attach(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
   struct p9_fid *fid;
 
-  if (strncmp("/", c->t.aname, c->t.aname_len) != 0) {
-    c->r.ename = "file not found";
-    c->r.ename_len = strlen(c->r.ename);
+  if (strncmp("/", con->t.aname, con->t.aname_len) != 0) {
+    P9_SET_STR(con->r.ename, "file not found");
     return;
   }
-  if (get_fid(c->t.fid, &cl->fids)) {
-    c->r.ename = "fid already in use";
-    c->r.ename_len = strlen(c->r.ename);
+  if (get_fid(con->t.fid, &cl->fids)) {
+    P9_SET_STR(con->r.ename, "fid already in use");
     return;
   }
-  fid = add_fid(c->t.fid, &cl->fids, c->msize);
+  fid = add_fid(con->t.fid, &cl->fids, con->msize);
   fid->owns_uid = 1;
-  fid->uid = strndup(c->t.uname, c->t.uname_len);
+  fid->uid = strndup(con->t.uname, con->t.uname_len);
   attach_fid(fid, &cl->f);
 }
 
 static void
-fs_flush(struct p9_connection *c)
+fs_flush(struct p9_connection *con)
 {
   struct file *f;
 
-  if (get_req_fid(c))
+  if (get_req_fid(con))
     return;
-  f = (struct file *)c->t.pfid->file;
+  f = (struct file *)con->t.pfid->file;
   if (f->fs && f->fs->flush)
-    f->fs->flush(c);
+    f->fs->flush(con);
 }
 
 static void
-fs_walk(struct p9_connection *c)
+fs_walk(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
   struct p9_fid *newfid = 0;
   struct file *f, *t;
   int i;
 
-  if (get_req_fid(c))
+  if (get_req_fid(con))
     return;
-  if (get_fid(c->t.newfid, &cl->fids) && c->t.newfid != c->t.fid) {
-    c->r.ename = "fid already in use";
-    c->r.ename_len = strlen(c->r.ename);
+  if (get_fid(con->t.newfid, &cl->fids) && con->t.newfid != con->t.fid) {
+    P9_SET_STR(con->r.ename, "fid already in use");
     return;
   }
 
-  f = (struct file *)c->t.pfid->file;
-  if (c->t.newfid == c->t.fid)
-    detach_fid(c->t.pfid);
+  f = (struct file *)con->t.pfid->file;
+  if (con->t.newfid == con->t.fid)
+    detach_fid(con->t.pfid);
 
-  if (c->t.nwname == 0) {
-    if (c->t.newfid == c->t.fid)
-      newfid = c->t.pfid;
+  if (con->t.nwname == 0) {
+    if (con->t.newfid == con->t.fid)
+      newfid = con->t.pfid;
     else
-      newfid = add_fid(c->t.newfid, &cl->fids, c->msize);
-    newfid->uid = c->t.pfid->uid;
+      newfid = add_fid(con->t.newfid, &cl->fids, con->msize);
+    newfid->uid = con->t.pfid->uid;
     attach_fid(newfid, f);
     return;
   }
   if (!(f->mode & P9_DMDIR)) {
-    c->r.ename = "not a directory";
-    c->r.ename_len = strlen(c->r.ename);
+    P9_SET_STR(con->r.ename, "not a directory");
     return;
   }
   t = f;
-  for (i = 0; i < c->t.nwname; ++i) {
-    t = get_file(t, c->t.wname_len[i], c->t.wname[i]);
+  for (i = 0; i < con->t.nwname; ++i) {
+    t = get_file(t, con->t.wname_len[i], con->t.wname[i]);
     if (!t)
       break;
-    c->r.wqid[c->r.nwqid].type = t->mode >> 24;
-    c->r.wqid[c->r.nwqid].version = t->version;
-    c->r.wqid[c->r.nwqid].path = t->qpath;
-    ++c->r.nwqid;
+    con->r.wqid[con->r.nwqid].type = t->mode >> 24;
+    con->r.wqid[con->r.nwqid].version = t->version;
+    con->r.wqid[con->r.nwqid].path = t->qpath;
+    ++con->r.nwqid;
   }
-  if (!c->r.nwqid) {
-    c->r.ename = "file not found";
-    c->r.ename_len = strlen(c->r.ename);
+  if (!con->r.nwqid) {
+    P9_SET_STR(con->r.ename, "file not found");
     return;
   }
-  if (c->r.nwqid == c->t.nwname) {
-    if (c->t.newfid == c->t.fid)
-      newfid = c->t.pfid;
+  if (con->r.nwqid == con->t.nwname) {
+    if (con->t.newfid == con->t.fid)
+      newfid = con->t.pfid;
     else
-      newfid = add_fid(c->t.newfid, &cl->fids, c->msize);
-    newfid->uid = c->t.pfid->uid;
+      newfid = add_fid(con->t.newfid, &cl->fids, con->msize);
+    newfid->uid = con->t.pfid->uid;
     attach_fid(newfid, t);
   }
 }
 
 static void
-fs_open(struct p9_connection *c)
+fs_open(struct p9_connection *con)
 {
   struct file *f;
+  int mode = con->t.mode;
 
-  if (get_req_fid(c))
+  if (get_req_fid(con))
     return;
-  if (c->t.pfid->open_mode) {
-    c->r.ename = "file already open for I/O";
-    c->r.ename_len = strlen(c->r.ename);
+  if (con->t.pfid->open_mode) {
+    P9_SET_STR(con->r.ename, "file already open for I/O");
     return;
   }
-  f = (struct file *)c->t.pfid->file;
-  if ((f->mode & P9_DMDIR) && (((c->t.mode & 3) == P9_OWRITE)
-                               || ((c->t.mode & 3) == P9_ORDWR)
-                               || (c->t.mode & P9_OTRUNC)
-                               || (c->t.mode & P9_ORCLOSE))) {
-    c->r.ename = "Is a directory";
-    c->r.ename_len = strlen(c->r.ename);
+  f = (struct file *)con->t.pfid->file;
+  if ((f->mode & P9_DMDIR) && (((mode & 3) == P9_OWRITE)
+                               || ((mode & 3) == P9_ORDWR)
+                               || (mode & P9_OTRUNC)
+                               || (mode & P9_ORCLOSE))) {
+    P9_SET_STR(con->r.ename, "Is a directory");
     return;
   }
   /* TODO: check for permissions */
-  c->t.pfid->open_mode = c->t.mode;
-  c->r.iounit = c->msize - 23;
-  c->r.qid.type = f->mode >> 24;
-  c->r.qid.version = f->version;
-  c->r.qid.path = f->qpath;
+  con->t.pfid->open_mode = mode;
+  con->r.iounit = con->msize - 23;
+  con->r.qid.type = f->mode >> 24;
+  con->r.qid.version = f->version;
+  con->r.qid.path = f->qpath;
   if (f->fs && f->fs->open)
-    f->fs->open(c);
+    f->fs->open(con);
 }
 
 static void
@@ -476,7 +468,6 @@ static void
 fs_read(struct p9_connection *c)
 {
   struct file *f;
-  int read_mode;
 
   if (get_req_fid(c))
     return;
@@ -487,9 +478,7 @@ fs_read(struct p9_connection *c)
     fs_readdir(c->t.pfid, f, c);
     return;
   }
-  read_mode = (((c->t.pfid->open_mode & 3) == P9_OREAD)
-               || ((c->t.pfid->open_mode & 3) == P9_ORDWR));
-  if (!(f->fs && f->fs->read && read_mode)) {
+  if (!(f->fs && f->fs->read && P9_READ_MODE(c->t.pfid->open_mode))) {
     c->r.ename = "Operation not permitted";
     c->r.ename_len = strlen(c->r.ename);
     return;
@@ -506,8 +495,7 @@ fs_write(struct p9_connection *c)
   if (get_req_fid(c))
     return;
   f = (struct file *)c->t.pfid->file;
-  write_mode = (((c->t.pfid->open_mode & 3) == P9_OWRITE)
-                || ((c->t.pfid->open_mode & 3) == P9_ORDWR));
+  write_mode = P9_WRITE_MODE(c->t.pfid->open_mode);
   if ((f->mode & P9_DMDIR) || !(f->fs && f->fs->write) || !write_mode) {
     c->r.ename = "Operation not permitted";
     c->r.ename_len = strlen(c->r.ename);
@@ -517,52 +505,54 @@ fs_write(struct p9_connection *c)
 }
 
 static void
-fs_clunk(struct p9_connection *c)
+fs_clunk(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
   struct file *f;
+  struct p9_fid *fid;
 
-  if (get_req_fid(c) && !c->t.pfid)
+  if (get_req_fid(con) || !(fid = con->t.pfid))
     return;
-  f = (struct file *)c->t.pfid->file;
-  if (f && f->fs && f->fs->clunk)
-    f->fs->clunk(c);
-  rm_fid(c->t.pfid, &cl->fids);
+  if (fid->open_mode) {
+    f = (struct file *)fid->file;
+    if (f && f->fs && f->fs->clunk)
+      f->fs->clunk(con);
+  }
+  rm_fid(fid, &cl->fids);
 }
 
 static void
-fs_remove(struct p9_connection *c)
+fs_remove(struct p9_connection *con)
 {
-  struct client *cl = (struct client *)c;
+  struct client *cl = (struct client *)con;
   struct file *f;
 
-  if (get_req_fid(c) && !c->t.pfid)
+  if (get_req_fid(con) && !con->t.pfid)
     return;
-  f = (struct file *)c->t.pfid->file;
+  f = (struct file *)con->t.pfid->file;
   if (f) {
     if (f->fs && f->fs->remove)
-      f->fs->remove(c);
+      f->fs->remove(con);
     rm_file(f);
   }
-  rm_fid(c->t.pfid, &cl->fids);
+  rm_fid(con->t.pfid, &cl->fids);
 }
 
 static void
-fs_stat(struct p9_connection *c)
+fs_stat(struct p9_connection *con)
 {
   struct file *f;
 
-  if (get_req_fid(c))
+  if (get_req_fid(con))
     return;
 
-  f = (struct file *)c->t.pfid->file;
-  file_stat(f, &c->r.stat, c->t.pfid->uid);
+  f = (struct file *)con->t.pfid->file;
+  file_stat(f, &con->r.stat, con->t.pfid->uid);
 }
 
 static void
-fs_wstat(struct p9_connection *c)
+fs_wstat(struct p9_connection *con)
 {
-  ;
 }
 
 struct p9_fs fs = {

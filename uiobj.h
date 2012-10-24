@@ -54,12 +54,11 @@ struct uiplace {
   struct file f;
 
   struct uiobj *obj;
-  struct prop_buf path;
   struct prop_buf sticky;
   struct prop_rect padding;
   struct prop_rect place;
 
-  struct file f_place;
+  struct file f_path;
 
   void (*detach)(struct uiplace *self);
 
