@@ -213,6 +213,13 @@ ui_rm_uiobj(struct file *f)
   free(u);
 }
 
+static void
+ui_prop_drawable_upd(struct prop *p)
+{
+  struct uiobj *u = (struct uiobj *)p->aux;
+  u->flags |= UI_DIRTY;
+}
+
 struct uiobj *
 mk_uiobj(struct client *client)
 {
@@ -242,8 +249,9 @@ mk_uiobj(struct client *client)
     u = 0;
   }
 
-  u->bg.p.update = u->visible.p.update = u->drawable.p.update
-    = u->restraint.p.update = ui_prop_update_default;
+  u->bg.p.update = u->visible.p.update = u->restraint.p.update
+        = ui_prop_update_default;
+  u->drawable.p.update = ui_prop_drawable_upd;
 
   u->type.p.f.fs = &prop_type_fs;
   u->g.p.f.mode = 0400;
