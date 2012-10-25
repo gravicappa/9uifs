@@ -17,7 +17,7 @@
 struct uiobj_image {
   struct surface *s;
   struct file f_path;
-  struct client *client;
+  struct uiobj *obj;
 };
 
 static void
@@ -41,10 +41,10 @@ path_open(struct p9_connection *con)
   fid->rm = rm_fid_aux;
 
   if (img->s && !(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
-    n = file_path_len((struct file *)img->s, img->client->images);
+    n = file_path_len((struct file *)img->s, img->obj->client->images);
     if (arr_memcpy(&buf, n, 0, n, 0))
       die("Cannot allocate memory");
-    file_path(n, buf->b, (struct file *)img->s, img->client->images);
+    file_path(n, buf->b, (struct file *)img->s, img->obj->client->images);
     fid->aux = buf;
   }
 }
@@ -69,16 +69,29 @@ path_clunk(struct p9_connection *con)
   struct p9_fid *fid = con->t.pfid;
   struct uiobj_image *img;
   struct arr *buf;
+  int prevw = 0, prevh = 0;
+  struct surface *prevs;
+  struct client *client;
 
   if (!P9_WRITE_MODE(fid->open_mode))
     return;
 
   img = containerof(fid->file, struct uiobj_image, f_path);
+  client = img->obj->client;
   buf = fid->aux;
-  if (img->client && buf && buf->used > 0) {
+  if (client && buf && buf->used > 0) {
+    prevs = img->s;
+    if (prevs) {
+      prevw = prevs->w;
+      prevh = prevs->h;
+    }
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    img->s = (struct surface *)find_file(img->client->images, buf->used,
-                                         buf->b);
+    img->s = (struct surface *)find_file(client->images, buf->used, buf->b);
+  }
+  if (img->s != prevs) {
+    if (!img->s || img->s->w != prevw || img->s->h != prevh)
+      ui_propagate_dirty(img->obj->parent);
+    img->obj->flags |= UI_DIRTY;
   }
 }
 
@@ -128,7 +141,7 @@ init_uiimage(struct uiobj *u)
   img->f_path.mode = 0600;
   img->f_path.qpath = new_qid(0);
   img->f_path.fs = &path_fs;
-  img->client = u->client;
+  img->obj = u;
   u->data = img;
   u->ops = &image_ops;
   add_file(&u->f, &img->f_path);
