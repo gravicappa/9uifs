@@ -42,12 +42,11 @@ views_create(struct p9_connection *c)
     return;
   }
   wm_new_view_geom(r);
-  v = mk_view(r[0], r[1], r[2], r[3]);
+  v = mk_view(r[0], r[1], r[2], r[3], cl);
   if (!v) {
     P9_SET_STR(c->r.ename, "cannot create view");
     return;
   }
-  v->c = cl;
   v->f.name = strndup(c->t.name, c->t.name_len);
   if (!v->f.name) {
     P9_SET_STR(c->r.ename, "cannot create view");
@@ -101,7 +100,7 @@ update_blit(struct surface *s)
 }
 
 struct view *
-mk_view(int x, int y, int w, int h)
+mk_view(int x, int y, int w, int h, struct client *client)
 {
   struct view *v;
 
@@ -112,7 +111,8 @@ mk_view(int x, int y, int w, int h)
   v->g.r[1] = y;
   v->g.r[2] = w;
   v->g.r[3] = h;
-  if (init_surface(&v->blit, w, h) || ui_init_uiplace(v)) {
+  v->c = client;
+  if (init_surface(&v->blit, w, h, v->c->images) || ui_init_uiplace(v)) {
     free(v);
     return 0;
   }

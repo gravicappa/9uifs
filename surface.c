@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
@@ -229,11 +230,12 @@ rm_surface(struct file *f)
 }
 
 int
-init_surface(struct surface *s, int w, int h)
+init_surface(struct surface *s, int w, int h, struct file *imglib)
 {
   memset(s, 0, sizeof(*s));
   s->w = w;
   s->h = h;
+  s->imglib = imglib;
 
   s->img = create_image(w, h, 0);
   if (!s->img && w && h)
@@ -272,12 +274,12 @@ init_surface(struct surface *s, int w, int h)
 }
 
 struct surface *
-mk_surface(int w, int h)
+mk_surface(int w, int h, struct file *imglib)
 {
   struct surface *s;
 
   s = (struct surface *)malloc(sizeof(struct surface));
-  if (s && init_surface(s, w, h)) {
+  if (s && init_surface(s, w, h, imglib)) {
     free(s);
     return 0;
   }
@@ -287,7 +289,26 @@ mk_surface(int w, int h)
 static void
 cmd_blit(struct file *f, char *cmd)
 {
-  log_printf(LOG_DBG, "#surface/ctl blit\n");
+  int src_x = 0, src_y = 0, src_w, src_h, x = 0, y = 0, w, h;
+  static const char *fmt = "%d %d %d %d %d %d %d %d";
+  char *name;
+  struct surface *s, *d;
+
+  d = containerof(f, struct surface, f_ctl);
+  name = next_quoted_arg(&cmd);
+  if (!name)
+    return;
+  s = (struct surface *)find_file(d->imglib, strlen(name), name);
+  if (!s)
+    return;
+  src_w = w = s->w;
+  src_h = h = s->h;
+  sscanf(cmd, fmt, &x, &y, &w, &h, &src_x, &src_y, &src_w, &src_h);
+  log_printf(LOG_DBG, "blit %p [dst %d %d %d %d] [src %d %d %d %d]\n",
+             s, x, y, w, h, src_x, src_y, src_w, src_h);
+  blit_image(d->img, x, y, w, h, s->img, src_x, src_y, src_w, src_h);
+  if (d->update)
+    d->update(d);
 }
 
 int

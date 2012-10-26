@@ -32,7 +32,7 @@ struct view {
 
 extern struct p9_fs fs_views;
 
-struct view *mk_view(int x, int y, int w, int h);
+struct view *mk_view(int x, int y, int w, int h, struct client *client);
 void moveresize_view(struct view *v, int x, int y, int w, int h);
 int draw_view(struct view *v);
 void update_view(struct view *v);

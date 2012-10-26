@@ -103,17 +103,44 @@ strnchr(const char *s, unsigned int len, char c)
   return (char *)((len > 0 && *s == c) ? s : 0);
 }
 
+#define ISWS(c) ((c) == ' ' || (c) == '\n' || (c) == '\r' || (c) == '\t')
+
 char *
 next_arg(char **s)
 {
-  char *b = *s;
+  char *b, *ret = *s;
 
-  if (b) {
-    *s = strchr(b, ' ');
-    if (*s)
-      *(*s)++ = 0;
+  if (ret) {
+    for (; *ret && ISWS(*ret); ++ret) {}
+    if (!*ret) {
+      *s = ret;
+      return 0;
+    }
+    for (b = ret; *b && !ISWS(*b); ++b) {}
+    *s = (*b) ? b + 1 : b;
+    *b = 0;
   }
-  return b;
+  return ret;
+}
+
+/* TODO: convert \" into " somehow */
+char *
+next_quoted_arg(char **s)
+{
+  char *b, *ret = *s;
+  int back = 0;
+
+  if (ret) {
+    for (; *ret && ISWS(*ret); ++ret) {}
+    if (*ret != '"')
+      return next_arg(s);
+    ++ret;
+    for (b = ret; *b && (*b != '"' || back); ++b)
+      back = (*b == '\\' && !back);
+    *s = (*b) ? b + 1 : b;
+    *b = 0;
+  }
+  return ret;
 }
 
 char *

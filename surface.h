@@ -11,8 +11,9 @@ struct surface {
   int flags;
   void (*update)(struct surface *s);
   void *aux;
+  struct file *imglib;
 };
 
-struct surface *mk_surface(int w, int h);
-int init_surface(struct surface *s, int w, int h);
+struct surface *mk_surface(int w, int h, struct file *imglib);
+int init_surface(struct surface *s, int w, int h, struct file *imglib);
 int resize_surface(struct surface *s, int w, int h);
