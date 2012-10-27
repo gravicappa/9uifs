@@ -17,3 +17,4 @@ struct surface {
 struct surface *mk_surface(int w, int h, struct file *imglib);
 int init_surface(struct surface *s, int w, int h, struct file *imglib);
 int resize_surface(struct surface *s, int w, int h);
+void rm_surface(struct file *f);

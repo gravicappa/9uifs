@@ -18,7 +18,44 @@ struct uiobj_image {
   struct surface *s;
   struct file f_path;
   struct uiobj *obj;
+  struct uiobj_image *next;
 };
+
+static void
+detach(struct uiobj_image *img)
+{
+  struct uiobj_image *p, **pprev;
+
+  if (!img->s)
+    return;
+  pprev = (struct uiobj_image **)&img->s->aux;
+  for (p = img->s->aux; p && p != img; *pprev = p, p = p->next) {}
+  (*pprev)->next = p->next;
+  img->s = 0;
+}
+
+static void
+rm_attached(struct file *f)
+{
+  struct uiobj_image *img = ((struct surface *)f)->aux;
+  for (; img; img = img->next) {
+    img->s = 0;
+    img->obj->flags |= UI_DIRTY;
+  }
+  rm_surface(f);
+}
+
+static void
+attach(struct uiobj_image *img, struct surface *s)
+{
+  detach(img);
+  img->s = s;
+  if (s) {
+    img->next = s->aux;
+    s->aux = img;
+    s->f.rm = rm_attached;
+  }
+}
 
 static void
 rm_fid_aux(struct p9_fid *fid)
@@ -70,7 +107,7 @@ path_clunk(struct p9_connection *con)
   struct uiobj_image *img;
   struct arr *buf;
   int prevw = 0, prevh = 0;
-  struct surface *prevs;
+  struct surface *prevs, *s;
   struct client *client;
 
   if (!P9_WRITE_MODE(fid->open_mode))
@@ -86,7 +123,8 @@ path_clunk(struct p9_connection *con)
       prevh = prevs->h;
     }
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    img->s = (struct surface *)find_file(client->images, buf->used, buf->b);
+    s = (struct surface *)find_file(client->images, buf->used, buf->b);
+    attach(img, s);
   }
   if (img->s != prevs) {
     if (!img->s || img->s->w != prevw || img->s->h != prevh)
