@@ -8,15 +8,15 @@
                           | ((unsigned int)(g) << 8) \
                           | ((unsigned int)(b)))
 
-#define RGBA_READ_HEX(x) ((x >= '0' && x <= '9') \
-                          ? x - '0' \
-                          : (x >= 'a' && x <= 'f') ? x - 'a' + 10 : 0)
+#define RGBA_READ_HEX(x) (((x) >= '0' && (x) <= '9') \
+                          ? (x) - '0' \
+                          : ((x) >= 'a' && (x) <= 'f') ? (x) - 'a' + 10 : 0)
 
 #define RGBA_FROM_STR(s) \
-  RGBA((RGBA_READ_HEX(s[2]) << 4) | (RGBA_READ_HEX(s[3])), \
+  RGBA((RGBA_READ_HEX(s[0]) << 4) | (RGBA_READ_HEX(s[1])), \
+       (RGBA_READ_HEX(s[2]) << 4) | (RGBA_READ_HEX(s[3])), \
        (RGBA_READ_HEX(s[4]) << 4) | (RGBA_READ_HEX(s[5])), \
-       (RGBA_READ_HEX(s[6]) << 4) | (RGBA_READ_HEX(s[7])), \
-       (RGBA_READ_HEX(s[0]) << 4) | (RGBA_READ_HEX(s[1])))
+       (RGBA_READ_HEX(s[6]) << 4) | (RGBA_READ_HEX(s[7])))
 
 typedef void *UImage;
 typedef void *UFont;
