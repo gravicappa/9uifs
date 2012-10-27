@@ -29,19 +29,49 @@ struct sdl_screen screen;
 UFont default_font = 0;
 
 void
-fill_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
+draw_line(UImage dst, int x1, int y1, int x2, int y2, unsigned int c)
 {
   imlib_context_set_image(dst);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
-  imlib_image_fill_rectangle(x, y, w, h);
+  imlib_image_draw_line(x1, y1, x2, y2, 0);
 }
 
 void
-draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int c)
+draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int fg,
+          unsigned int bg)
 {
   imlib_context_set_image(dst);
-  imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
-  imlib_image_draw_rectangle(x, y, w, h);
+  if (bg) {
+    imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
+    imlib_image_fill_rectangle(x, y, w, h);
+  }
+  if (fg) {
+    imlib_context_set_color(RGBA_R(fg), RGBA_G(fg), RGBA_B(fg), RGBA_A(fg));
+    imlib_image_draw_rectangle(x, y, w, h);
+  }
+}
+
+void
+draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
+{
+  ImlibPolygon poly;
+  int x, y;
+
+  poly = imlib_polygon_new();
+  if (!poly)
+    return;
+  for (; npts; npts--, pts += 2)
+    imlib_polygon_add_point(poly, pts[0], pts[1]);
+  imlib_context_set_image(dst);
+  if (bg) {
+    imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
+    imlib_image_fill_polygon(poly);
+  }
+  if (fg) {
+    imlib_context_set_color(RGBA_R(fg), RGBA_G(fg), RGBA_B(fg), RGBA_A(fg));
+    imlib_image_draw_polygon(poly, (bg) ? 1 : 0);
+  }
+  imlib_polygon_free(poly);
 }
 
 void

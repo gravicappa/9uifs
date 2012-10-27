@@ -17,6 +17,7 @@
 #include "view.h"
 #include "ui.h"
 #include "wm.h"
+#include "config.h"
 
 extern int scr_w;
 extern int scr_h;
@@ -116,6 +117,7 @@ mk_view(int x, int y, int w, int h, struct client *client)
     free(v);
     return 0;
   }
+  draw_rect(v->blit.img, 0, 0, w, h, 0, DEFAULT_VIEW_BG);
   v->blit.aux = v;
   v->blit.update = update_blit;
   v->f.mode = 0500 | P9_DMDIR;
@@ -180,10 +182,8 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
 int
 draw_view(struct view *v)
 {
-  int bg = 0xffffffff;
   struct screen *s = default_screen();
   if (ui_redraw_view(v) || (v->flags & VIEW_DIRTY)) {
-    fill_rect(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3], bg);
     blit_image(s->blit, v->g.r[0], v->g.r[1], v->g.r[2], v->g.r[3],
                v->blit.img, 0, 0, v->blit.w, v->blit.h);
     return 1;

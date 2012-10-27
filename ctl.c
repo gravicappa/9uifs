@@ -23,10 +23,8 @@ static void
 ctl_rm(struct p9_fid *fid)
 {
   struct ctl_context *ctx;
-  struct ctl_file *f;
 
   fid->rm = 0;
-  f = (struct ctl_file *)fid->file;
   ctx = (struct ctl_context *)fid->aux;
   if (ctx) {
       return;

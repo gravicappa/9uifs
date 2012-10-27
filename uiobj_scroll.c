@@ -56,14 +56,14 @@ draw(struct uiobj *u, struct uicontext *ctx)
     r[1] = u->viewport.r[1];
     r[2] = u->viewport.r[2] - child->reqsize[0];
     r[3] = u->viewport.r[3];
-    fill_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_BG);
+    draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
   }
   if (child->reqsize[1] < u->viewport.r[3]) {
     r[0] = u->viewport.r[0];
     r[1] = child->reqsize[1];
     r[2] = u->viewport.r[2];
     r[3] = u->viewport.r[3] - child->reqsize[1];
-    fill_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_BG);
+    draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
   }
 }
 
@@ -112,8 +112,8 @@ draw_over(struct uiobj *u, struct uicontext *ctx)
     for (i = 0; i < 2; ++i)
       if (us->scrollopts[i] && child->reqsize[i]) {
         scroll_rect(r, u, i);
-        fill_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_HANDLE);
-        draw_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_FRAME);
+        draw_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_FRAME,
+                  SCROLL_HANDLE);
       }
     break;
   default:
@@ -130,12 +130,12 @@ draw_over(struct uiobj *u, struct uicontext *ctx)
         }
         if (us->pos[i] > 0) {
           r[i] = u->viewport.r[i];
-          fill_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_HINT_BG);
+          draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_HINT_BG);
         }
         if (us->pos[i] < child->reqsize[i] - child->viewport.r[i + 2]) {
           r[i] = u->viewport.r[i] + u->viewport.r[i + 2] - SCROLL_HINT_SIZE;
           r[i + 2] = SCROLL_HINT_SIZE;
-          fill_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_HINT_BG);
+          draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_HINT_BG);
         }
       }
   }

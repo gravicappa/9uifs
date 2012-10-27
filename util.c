@@ -105,6 +105,22 @@ strnchr(const char *s, unsigned int len, char c)
 
 #define ISWS(c) ((c) == ' ' || (c) == '\n' || (c) == '\r' || (c) == '\t')
 
+int
+nargs(char *s)
+{
+  int n = 0;
+  if (!s)
+    return 0;
+  while (*s) {
+    for (;*s && ISWS(*s); ++s) {}
+    if (*s && !ISWS(*s)) {
+      ++n;
+      for (;*s && !ISWS(*s); ++s) {}
+    }
+  }
+  return n;
+}
+
 char *
 next_arg(char **s)
 {

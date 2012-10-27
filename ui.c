@@ -193,8 +193,8 @@ default_draw_uiobj(struct uiobj *u, struct uicontext *uc)
   unsigned int bg;
 
   bg = u->bg.i;
-  if (bg && 0xff000000)
-    fill_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], bg);
+  if (bg & 0xff000000)
+    draw_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], 0, bg);
 }
 
 void

@@ -2,6 +2,8 @@
 #define DEFAULT_FONT "sans"
 #define DEFAULT_FONT_SIZE 12
 
+#define DEFAULT_VIEW_BG 0xffffffff
+
 #define DEFAULT_BG 0xffffffff
 
 #define DEFAULT_LABEL_BG 0xffffffff

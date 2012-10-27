@@ -19,9 +19,17 @@ enum surface_flags {
 };
 
 static void cmd_blit(struct file *f, char *cmd);
+static void cmd_rect(struct file *f, char *cmd);
+static void cmd_line(struct file *f, char *cmd);
+static void cmd_poly(struct file *f, char *cmd);
+static void cmd_text(struct file *f, char *cmd);
 
 static struct ctl_cmd ctl_cmd[] = {
   {"blit", cmd_blit},
+  {"rect", cmd_rect},
+  {"line", cmd_line},
+  {"poly", cmd_poly},
+  {"text", cmd_text},
   {0, 0}
 };
 
@@ -286,31 +294,6 @@ mk_surface(int w, int h, struct file *imglib)
   return s;
 }
 
-static void
-cmd_blit(struct file *f, char *cmd)
-{
-  int src_x = 0, src_y = 0, src_w, src_h, x = 0, y = 0, w, h;
-  static const char *fmt = "%d %d %d %d %d %d %d %d";
-  char *name;
-  struct surface *s, *d;
-
-  d = containerof(f, struct surface, f_ctl);
-  name = next_quoted_arg(&cmd);
-  if (!name)
-    return;
-  s = (struct surface *)find_file(d->imglib, strlen(name), name);
-  if (!s)
-    return;
-  src_w = w = s->w;
-  src_h = h = s->h;
-  sscanf(cmd, fmt, &x, &y, &w, &h, &src_x, &src_y, &src_w, &src_h);
-  log_printf(LOG_DBG, "blit %p [dst %d %d %d %d] [src %d %d %d %d]\n",
-             s, x, y, w, h, src_x, src_y, src_w, src_h);
-  blit_image(d->img, x, y, w, h, s->img, src_x, src_y, src_w, src_h);
-  if (d->update)
-    d->update(d);
-}
-
 int
 resize_surface(struct surface *s, int w, int h)
 {
@@ -326,4 +309,107 @@ resize_surface(struct surface *s, int w, int h)
   s->h = h;
   s->f_pixels.length = w * h * 4;
   return 0;
+}
+
+static void
+cmd_blit(struct file *f, char *cmd)
+{
+  int src_x = 0, src_y = 0, src_w, src_h, x = 0, y = 0, w, h;
+  static const char *fmt = "%d %d %d %d %d %d %d %d";
+  char *name;
+  struct surface *src, *dst = containerof(f, struct surface, f_ctl);
+
+  name = next_quoted_arg(&cmd);
+  if (!name)
+    return;
+  src = (struct surface *)find_file(dst->imglib, strlen(name), name);
+  if (!src)
+    return;
+  src_w = w = src->w;
+  src_h = h = src->h;
+  sscanf(cmd, fmt, &x, &y, &w, &h, &src_x, &src_y, &src_w, &src_h);
+  blit_image(dst->img, x, y, w, h, src->img, src_x, src_y, src_w, src_h);
+
+  if (dst->update)
+    dst->update(dst);
+}
+
+static void
+cmd_rect(struct file *f, char *cmd)
+{
+  int r[4], i, bg = 0, fg = 0xff000000;
+  char *arg, *c = cmd;
+  struct surface *s = containerof(f, struct surface, f_ctl);
+
+  for (i = 0; i < 4; ++i)
+    if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
+      return;
+  if ((arg = next_arg(&c)))
+    fg = RGBA_FROM_STR(arg);
+  if ((arg = next_arg(&c)))
+    bg = RGBA_FROM_STR(arg);
+
+  draw_rect(s->img, r[0], r[1], r[2], r[3], fg, bg);
+  if (s->update)
+    s->update(s);
+}
+
+static void
+cmd_line(struct file *f, char *cmd)
+{
+  int r[4], i, fg = 0xff000000;
+  char *arg, *c = cmd;
+  struct surface *s = containerof(f, struct surface, f_ctl);
+
+  for (i = 0; i < 4; ++i)
+    if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
+      return;
+  if ((arg = next_arg(&c)))
+    fg = RGBA_FROM_STR(arg);
+
+  if (fg & 0xff000000)
+    draw_line(s->img, r[0], r[1], r[2], r[3], fg);
+  if (s->update)
+    s->update(s);
+}
+
+#define STATIC_NPTS 32
+
+static void
+cmd_poly(struct file *f, char *cmd)
+{
+  char *arg, *c = cmd, *pc;
+  struct surface *s = containerof(f, struct surface, f_ctl);
+  int spts[STATIC_NPTS * 2];
+  int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000;
+
+  if (!(arg = next_arg(&c)))
+    return;
+  fg = RGBA_FROM_STR(arg);
+  if (!(arg = next_arg(&c)))
+    return;
+  bg = RGBA_FROM_STR(arg);
+  npts = nargs(c) >> 1;
+  if (!npts)
+    return;
+  if (npts > 32) {
+    pts = malloc(sizeof(int) * npts * 2);
+    if (!pts) {
+      /* out of memory. shoot out client */
+      return;
+    }
+  }
+  for (n = 0, p = pts, i = npts * 2; i; --i, ++p)
+    if ((arg = next_arg(&c)) && sscanf(arg, "%d", p) == 1)
+      ++n;
+  if (n == npts * 2)
+    draw_poly(s->img, npts, pts, fg, bg);
+  if (pts != spts)
+    free(pts);
+}
+
+static void
+cmd_text(struct file *f, char *cmd)
+{
+  struct surface *s = containerof(f, struct surface, f_ctl);
 }

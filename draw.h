@@ -35,7 +35,11 @@ struct screen *default_screen();
 
 void set_cliprect(int x, int y, int w, int h);
 void fill_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
-void draw_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
+void draw_rect(UImage dst, int x, int y, int w, int h, unsigned int fg,
+               unsigned int bg);
+void draw_line(UImage dst, int x1, int y1, int x2, int y2, unsigned int c);
+void draw_poly(UImage dst, int npts, int *pts, unsigned int fg,
+               unsigned int bg);
 
 UImage create_image(int w, int h, void *rgba);
 void free_image(UImage img);

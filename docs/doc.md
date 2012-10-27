@@ -98,12 +98,11 @@ Release pointer
 
 *Commands:*
 
-    blit "Img" X Y
-    blit_scaled "Img" Src-x Src-y Src-w Src-h Dst-x Dst-y Dst-w Dst-h
-    rect X Y W H RGBA_outline RGBA_fill
+    blit "Img" [Src-x Src-y Src-w Src-h Dst-x Dst-y Dst-w Dst-h]
+    rect X Y W H [RGBA_outline RGBA_fill]
     line X1 Y1 X2 Y2 RGBA_outline
     text Font X Y "Text" RGBA_fill
-    poly RGBA_outline:RGBA_fill
+    poly RGBA_outline RGBA_fill X1 Y1 ... Xn Yn
     ...
 
 ### gl
