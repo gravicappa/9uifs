@@ -11,6 +11,7 @@
 #include "draw.h"
 #include "surface.h"
 #include "stb_image.h"
+#include "font.h"
 
 const int size_buf_len = 32;
 
@@ -334,6 +335,21 @@ cmd_blit(struct file *f, char *cmd)
     dst->update(dst);
 }
 
+static int
+colour_from_str(const char *s)
+{
+  int n = strlen(s);
+  switch (n) {
+  case 1: return RGBA_FROM_STR1(s);
+  case 2: return RGBA_FROM_STR2(s);
+  case 3: return RGBA_FROM_STR3(s);
+  case 4: return RGBA_FROM_STR4(s);
+  case 6: return RGBA_FROM_STR6(s);
+  case 8: return RGBA_FROM_STR8(s);
+  default: return 0;
+  }
+}
+
 static void
 cmd_rect(struct file *f, char *cmd)
 {
@@ -341,15 +357,22 @@ cmd_rect(struct file *f, char *cmd)
   char *arg, *c = cmd;
   struct surface *s = containerof(f, struct surface, f_ctl);
 
-  for (i = 0; i < 4; ++i)
-    if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
-      return;
-  if ((arg = next_arg(&c)))
-    fg = RGBA_FROM_STR(arg);
-  if ((arg = next_arg(&c)))
-    bg = RGBA_FROM_STR(arg);
+  if (!(arg = next_arg(&c)))
+    return;
+  fg = colour_from_str(arg);
 
-  draw_rect(s->img, r[0], r[1], r[2], r[3], fg, bg);
+  if (!(arg = next_arg(&c)))
+    return;
+  bg = colour_from_str(arg);
+
+  while (c) {
+    for (i = 0; i < 4; ++i)
+      if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
+        break;
+    if (i < 4)
+      break;
+    draw_rect(s->img, r[0], r[1], r[2], r[3], fg, bg);
+  }
   if (s->update)
     s->update(s);
 }
@@ -360,16 +383,44 @@ cmd_line(struct file *f, char *cmd)
   int r[4], i, fg = 0xff000000;
   char *arg, *c = cmd;
   struct surface *s = containerof(f, struct surface, f_ctl);
-
-  for (i = 0; i < 4; ++i)
-    if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
-      return;
-  if ((arg = next_arg(&c)))
-    fg = RGBA_FROM_STR(arg);
-
-  if (fg & 0xff000000)
+  if (!(arg = next_arg(&c)))
+    return;
+  fg = colour_from_str(arg);
+  if (!RGBA_VISIBLE(fg))
+    return;
+  while (c) {
+    for (i = 0; i < 4; ++i)
+      if (!(arg = next_arg(&c)) || sscanf(arg, "%d", &r[i]) != 1)
+        break;
+    if (i < 4)
+      break;
     draw_line(s->img, r[0], r[1], r[2], r[3], fg);
+  }
   if (s->update)
+    s->update(s);
+}
+
+static void
+draw_linestrip(struct surface *s, int fg, char *args)
+{
+  char *arg;
+  int i, pt[2], prevpt[2], upd = 0;
+  UImage img = s->img;
+  for (i = 0; i < 2; ++i)
+    if (!(arg = next_arg(&args)) || sscanf(arg, "%d", &prevpt[i]) != 1)
+      return;
+  while (args) {
+    for (i = 0; i < 2; ++i)
+      if (!(arg = next_arg(&args)) || sscanf(arg, "%d", &pt[i]) != 1)
+        break;
+    if (i < 2)
+      break;
+    draw_line(img, prevpt[0], prevpt[1], pt[0], pt[1], fg);
+    upd = 1;
+    for (i = 0; i < 2; ++i)
+      prevpt[i] = pt[i];
+  }
+  if (upd && s->update)
     s->update(s);
 }
 
@@ -378,20 +429,24 @@ cmd_line(struct file *f, char *cmd)
 static void
 cmd_poly(struct file *f, char *cmd)
 {
-  char *arg, *c = cmd, *pc;
   struct surface *s = containerof(f, struct surface, f_ctl);
+  char *arg, *c = cmd;
   int spts[STATIC_NPTS * 2];
   int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000;
 
   if (!(arg = next_arg(&c)))
     return;
-  fg = RGBA_FROM_STR(arg);
+  fg = colour_from_str(arg);
   if (!(arg = next_arg(&c)))
     return;
-  bg = RGBA_FROM_STR(arg);
+  bg = colour_from_str(arg);
   npts = nargs(c) >> 1;
   if (!npts)
     return;
+  if (!RGBA_VISIBLE(bg)) {
+    draw_linestrip(s, fg, c);
+    return;
+  }
   if (npts > 32) {
     pts = malloc(sizeof(int) * npts * 2);
     if (!pts) {
@@ -402,8 +457,11 @@ cmd_poly(struct file *f, char *cmd)
   for (n = 0, p = pts, i = npts * 2; i; --i, ++p)
     if ((arg = next_arg(&c)) && sscanf(arg, "%d", p) == 1)
       ++n;
-  if (n == npts * 2)
+  if (n == npts * 2) {
     draw_poly(s->img, npts, pts, fg, bg);
+    if (s->update)
+      s->update(s);
+  }
   if (pts != spts)
     free(pts);
 }
@@ -412,4 +470,20 @@ static void
 cmd_text(struct file *f, char *cmd)
 {
   struct surface *s = containerof(f, struct surface, f_ctl);
+  char *arg;
+  UFont font;
+  int fg = 0, pt[2], i;
+
+  if (!(arg = next_arg(&cmd)))
+    return;
+  font = font_from_str(arg);
+  if (!(arg = next_arg(&cmd)))
+    return;
+  fg = colour_from_str(arg);
+  for (i = 0; i < 2; ++i)
+    if (!(arg = next_arg(&cmd)) || sscanf(arg, "%d", &pt[i]) != 1)
+      return;
+  draw_utf8(s->img, pt[0], pt[1], fg, font, strlen(cmd), cmd);
+  if (s->update)
+    s->update(s);
 }

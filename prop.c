@@ -8,6 +8,7 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "prop.h"
+#include "draw.h"
 
 #define INT_BUF_SIZE 16
 #define RECT_BUF_SIZE 64
@@ -159,10 +160,10 @@ prop_colour_open(struct p9_connection *con)
   }
   if (!(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
     p = (struct prop_int *)fid->file;
-    r = (p->i >> 16) & 0xff;
-    g = (p->i >> 8) & 0xff;
-    b = (p->i) & 0xff;
-    a = (p->i >> 24) & 0xff;
+    r = RGBA_R(p->i);
+    g = RGBA_G(p->i);
+    b = RGBA_B(p->i);
+    a = RGBA_A(p->i);
     snprintf((char *)fid->aux, size, "%02x%02x%02x%02x", r, g, b, a);
   }
 }
@@ -211,7 +212,7 @@ prop_colour_clunk(struct p9_connection *con)
     } else
       goto error;
     if (p)
-      p->i = (a << 24) | (r << 16) | (g << 8) | b;
+      p->i = RGBA(r, g, b, a);
   }
   prop_clunk(con);
   return;

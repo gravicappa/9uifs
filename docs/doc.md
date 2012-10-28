@@ -99,9 +99,9 @@ Release pointer
 *Commands:*
 
     blit "Img" [Src-x Src-y Src-w Src-h Dst-x Dst-y Dst-w Dst-h]
-    rect X Y W H [RGBA_outline RGBA_fill]
-    line X1 Y1 X2 Y2 RGBA_outline
-    text Font X Y "Text" RGBA_fill
+    rect RGBA_outline RGBA_fill X1 Y1 W1 H1 [... Xn Yn Wn Hn]
+    line RGBA_outline Xs1 Ys1 Xe1 Ye1 [... Xsn Ysn Xen Yen]
+    text Font RGBA_fill X Y Text
     poly RGBA_outline RGBA_fill X1 Y1 ... Xn Yn
     ...
 
