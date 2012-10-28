@@ -81,6 +81,6 @@ init_image_dir(char *name)
 {
   struct image_dir *dir;
   dir = (struct image_dir *)image_mkdir(name, 0);
-  dir->libroot = dir;
+  dir->libroot = (struct file *)dir;
   return (struct file *)dir;
 }
