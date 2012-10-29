@@ -12,7 +12,6 @@ exec_cmd(struct ctl_file *f, int n, char *str)
   char *p = str, *s;
   int i;
 
-  log_printf(LOG_DBG, "exec_cmd %d '%s'\n", n, str);
   s = next_arg(&p);
   for (i = 0; f->cmd[i].name && strcmp(f->cmd[i].name, s); ++i) {}
   if (f->cmd[i].fn)
@@ -65,7 +64,6 @@ ctl_write(struct p9_connection *con)
   s = con->t.data;
   n = con->t.count;
   con->r.count = con->t.count;
-  if (0) log_printf(LOG_DBG, "ctl_write  buf: '%.*s'\n", n, s);
   cmd = s;
   while (i < n) {
     for (;i < n && *s && *s != '\n' && *s != '\r'; ++s, ++i) {}
@@ -78,32 +76,24 @@ ctl_write(struct p9_connection *con)
       cmd = ctx->buf->b;
       cmdlen = ctx->buf->used;
       ctx->buf->used = 0;
-      if (0) log_printf(LOG_DBG, "  allocated: '%.*s'\n", cmdlen, cmd);
     }
-    if (0) log_printf(LOG_DBG, "  i: %d n: %d\n", i, n);
     if (i >= n)
       break;
     *s++ = 0;
     i++;
-    log_printf(LOG_DBG, "  cmd: '%.*s'\n", cmdlen, cmd);
     exec_cmd(f, cmdlen, cmd);
-    if (ctx->buf) {
+    if (ctx->buf)
       arr_delete(&ctx->buf, 0, i);
-      log_printf(LOG_DBG, "  del buf: %d '%.*s'\n", ctx->buf->used,
-                 ctx->buf->used, ctx->buf->b);
-    }
     cmd = s;
   }
   if (ctx && cmd == ctx->buf->b) {
     ctx->buf->used = 0;
     return;
   }
-  if (0) log_printf(LOG_DBG, "  left: '%.*s'\n", s - cmd, cmd);
   if ((s - cmd) && (arr_memcpy(&ctx->buf, 256, -1, s - cmd, cmd) < 0)) {
     P9_SET_STR(con->r.ename, "out of memory");
     return;
   }
-  if (0) log_printf(LOG_DBG, "ctl_write done\n");
 }
 
 void
