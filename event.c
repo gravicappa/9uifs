@@ -81,7 +81,6 @@ put_event_str(struct client *c, struct ev_pool *pool, int len, char *ev)
   struct ev_listener *lsr;
 
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
-    log_printf(LOG_DBG, "put_event_str %p '%.*s'\n", lsr, len, ev);
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
     if (lsr->tag != P9_NOTAG) {
