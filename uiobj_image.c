@@ -58,14 +58,6 @@ attach(struct uiobj_image *img, struct surface *s)
 }
 
 static void
-rm_fid_aux(struct p9_fid *fid)
-{
-  if (fid->aux)
-    free(fid->aux);
-  fid->rm = 0;
-}
-
-static void
 path_open(struct p9_connection *con)
 {
   struct uiobj_image *img;

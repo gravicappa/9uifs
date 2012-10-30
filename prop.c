@@ -13,14 +13,6 @@
 #define INT_BUF_SIZE 16
 #define RECT_BUF_SIZE 64
 
-static void
-aux_free(struct p9_fid *fid)
-{
-  if (fid->aux)
-    free(fid->aux);
-  fid->rm = 0;
-}
-
 void
 prop_clunk(struct p9_connection *con)
 {
@@ -38,7 +30,7 @@ prop_alloc(struct p9_connection *con, int size)
   fid->aux = calloc(1, size);
   if (!fid->aux)
     return -1;
-  fid->rm = aux_free;
+  fid->rm = rm_fid_aux;
   return 0;
 }
 
@@ -228,7 +220,7 @@ rect_open(struct p9_connection *con)
 
   p = (struct prop_rect *)fid->file;
   fid->aux = calloc(1, RECT_BUF_SIZE);
-  fid->rm = aux_free;
+  fid->rm = rm_fid_aux;
   if (P9_WRITE_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, RECT_BUF_SIZE, "%d %d %d %d", p->r[0], p->r[1],
              p->r[2], p->r[3]);
@@ -292,7 +284,7 @@ intarr_open(struct p9_connection *con)
   char buf[16], *sep = "";
   struct arr *a = 0;
 
-  fid->rm = aux_free;
+  fid->rm = rm_fid_aux;
   fid->aux = 0;
 
   p = (struct prop_intarr *)fid->file;

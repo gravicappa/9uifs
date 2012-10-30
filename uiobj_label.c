@@ -123,7 +123,6 @@ update_btn(struct uiobj *u, struct uicontext *uc)
     if (b->pressed_ms > 0 && t > BTN_PRESS_TIME_MS) {
       b->state = BTN_NORMAL;
       u->flags |= UI_DIRTY;
-      log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
     }
   }
 }
@@ -160,19 +159,23 @@ press_button(struct uiobj *u, int by_kbd)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
 
-  if (b->state == BTN_PRESSED)
-    put_ui_event(&u->client->ev, u->client, "press_button\t$o\n", u);
+  if (b->state == BTN_PRESSED) {
+    struct ev_fmt evfmt[] = {
+      {ev_str, {.s = "press_button"}},
+      {ev_uiobj, {.o = u}, .c = u->client},
+      {0}
+    };
+    put_event(u->client, &u->client->ev, evfmt);
+  }
   if (by_kbd)
     b->pressed_ms = cur_time_ms;
   u->flags |= UI_DIRTY;
-  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
 }
 
 static int
 on_btn_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
-  log_printf(LOG_UI, "btn input event\n", u->f.name);
   switch (ev->type) {
   case IN_PTR_DOWN:
     b->state = BTN_PRESSED;
@@ -197,7 +200,6 @@ on_btn_input(struct uiobj *u, struct input_event *ev)
   default: return 0;
   }
   u->flags |= UI_DIRTY;
-  log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
   return 1;
 }
 
@@ -205,15 +207,9 @@ static int
 on_btn_inout_pointer(struct uiobj *u, int inside)
 {
   struct uiobj_label *x = (struct uiobj_label *)u->data;
-#if 0
-  log_printf(LOG_UI, "btn %s %s\n", u->f.name, (inside) ? "in" : "out");
-#endif
   if (!inside) {
     x->state = BTN_NORMAL;
     u->flags |= UI_DIRTY;
-#if 0
-    log_printf(LOG_UI, "dirty uiobj %s : %d\n", u->f.name, __LINE__);
-#endif
   }
   return 1;
 }
@@ -234,7 +230,6 @@ init_uibutton(struct uiobj *u)
     return -1;
   x = (struct uiobj_label *)u->data;
   x->state = BTN_NORMAL;
-  u->flags = UI_KBD_EV | UI_PRESS_PTR_EV;
   u->ops = &btn_ops;
   u->bg.i = DEFAULT_BTN_BG;
   x->fg.i = DEFAULT_BTN_FG;

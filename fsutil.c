@@ -1,7 +1,17 @@
 #include <string.h>
+#include <stdlib.h>
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
+
+void
+rm_fid_aux(struct p9_fid *fid)
+{
+  if (fid->aux)
+    free(fid->aux);
+  fid->aux = 0;
+  fid->rm = 0;
+}
 
 void
 read_data_fn(struct p9_connection *c, int size, char *buf)

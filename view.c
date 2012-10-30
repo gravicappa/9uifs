@@ -176,7 +176,7 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   v->flags |= VIEW_DIRTY;
 
   len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
-  put_event(v->c, &v->ev, len, buf);
+  put_event_str(v->c, &v->ev, len, buf);
 }
 
 int

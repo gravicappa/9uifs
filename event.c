@@ -1,12 +1,16 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "9p.h"
 #include "util.h"
 #include "fs.h"
+#include "fsutil.h"
 #include "event.h"
 #include "client.h"
 #include "fstypes.h"
+
+static int buf_delta = 512;
 
 struct ev_listener {
   struct ev_listener *next;
@@ -17,17 +21,67 @@ struct ev_listener {
   struct arr *buf;
 };
 
-static int buf_delta = 512;
+int
+ev_int(char *buf, struct ev_fmt *ev)
+{
+  if (!buf)
+    return (abs(ev->x.i) <= 99999) ? 6 : 11;
+  return sprintf(buf, "%d", ev->x.i);
+}
+
+int
+ev_uint(char *buf, struct ev_fmt *ev)
+{
+  if (!buf)
+    return (abs(ev->x.i) <= 99999) ? 5 : 10;
+  return sprintf(buf, "%u", ev->x.u);
+}
+
+int
+ev_str(char *buf, struct ev_fmt *ev)
+{
+  if (!buf)
+    return strlen(ev->x.s);
+  return sprintf(buf, "%s", ev->x.s);
+}
+
+void
+put_event(struct client *c, struct ev_pool *pool, struct ev_fmt *ev)
+{
+  char buf[256], *b = buf;
+  int n, i, j;
+
+  if (!pool->listeners)
+    return;
+  for (n = i = 0; ev[i].pack; ++i) {
+    ev[i].len = ev[i].pack(0, &ev[i]);
+    n += ev[i].len + 1;
+  }
+  if (n >= sizeof(buf)) {
+    b = malloc(n);
+    if (!b)
+      return;
+  }
+  for (j = i = 0; ev[i].pack; ++i) {
+    j += ev[i].pack(b + j, &ev[i]);
+    b[j++] = '\t';
+  }
+  b[j - 1] = '\n';
+  put_event_str(c, pool, j, b);
+  if (b != buf)
+    free(b);
+}
 
 /* TODO: think about accumulating events within given timelimit to
   decrease IO for some cases. */
 
 void
-put_event(struct client *c, struct ev_pool *pool, int len, char *ev)
+put_event_str(struct client *c, struct ev_pool *pool, int len, char *ev)
 {
   struct ev_listener *lsr;
 
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
+    log_printf(LOG_DBG, "put_event_str %p '%.*s'\n", lsr, len, ev);
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
     if (lsr->tag != P9_NOTAG) {

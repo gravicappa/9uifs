@@ -42,16 +42,6 @@ get_surface(struct p9_connection *c)
 }
 
 static void
-buf_fid_rm(struct p9_fid *fid)
-{
-  if (fid->aux) {
-    free(fid->aux);
-    fid->aux = 0;
-  }
-  fid->rm = 0;
-}
-
-static void
 size_open(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
@@ -64,7 +54,7 @@ size_open(struct p9_connection *con)
   }
   if (!(con->t.mode & P9_OTRUNC) || P9_READ_MODE(con->t.mode))
     snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
-  fid->rm = buf_fid_rm;
+  fid->rm = rm_fid_aux;
 }
 
 static void
@@ -169,7 +159,7 @@ png_open(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
   fid->aux = 0;
-  fid->rm = buf_fid_rm;
+  fid->rm = rm_fid_aux;
 }
 
 static void

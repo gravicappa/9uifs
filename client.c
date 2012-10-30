@@ -192,37 +192,52 @@ process_client_io(struct client *c)
 void
 client_input_event(struct input_event *ev)
 {
-  char buf[48];
-  int len, type;
-
   if (!selected_view)
     return;
 
   switch (ev->type) {
-    case IN_PTR_MOVE:
-      len = snprintf(buf, sizeof(buf), "m %u %u %u %d %d %u\n", ev->id,
-                     ev->x, ev->y, ev->dx, ev->dy, ev->state);
-      put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+  case IN_PTR_MOVE:
+    {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "m"}}, {ev_uint, {.u = ev->id}},
+        {ev_uint, {.u = ev->x}}, {ev_uint, {.u = ev->y}},
+        {ev_int, {.u = ev->dx}}, {ev_int, {.u = ev->dy}},
+        {ev_uint, {.u = ev->state}},
+        {0}
+      };
+      put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
       ui_pointer_event(selected_view, ev);
-      break;
+    }
+    break;
 
-    case IN_PTR_DOWN:
-    case IN_PTR_UP:
-      type = (ev->type == IN_PTR_DOWN) ? 'd' : 'u';
-      len = snprintf(buf, sizeof(buf), "%c %u %u %u %u\n", type, ev->id,
-                     ev->x, ev->y, ev->key);
-      put_event(selected_view->c, &selected_view->ev_pointer, len, buf);
+  case IN_PTR_DOWN:
+  case IN_PTR_UP:
+    {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
+        {ev_uint, {.u = ev->id}}, {ev_uint, {.u = ev->x}},
+        {ev_uint, {.u = ev->y}}, {ev_uint, {.u = ev->key}},
+        {0}
+      };
+      put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
       ui_pointer_event(selected_view, ev);
-      break;
+    }
+    break;
 
-    case IN_KEY_DOWN:
-    case IN_KEY_UP:
-      type = (ev->type == IN_KEY_DOWN) ? 'd' : 'u';
-      len = snprintf(buf, sizeof(buf), "%u %u %u %lu\n", type, ev->key,
-                     ev->state, ev->unicode);
-      put_event(selected_view->c, &selected_view->ev_keyboard, len, buf);
+  case IN_KEY_DOWN:
+  case IN_KEY_UP:
+    {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
+        {ev_uint, {.u = ev->key}},
+        {ev_uint, {.u = ev->state}},
+        {ev_uint, {.u = ev->unicode}},
+        {0}
+      };
+      put_event(selected_view->c, &selected_view->ev_keyboard, evfmt);
       ui_keyboard(selected_view, ev);
-      break;
+    }
+    break;
   }
 }
 

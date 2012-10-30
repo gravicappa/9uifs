@@ -296,15 +296,6 @@ update_grid(struct uiobj_grid *g)
 }
 
 static void
-opts_rmfid(struct p9_fid *fid)
-{
-  if (fid->aux)
-    free(fid->aux);
-  fid->rm = 0;
-  fid->aux = 0;
-}
-
-static void
 opts_open(struct p9_connection *c)
 {
   struct p9_fid *fid = c->t.pfid;
@@ -314,7 +305,7 @@ opts_open(struct p9_connection *c)
   struct arr *a = 0;
   char buf[16], *sep = "";
 
-  fid->rm = opts_rmfid;
+  fid->rm = rm_fid_aux;
   fid->aux = 0;
 
   update_grid_cellcount(g, &ncols, &nrows);

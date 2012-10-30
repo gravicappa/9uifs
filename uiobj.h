@@ -3,7 +3,7 @@ enum uiflags {
   UI_DIRTY = (1 << 1),
   UI_DISABLED = (1 << 2),
   UI_KBD_EV = (1 << 3),
-  UI_PRESS_PTR_EV = (1 << 4),
+  UI_UPDOWN_PTR_EV = (1 << 4),
   UI_MOVE_PTR_EV = (1 << 5),
   UI_INOUT_EV = (1 << 6)
 };
@@ -12,6 +12,7 @@ struct uiplace;
 struct view;
 struct uiobj;
 struct ev_pool;
+struct ev_fmt;
 struct uicontext;
 struct input_event;
 
@@ -108,3 +109,7 @@ void ui_walk_view_tree(struct uiplace *up,
                        void *aux);
 
 int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);
+void ui_init_evfilter(struct file *f);
+
+int ev_uiobj(char *buf, struct ev_fmt *ev);
+int ev_view(char *buf, struct ev_fmt *ev);

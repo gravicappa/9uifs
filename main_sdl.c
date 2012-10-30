@@ -55,7 +55,6 @@ void
 draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
 {
   ImlibPolygon poly;
-  int x, y;
 
   poly = imlib_polygon_new();
   if (!poly)

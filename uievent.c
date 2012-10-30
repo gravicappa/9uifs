@@ -21,98 +21,31 @@
 #include "ui.h"
 #include "client.h"
 
-static int
-event_length(struct client *c, const char *fmt, va_list args)
-{
-  int i, mode, x, n = 0;
-  struct view *v;
-  struct uiobj *u;
+static struct evmask {
+  char *s;
+  int mask;
+} evmask[] = {
+  {"kbd", UI_KBD_EV},
+  {"ptr_move", UI_MOVE_PTR_EV},
+  {"ptr_updown", UI_UPDOWN_PTR_EV},
+  {"ptr_inout", UI_INOUT_EV},
+  {0}
+};
 
-  for (i = 0, mode = 0; fmt[i]; ++i)
-    if (!mode) {
-      if (fmt[i] == '$')
-        mode = 1;
-      else
-        n++;
-    } else {
-      switch (fmt[i]) {
-        case 'n':
-        case 'u':
-          x = va_arg(args, int);
-          if (abs(x) < 65536)
-            n += 6;
-          else
-            n += 11;
-          break;
-        case 'v':
-          v = va_arg(args, struct view *);
-          n += strlen(v->f.name);
-          break;
-        case 'o':
-          u = va_arg(args, struct uiobj *);
-          n += file_path_len(&u->f, c->ui);
-          break;
-        default: n++; break;
-      }
-      mode = 0;
-    }
-  return n + 1;
+int
+ev_view(char *buf, struct ev_fmt *ev)
+{
+  if (!buf)
+    return strlen(ev->x.v->f.name);
+  return sprintf(buf, "%s", ev->x.v->f.name);
 }
 
 int
-put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...)
+ev_uiobj(char *buf, struct ev_fmt *ev)
 {
-  va_list args, a;
-  char buf[1024], *b = buf;
-  int i, j, mode, n, size = sizeof(buf);
-  struct view *v;
-  struct uiobj *u;
-
-  va_start(args, fmt);
-  va_copy(a, args);
-  n = event_length(c, fmt, a);
-  if (n >= sizeof(buf)) {
-    b = (char *)malloc(n);
-    if (!b)
-      return -1;
-    size = n;
-  }
-
-  for (i = 0, j = 0, mode = 0; fmt[i]; ++i)
-    if (!mode) {
-      if (fmt[i] == '$')
-        mode = 1;
-      else
-        b[j++] = fmt[i];
-    } else {
-      switch (fmt[i]) {
-        case 'n':
-          n = sprintf(b + j, "%d", va_arg(args, int));
-          j += n;
-          break;
-        case 'u':
-          n = sprintf(b + j, "%u", va_arg(args, unsigned int));
-          j += n;
-          break;
-        case 'v':
-          v = va_arg(args, struct view *);
-          n = sprintf(b + j, "%s", v->f.name);
-          j += n;
-          break;
-        case 'o':
-          u = va_arg(args, struct uiobj *);
-          n = file_path(size - j, buf + j, &u->f, c->ui);
-          j += n;
-          break;
-        default: b[j++] = fmt[i]; break;
-      }
-      mode = 0;
-    }
-  put_event(c, ev, j, b);
-  if (b != buf)
-    free(b);
-  va_end(args);
-  return 0;
+  if (!buf)
+    return file_path_len((struct file *)ev->x.o, ev->c->ui);
+  return file_path(ev->len, buf, (struct file *)ev->x.o, ev->c->ui);
 }
 
 int
@@ -125,12 +58,31 @@ ui_keyboard(struct view *v, struct input_event *ev)
     return 1;
 
   type = (ev->type == IN_KEY_DOWN) ? 1 : 0;
-  if (v->flags & VIEW_KBD_EV)
-    put_ui_event(&v->ev, v->c, "key\t$n\t$n\t$n\t$u\t$o\n", type, ev->key,
-                 ev->state, ev->unicode, u);
-  if (u && u->flags & UI_KBD_EV)
-    put_ui_event(&v->c->ev, v->c, "key\t$n\t$n\t$n\t$u\t$v\t$o\n", type,
-                 ev->key, ev->state, ev->unicode, v, u);
+  if (v->flags & VIEW_KBD_EV) {
+    struct ev_fmt evfmt[] = {
+      {ev_str, {.s = "key"}},
+      {ev_uint, {.i = type}},
+      {ev_uint, {.u = ev->key}},
+      {ev_uint, {.u = ev->state}},
+      {ev_uint, {.u = ev->unicode}},
+      {ev_uiobj, {.o = u}, .c = v->c},
+      {0}
+    };
+    put_event(v->c, &v->ev, evfmt);
+  }
+  if (u && u->flags & UI_KBD_EV) {
+    struct ev_fmt evfmt[] = {
+      {ev_str, {.s = "key"}},
+      {ev_uint, {.i = type}},
+      {ev_uint, {.u = ev->key}},
+      {ev_uint, {.u = ev->state}},
+      {ev_uint, {.u = ev->unicode}},
+      {ev_view, {.v = v}},
+      {ev_uiobj, {.o = u}, .c = v->c},
+      {0}
+    };
+    put_event(v->c, &v->ev, evfmt);
+  }
   return 0;
 }
 
@@ -147,6 +99,48 @@ struct input_context {
   struct uiobj *over;
   struct view *v;
 };
+
+static void
+on_input(struct view *v, struct uiobj *u, struct input_event *ev)
+{
+  switch (ev->type) {
+  case IN_PTR_MOVE:
+    if (u->flags & UI_MOVE_PTR_EV) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "ptr_move"}},
+        {ev_uint, {.u = ev->id}},
+        {ev_uint, {.u = ev->x}},
+        {ev_uint, {.u = ev->y}},
+        {ev_int, {.i = ev->dx}},
+        {ev_int, {.i = ev->dy}},
+        {ev_uint, {.u = ev->state}},
+        {ev_view, {.v = v}},
+        {ev_uiobj, {.o = u}, .c = v->c},
+        {0}
+      };
+      put_event(v->c, &v->c->ev, evfmt);
+    }
+    break;
+  case IN_PTR_UP:
+  case IN_PTR_DOWN:
+    if (u->flags & UI_UPDOWN_PTR_EV) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "ptr"}},
+        {ev_uint, {.u = (ev->type == IN_PTR_UP) ? 'u' : 'd'}},
+        {ev_uint, {.u = ev->id}},
+        {ev_uint, {.u = ev->x}},
+        {ev_uint, {.u = ev->y}},
+        {ev_uint, {.u = ev->key}},
+        {ev_view, {.v = v}},
+        {ev_uiobj, {.o = u}, .c = v->c},
+        {0}
+      };
+      put_event(v->c, &v->c->ev, evfmt);
+    }
+    break;
+  default:;
+  }
+}
 
 static int
 input_event_fn(struct uiplace *up, void *aux)
@@ -171,6 +165,7 @@ input_event_fn(struct uiplace *up, void *aux)
   if (0)
     log_printf(LOG_UI, "input_event_fn on-input %s\n",
                u ? u->f.name : "(nil)");
+  on_input(ctx->v, u, ev);
   if (u->ops->on_input && u->ops->on_input(u, ev)) {
     ctx->u = u;
     return 0;
@@ -182,14 +177,21 @@ static struct uiobj *
 onexit(struct view *v, struct uiobj *obj, int x, int y)
 {
   struct uiobj *last = 0;
+  struct ev_fmt evfmt[] = {
+    {ev_str, {.s = "ptr_out"}},
+    {ev_uiobj, .c = v->c},
+    {0}
+  };
   while (obj) {
     last = obj;
     if (inside_uiobj(x, y, obj))
       break;
     else if (obj->ops->on_inout_pointer)
       obj->ops->on_inout_pointer(obj, 0);
-    if (obj->flags & UI_INOUT_EV)
-      put_ui_event(&v->ev, v->c, "ptr_out\t$o\n", obj);
+    if (obj->flags & UI_INOUT_EV) {
+      evfmt[1].x.o = obj;
+      put_event(v->c, &v->ev, evfmt);
+    }
     if  (obj->parent && obj->parent->parent)
       obj = obj->parent->parent->obj;
     else
@@ -202,6 +204,11 @@ static void
 onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
 {
   struct uiobj *obj;
+  struct ev_fmt evfmt[] = {
+    {ev_str, {.s = "ptr_in"}},
+    {ev_uiobj, .c = v->c},
+    {0}
+  };
 
   if (prev == u)
     return;
@@ -211,8 +218,10 @@ onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
       break;
     else if (obj->ops->on_inout_pointer)
       obj->ops->on_inout_pointer(obj, 1);
-    if (obj->flags & UI_INOUT_EV)
-      put_ui_event(&v->ev, v->c, "ptr_in\t$o\n", obj);
+    if (obj->flags & UI_INOUT_EV) {
+      evfmt[1].x.o = obj;
+      put_event(v->c, &v->ev, evfmt);
+    }
     if  (obj->parent && obj->parent->parent)
       obj = obj->parent->parent->obj;
     else
@@ -223,8 +232,7 @@ onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
 int
 ui_pointer_event(struct view *v, struct input_event *ev)
 {
-  struct input_context ctx = {ev, 0, 0, v};
-  int type;
+  struct input_context ctx = { ev, 0, 0, v };
   struct uiobj *t, *obj;
   struct uiplace *up, *parent;
 
@@ -258,13 +266,31 @@ ui_pointer_event(struct view *v, struct input_event *ev)
   case IN_PTR_UP:
     if (!ctx.u)
       return 0;
-    type = (ev->type == IN_PTR_DOWN) ? 1 : 0;
-    if (v->flags & VIEW_PRESS_PTR_EV)
-      put_ui_event(&v->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$o\n",
-                   type, ev->x, ev->y, ev->key, ctx.u);
-    if (ctx.u->flags & UI_PRESS_PTR_EV)
-      put_ui_event(&v->c->ev, v->c, "press_ptr\t$n\t$n\t$n\t$n\t$v\t$o\n",
-                   type, ev->x, ev->y, ev->key, v, ctx.u);
+    if (v->flags & VIEW_UPDOWN_PTR_EV) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "press_ptr"}},
+        {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
+        {ev_uint, {.u = ev->x}},
+        {ev_uint, {.u = ev->y}},
+        {ev_uint, {.u = ev->key}},
+        {ev_uiobj, {.o = ctx.u}, .c = v->c},
+        {0}
+      };
+      put_event(v->c, &v->ev, evfmt);
+    }
+    if (ctx.u->flags & UI_UPDOWN_PTR_EV) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "press_ptr"}},
+        {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
+        {ev_uint, {.u = ev->x}},
+        {ev_uint, {.u = ev->y}},
+        {ev_uint, {.u = ev->key}},
+        {ev_view, {.v = v}},
+        {ev_uiobj, {.o = ctx.u}, .c = v->c},
+        {0}
+      };
+      put_event(v->c, &v->ev, evfmt);
+    }
     return 1;
   case IN_PTR_MOVE:
     break;
@@ -273,11 +299,64 @@ ui_pointer_event(struct view *v, struct input_event *ev)
   return 0;
 }
 
-#if 0
 void
 evmask_open(struct p9_connection *con)
 {
-  ;
+  struct p9_fid *fid = con->t.pfid;
+  struct uiobj *u = containerof(fid->file, struct uiobj, f_evfilter);
+  struct arr *buf = 0;
+  int i, n;
+
+  fid->aux = 0;
+  fid->rm = rm_fid_aux;
+
+
+  for (i = 0; evmask[i].s; ++i)
+    if (u->flags & evmask[i].mask) {
+      n = strlen(evmask[i].s);
+      if (arr_memcpy(&buf, 8, -1, n + 1, 0) < 0) {
+        P9_SET_STR(con->r.ename, "out of memory");
+        return;
+      }
+      memcpy(buf->b, evmask[i].s, n);
+      buf->b[n] = '\n';
+    }
+  fid->aux = buf;
+}
+
+void
+evmask_read(struct p9_connection *con)
+{
+  struct arr *buf = con->t.pfid->aux;
+  if (buf)
+    read_str_fn(con, buf->used, buf->b);
+}
+
+void
+evmask_write(struct p9_connection *con)
+{
+  write_buf_fn(con, 16, (struct arr **)&con->t.pfid->aux);
+}
+
+void
+evmask_clunk(struct p9_connection *con)
+{
+  struct p9_fid *fid = con->t.pfid;
+  struct uiobj *u = containerof(fid->file, struct uiobj, f_evfilter);
+  char *args, *arg;
+  int i, flags = u->flags;
+
+  if (!fid->aux)
+    return;
+
+  for (i = 0; evmask[i].s; ++i)
+    flags &= ~evmask[i].mask;
+  args = ((struct arr *)fid->aux)->b;
+  while ((arg = next_arg(&args)))
+    for (i = 0; evmask[i].s; ++i)
+      if (!strcmp(evmask[i].s, arg))
+        flags |= evmask[i].mask;
+  u->flags = flags;
 }
 
 static struct p9_fs eventmask_fs = {
@@ -286,4 +365,12 @@ static struct p9_fs eventmask_fs = {
   .write = evmask_write,
   .clunk = evmask_clunk,
 };
-#endif
+
+void
+ui_init_evfilter(struct file *f)
+{
+  f->name = "evfilter";
+  f->mode = 0600;
+  f->qpath = new_qid(0);
+  f->fs = &eventmask_fs;
+}

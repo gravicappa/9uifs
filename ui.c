@@ -147,14 +147,6 @@ struct p9_fs prop_type_fs = {
 };
 
 static void
-rm_fid_aux(struct p9_fid *fid)
-{
-  if (fid->aux)
-    free(fid->aux);
-  fid->rm = 0;
-}
-
-static void
 parent_open(struct p9_connection *c)
 {
   struct uiobj *u;
@@ -256,10 +248,7 @@ mk_uiobj(struct client *client)
   u->type.p.f.fs = &prop_type_fs;
   u->g.p.f.mode = 0400;
 
-  u->f_evfilter.name = "evfilter";
-  u->f_evfilter.mode = 0600;
-  u->f_evfilter.qpath = new_qid(0);
-  /*u->f_evfilter.fs = &evfilter_fs;*/
+  ui_init_evfilter(&u->f_evfilter);
   add_file(&u->f, &u->f_evfilter);
 
   u->f_parent.name = "container";
