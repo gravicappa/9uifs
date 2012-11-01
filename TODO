@@ -1,0 +1,10 @@
+# WM
+## Define WM (window manager) interface
+	- probably make an interface for wm to be an external application
+		(full blown 9p fs or some simple text/binary stream).
+
+# UI
+- Simultaneous event output into /event, view/event, uiobj/event files.
+	Not sure if more than one event stream is required.
+- Think about keyboard manipulation.
+- New widgets: check buttons, radio buttons, sliders, progress bars, canvas.
