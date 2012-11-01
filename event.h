@@ -15,7 +15,6 @@ struct ev_fmt {
     unsigned int u;
     char *s;
   } x;
-  struct client *c;
   int len;
 };
 

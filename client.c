@@ -197,7 +197,7 @@ client_input_event(struct input_event *ev)
 
   switch (ev->type) {
   case IN_PTR_MOVE:
-    {
+    if (selected_view->ev_pointer.listeners) {
       struct ev_fmt evfmt[] = {
         {ev_str, {.s = "m"}}, {ev_uint, {.u = ev->id}},
         {ev_uint, {.u = ev->x}}, {ev_uint, {.u = ev->y}},
@@ -206,13 +206,13 @@ client_input_event(struct input_event *ev)
         {0}
       };
       put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
-      ui_pointer_event(selected_view, ev);
     }
+    ui_pointer_event(selected_view, ev);
     break;
 
   case IN_PTR_DOWN:
   case IN_PTR_UP:
-    {
+    if (selected_view->ev_pointer.listeners) {
       struct ev_fmt evfmt[] = {
         {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
         {ev_uint, {.u = ev->id}}, {ev_uint, {.u = ev->x}},
@@ -220,13 +220,13 @@ client_input_event(struct input_event *ev)
         {0}
       };
       put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
-      ui_pointer_event(selected_view, ev);
     }
+    ui_pointer_event(selected_view, ev);
     break;
 
   case IN_KEY_DOWN:
   case IN_KEY_UP:
-    {
+    if (selected_view->ev_keyboard.listeners) {
       struct ev_fmt evfmt[] = {
         {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
         {ev_uint, {.u = ev->key}},
@@ -235,8 +235,8 @@ client_input_event(struct input_event *ev)
         {0}
       };
       put_event(selected_view->c, &selected_view->ev_keyboard, evfmt);
-      ui_keyboard(selected_view, ev);
     }
+    ui_keyboard(selected_view, ev);
     break;
   }
 }

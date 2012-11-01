@@ -162,7 +162,7 @@ press_button(struct uiobj *u, int by_kbd)
   if (b->state == BTN_PRESSED) {
     struct ev_fmt evfmt[] = {
       {ev_str, {.s = "press_button"}},
-      {ev_uiobj, {.o = u}, .c = u->client},
+      {ev_uiobj, {.o = u}},
       {0}
     };
     put_event(u->client, &u->client->ev, evfmt);

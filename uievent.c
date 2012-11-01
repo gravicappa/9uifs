@@ -43,9 +43,10 @@ ev_view(char *buf, struct ev_fmt *ev)
 int
 ev_uiobj(char *buf, struct ev_fmt *ev)
 {
+  struct uiobj *u = ev->x.o;
   if (!buf)
-    return file_path_len((struct file *)ev->x.o, ev->c->ui);
-  return file_path(ev->len, buf, (struct file *)ev->x.o, ev->c->ui);
+    return file_path_len((struct file *)u, u->client->ui);
+  return file_path(ev->len, buf, (struct file *)u, u->client->ui);
 }
 
 int
@@ -65,7 +66,7 @@ ui_keyboard(struct view *v, struct input_event *ev)
       {ev_uint, {.u = ev->key}},
       {ev_uint, {.u = ev->state}},
       {ev_uint, {.u = ev->unicode}},
-      {ev_uiobj, {.o = u}, .c = v->c},
+      {ev_uiobj, {.o = u}},
       {0}
     };
     put_event(v->c, &v->ev, evfmt);
@@ -78,7 +79,7 @@ ui_keyboard(struct view *v, struct input_event *ev)
       {ev_uint, {.u = ev->state}},
       {ev_uint, {.u = ev->unicode}},
       {ev_view, {.v = v}},
-      {ev_uiobj, {.o = u}, .c = v->c},
+      {ev_uiobj, {.o = u}},
       {0}
     };
     put_event(v->c, &v->ev, evfmt);
@@ -100,7 +101,7 @@ struct input_context {
   struct view *v;
 };
 
-static void
+static int
 on_input(struct view *v, struct uiobj *u, struct input_event *ev)
 {
   switch (ev->type) {
@@ -115,10 +116,11 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
         {ev_int, {.i = ev->dy}},
         {ev_uint, {.u = ev->state}},
         {ev_view, {.v = v}},
-        {ev_uiobj, {.o = u}, .c = v->c},
+        {ev_uiobj, {.o = u}},
         {0}
       };
       put_event(v->c, &v->c->ev, evfmt);
+      return 1;
     }
     break;
   case IN_PTR_UP:
@@ -126,20 +128,22 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
     if (u->flags & UI_UPDOWN_PTR_EV) {
       struct ev_fmt evfmt[] = {
         {ev_str, {.s = "ptr"}},
-        {ev_uint, {.u = (ev->type == IN_PTR_UP) ? 'u' : 'd'}},
+        {ev_str, {.s = (ev->type == IN_PTR_UP) ? "u" : "d"}},
         {ev_uint, {.u = ev->id}},
         {ev_uint, {.u = ev->x}},
         {ev_uint, {.u = ev->y}},
         {ev_uint, {.u = ev->key}},
         {ev_view, {.v = v}},
-        {ev_uiobj, {.o = u}, .c = v->c},
+        {ev_uiobj, {.o = u}},
         {0}
       };
       put_event(v->c, &v->c->ev, evfmt);
+      return 1;
     }
     break;
   default:;
   }
+  return u->ops->on_input && u->ops->on_input(u, ev);
 }
 
 static int
@@ -165,8 +169,8 @@ input_event_fn(struct uiplace *up, void *aux)
   if (0)
     log_printf(LOG_UI, "input_event_fn on-input %s\n",
                u ? u->f.name : "(nil)");
-  on_input(ctx->v, u, ev);
-  if (u->ops->on_input && u->ops->on_input(u, ev)) {
+
+  if (on_input(ctx->v, u, ev)) {
     ctx->u = u;
     return 0;
   }
@@ -179,7 +183,7 @@ onexit(struct view *v, struct uiobj *obj, int x, int y)
   struct uiobj *last = 0;
   struct ev_fmt evfmt[] = {
     {ev_str, {.s = "ptr_out"}},
-    {ev_uiobj, .c = v->c},
+    {ev_uiobj},
     {0}
   };
   while (obj) {
@@ -206,7 +210,7 @@ onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
   struct uiobj *obj;
   struct ev_fmt evfmt[] = {
     {ev_str, {.s = "ptr_in"}},
-    {ev_uiobj, .c = v->c},
+    {ev_uiobj},
     {0}
   };
 
@@ -249,7 +253,7 @@ ui_pointer_event(struct view *v, struct input_event *ev)
       up = t->parent->obj->parent;
       for (up = t->parent->obj->parent; up && up->obj; up = up->parent) {
         obj = up->obj;
-        if (obj->ops->on_input && obj->ops->on_input(obj, ev))
+        if (on_input(v, obj, ev))
           break;
       }
     }
@@ -264,32 +268,33 @@ ui_pointer_event(struct view *v, struct input_event *ev)
   switch (ev->type) {
   case IN_PTR_DOWN:
   case IN_PTR_UP:
-    if (!ctx.u)
-      return 0;
-    if (v->flags & VIEW_UPDOWN_PTR_EV) {
-      struct ev_fmt evfmt[] = {
-        {ev_str, {.s = "press_ptr"}},
-        {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
-        {ev_uint, {.u = ev->x}},
-        {ev_uint, {.u = ev->y}},
-        {ev_uint, {.u = ev->key}},
-        {ev_uiobj, {.o = ctx.u}, .c = v->c},
-        {0}
-      };
-      put_event(v->c, &v->ev, evfmt);
-    }
-    if (ctx.u->flags & UI_UPDOWN_PTR_EV) {
-      struct ev_fmt evfmt[] = {
-        {ev_str, {.s = "press_ptr"}},
-        {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
-        {ev_uint, {.u = ev->x}},
-        {ev_uint, {.u = ev->y}},
-        {ev_uint, {.u = ev->key}},
-        {ev_view, {.v = v}},
-        {ev_uiobj, {.o = ctx.u}, .c = v->c},
-        {0}
-      };
-      put_event(v->c, &v->ev, evfmt);
+    obj = ctx.u;
+    while (0 && obj) {
+      if ((v->flags & VIEW_UPDOWN_PTR_EV) && v->ev.listeners) {
+        struct ev_fmt evfmt[] = {
+          {ev_str, {.s = "press_ptr"}},
+          {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
+          {ev_uint, {.u = ev->x}},
+          {ev_uint, {.u = ev->y}},
+          {ev_uint, {.u = ev->key}},
+          {ev_uiobj, {.o = obj}},
+          {0}
+        };
+        put_event(v->c, &v->ev, evfmt);
+      }
+      if ((obj->flags & UI_UPDOWN_PTR_EV) && v->ev.listeners) {
+        struct ev_fmt evfmt[] = {
+          {ev_str, {.s = "press_ptr"}},
+          {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
+          {ev_uint, {.u = ev->x}},
+          {ev_uint, {.u = ev->y}},
+          {ev_uint, {.u = ev->key}},
+          {ev_view, {.v = v}},
+          {ev_uiobj, {.o = obj}},
+          {0}
+        };
+        put_event(v->c, &v->ev, evfmt);
+      }
     }
     return 1;
   case IN_PTR_MOVE:
@@ -309,7 +314,6 @@ evmask_open(struct p9_connection *con)
 
   fid->aux = 0;
   fid->rm = rm_fid_aux;
-
 
   for (i = 0; evmask[i].s; ++i)
     if (u->flags & evmask[i].mask) {
