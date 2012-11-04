@@ -108,8 +108,7 @@ prop_type_open(struct p9_connection *c)
   struct uiobj *u = (struct uiobj *)p->aux;
 
   if (u->type.buf && u->type.buf->used && u->type.buf->b[0]
-      && (((c->t.pfid->open_mode & 3) == P9_OWRITE)
-          || ((c->t.pfid->open_mode & 3) == P9_ORDWR))) {
+      && P9_WRITE_MODE(c->t.pfid->open_mode)) {
     c->t.pfid->open_mode = 0;
     P9_SET_STR(c->r.ename, "UI object already has type");
     return;
@@ -299,7 +298,7 @@ ui_walk_view_tree(struct uiplace *up,
                   void *aux)
 {
   struct file *f;
-  struct uiplace *x, *t;
+  struct uiplace *x, *t, *parent;
 
 #if 0
   log_printf(LOG_UI, ">> ui_walk_view_tree\n");
@@ -311,6 +310,7 @@ ui_walk_view_tree(struct uiplace *up,
   before_fn = (before_fn) ? before_fn : walk_dummy_fn;
   after_fn = (after_fn) ? after_fn : walk_dummy_fn;
 
+  parent = up->parent;
   x = up;
   x->parent = 0;
 #if 0
@@ -339,7 +339,7 @@ ui_walk_view_tree(struct uiplace *up,
                  x->f.name, x->f.next, x->parent);
 #endif
       if (!after_fn(x, aux))
-        return;
+        goto end;
       x = (struct uiplace *)x->f.next;
       x->parent = t->parent;
     } else {
@@ -349,21 +349,21 @@ ui_walk_view_tree(struct uiplace *up,
           log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->f.name);
 #endif
         if (!after_fn(x, aux))
-          return;
+          goto end;
         x = x->parent;
       }
 #if 0
       log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->f.name);
 #endif
       if (!after_fn(x, aux))
-        return;
+        goto end;
       if (x->parent) {
 #if 0
         if (0)
           log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->f.name);
 #endif
         if (!after_fn(x->parent, aux))
-          return;
+          goto end;
       }
       if (x != up && x->parent && x->parent != up && x->parent->f.next
           && x->parent->f.next != &up->f) {
@@ -374,6 +374,8 @@ ui_walk_view_tree(struct uiplace *up,
         break;
     }
   } while (x && x != up);
+end:
+  up->parent = parent;
 #if 0
   log_printf(LOG_UI, ">>>> ui_walk_view_tree done\n");
 #endif

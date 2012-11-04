@@ -20,6 +20,14 @@
 
 ## event
 
+    ptr in Widget
+    ptr out Widget
+    ptr u P X Y Btn Widget
+    ptr d P X Y Btn Widget
+    ptr m X Y Dx Dy Btns Widget
+    key u Key State Unicode Widget
+    key d Key State Unicode Widget
+
 *to be defined*
 
 ## view
