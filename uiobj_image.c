@@ -29,8 +29,9 @@ detach(struct uiobj_image *img)
   if (!img->s)
     return;
   pprev = (struct uiobj_image **)&img->s->aux;
-  for (p = img->s->aux; p && p != img; *pprev = p, p = p->next) {}
-  (*pprev)->next = p->next;
+  for (p = img->s->aux; p && p != img; pprev = &p->next, p = p->next) {}
+  if (p)
+    *pprev = p->next;
   img->s = 0;
 }
 

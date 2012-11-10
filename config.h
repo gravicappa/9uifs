@@ -1,18 +1,20 @@
-#define DEFAULT_FONT_DIR "data"
-#define DEFAULT_FONT "sans"
-#define DEFAULT_FONT_SIZE 12
+#define DEF_EVENT_MIN_TIME_MS 20
 
-#define DEFAULT_VIEW_BG 0xffffffff
+#define DEF_FONT_DIR "data"
+#define DEF_FONT "sans"
+#define DEF_FONT_SIZE 12
 
-#define DEFAULT_BG 0xffffffff
+#define DEF_VIEW_BG 0xffffffff
 
-#define DEFAULT_LABEL_BG 0xffffffff
-#define DEFAULT_LABEL_FG 0xff000000
+#define DEF_BG 0xffffffff
 
-#define DEFAULT_BTN_BG 0xffffffff
-#define DEFAULT_BTN_FG 0xff000000
-#define DEFAULT_BTN_PRESSED_BG 0xff000000
-#define DEFAULT_BTN_PRESSED_FG 0xffffffff
+#define DEF_LABEL_BG 0xffffffff
+#define DEF_LABEL_FG 0xff000000
+
+#define DEF_BTN_BG 0xffffffff
+#define DEF_BTN_FG 0xff000000
+#define DEF_BTN_PRESSED_BG 0xff000000
+#define DEF_BTN_PRESSED_FG 0xffffffff
 
 #define BTN_PRESS_TIME_MS 100
 

@@ -273,6 +273,9 @@ fs_attach(struct p9_connection *con)
   fid->owns_uid = 1;
   fid->uid = strndup(con->t.uname, con->t.uname_len);
   attach_fid(fid, &cl->f);
+  con->r.aqid.type = cl->f.mode >> 24;
+  con->r.aqid.version = cl->f.version;
+  con->r.aqid.path = cl->f.qpath;
 }
 
 static void

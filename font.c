@@ -15,7 +15,7 @@ font_from_str(const char *str)
 {
   static char buf[64];
   const char *s = str, *name = str;
-  int size = DEFAULT_FONT_SIZE;
+  int size = DEF_FONT_SIZE;
 
   s = strpbrk(str, ":\n");
   if (s) {

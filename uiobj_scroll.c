@@ -106,39 +106,12 @@ draw_over(struct uiobj *u, struct uicontext *ctx)
 
   child = us->place.obj;
 
-  switch (us->mode) {
-  case WAITING:
-  case SCROLLING:
-    for (i = 0; i < 2; ++i)
-      if (us->scrollopts[i] && child->reqsize[i]) {
-        scroll_rect(r, u, i);
-        draw_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_FRAME,
-                  SCROLL_HANDLE);
-      }
-    break;
-  default:
-    for (i = 0; i < 2; ++i)
-      if (child->reqsize[i] > u->viewport.r[i + 2]) {
-        if (i == 0) {
-          r[1] = u->viewport.r[1];
-          r[2] = SCROLL_HINT_SIZE;
-          r[3] = u->viewport.r[3];
-        } else {
-          r[0] = u->viewport.r[0];
-          r[2] = u->viewport.r[2];
-          r[3] = SCROLL_HINT_SIZE;
-        }
-        if (us->pos[i] > 0) {
-          r[i] = u->viewport.r[i];
-          draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_HINT_BG);
-        }
-        if (us->pos[i] < child->reqsize[i] - child->viewport.r[i + 2]) {
-          r[i] = u->viewport.r[i] + u->viewport.r[i + 2] - SCROLL_HINT_SIZE;
-          r[i + 2] = SCROLL_HINT_SIZE;
-          draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_HINT_BG);
-        }
-      }
-  }
+  for (i = 0; i < 2; ++i)
+    if (us->scrollopts[i] && child->reqsize[i] > u->viewport.r[i + 2]) {
+      scroll_rect(r, u, i);
+      draw_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_FRAME,
+                SCROLL_HANDLE);
+    }
 }
 
 static void
@@ -271,7 +244,7 @@ static int
 on_inout(struct uiobj *u, int inside)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
-  if (us) {
+  if (us && us->mode != NORMAL) {
     us->mode = NORMAL;
     u->flags |= UI_DIRTY;
     if (us->place.obj)
@@ -297,9 +270,11 @@ on_input(struct uiobj *u, struct input_event *ev)
 
   case IN_PTR_UP:
   case IN_PTR_DOWN:
-    us->mode = NORMAL;
-    u->flags |= UI_DIRTY;
-    us->place.obj->flags |= UI_DIRTY;
+    if (us->mode != NORMAL) {
+      us->mode = NORMAL;
+      u->flags |= UI_DIRTY;
+      us->place.obj->flags |= UI_DIRTY;
+    }
     return 0;
 
   default:

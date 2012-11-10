@@ -141,6 +141,10 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
     break;
   default:;
   }
+#if 0
+  log_printf(LOG_UI, "on-input '%s' %p\n", u->f.name, u->ops->on_input);
+  return 1;
+#endif
   return u->ops->on_input && u->ops->on_input(u, ev);
 }
 
@@ -151,22 +155,23 @@ input_event_fn(struct uiplace *up, void *aux)
   struct input_event *ev = ctx->ev;
   struct uiobj *u = up->obj;
 
-  if (0)
-    log_printf(LOG_UI, "input_event_fn %s\n", u ? u->f.name : "(nil)");
+#if 0
+  log_printf(LOG_UI, "input_event_fn %s\n", u ? u->f.name : "(nil)");
+#endif
 
   if (!(u && inside_uiobj(ev->x, ev->y, u)))
     return 1;
 
   if (!ctx->over) {
-    if (0)
-      log_printf(LOG_UI, "input_event_fn over <- %s\n",
-                 u ? u->f.name : "(nil)");
+#if 0
+    log_printf(LOG_UI, "input_event_fn over <- %s\n",
+               u ? u->f.name : "(nil)");
+#endif
     ctx->over = u;
   }
-
-  if (0)
-    log_printf(LOG_UI, "input_event_fn on-input %s\n",
-               u ? u->f.name : "(nil)");
+#if 0
+  log_printf(LOG_UI, "input_event_fn on-input %s\n", u ? u->f.name : "(nil)");
+#endif
 
   if (on_input(ctx->v, u, ev)) {
     ctx->u = u;
@@ -241,17 +246,16 @@ ui_pointer_event(struct view *v, struct input_event *ev)
   struct uiplace *up;
 
   t = onexit(v, (struct uiobj *)v->uipointed, ev->x, ev->y);
-  if ((v->flags & VIEW_EV_DIRTY) || !t) {
+  if ((v->flags & VIEW_EV_DIRTY) || !t)
     ui_walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_fn, &ctx);
-  } else {
+  else {
     ui_walk_view_tree(t->parent, 0, input_event_fn, &ctx);
-    if (t->parent) {
+    if (t->parent)
       for (up = t->parent->parent; up && up->obj; up = up->parent) {
         obj = up->obj;
         if (on_input(v, obj, ev))
           break;
       }
-    }
     onenter(v, t, ctx.over, ev->x, ev->y);
   }
   v->flags &= ~VIEW_EV_DIRTY;

@@ -9,13 +9,14 @@
 #include "event.h"
 #include "client.h"
 #include "fstypes.h"
+#include "config.h"
 
 static int buf_delta = 512;
 
 struct ev_listener {
   struct ev_listener *next;
-  struct file *file;
   unsigned short tag;
+  unsigned short flags;
   unsigned int time_ms;
   unsigned int count;
   struct arr *buf;
@@ -72,31 +73,36 @@ put_event(struct client *c, struct ev_pool *pool, struct ev_fmt *ev)
     free(b);
 }
 
-/* TODO: think about accumulating events within given timelimit to
-  decrease IO for some cases. */
+static void
+send_event(struct client *c, struct ev_listener *lsr)
+{
+  if (!(lsr->buf && lsr->buf->used > 0))
+    return;
+  c->con.r.tag = lsr->tag;
+  c->con.r.type = P9_RREAD;
+  c->con.r.count = lsr->count;
+  c->con.r.data = c->con.buf;
+  if (c->con.r.count > lsr->buf->used)
+    c->con.r.count = lsr->buf->used;
+  memcpy(c->con.buf, lsr->buf->b, c->con.r.count);
+  if (client_send_resp(c))
+    return;
+  arr_delete(&lsr->buf, 0, c->con.r.count);
+  lsr->tag = P9_NOTAG;
+  lsr->time_ms = cur_time_ms;
+}
 
 void
 put_event_str(struct client *c, struct ev_pool *pool, int len, char *ev)
 {
   struct ev_listener *lsr;
+  unsigned int t = pool->min_time_ms;
 
   for (lsr = pool->listeners; lsr; lsr = lsr->next) {
     if (arr_memcpy(&lsr->buf, buf_delta, -1, len, ev))
       return;
-    if (lsr->tag != P9_NOTAG) {
-      c->con.r.tag = lsr->tag;
-      c->con.r.type = P9_RREAD;
-      c->con.r.count = lsr->count;
-      c->con.r.data = c->con.buf;
-      if (c->con.r.count > lsr->buf->used)
-        c->con.r.count = lsr->buf->used;
-      memcpy(c->con.buf, lsr->buf->b, c->con.r.count);
-      if (client_send_resp(c))
-        return;
-      arr_delete(&lsr->buf, 0, c->con.r.count);
-      lsr->tag = P9_NOTAG;
-      lsr->time_ms = 0;
-    }
+    if (lsr->tag != P9_NOTAG && cur_time_ms - lsr->time_ms > t)
+      send_event(c, lsr);
   }
 }
 
@@ -105,40 +111,40 @@ event_rm_fid(struct p9_fid *fid)
 {
   struct file *f = (struct file *)fid->file;
   struct ev_pool *pool = (struct ev_pool *)f;
-  struct ev_listener *lsr = (struct ev_listener *)fid->aux, *p;
+  struct ev_listener *lsr = fid->aux, *p, **pp;
 
   if (!pool)
     return;
-  if (lsr == pool->listeners)
-    pool->listeners = pool->listeners->next;
-  else {
-    for (p = pool->listeners; p && p->next != lsr; p = p->next) {}
-    if (p)
-      p->next = lsr->next;
-  }
-  fid->aux = 0;
-  fid->rm = 0;
+
+  pp = &pool->listeners;
+  for (p = *pp; p && p != lsr; pp = &p->next, p = p->next) {}
+  if (p)
+    *pp = p->next;
+
   if (lsr->buf)
     free(lsr->buf);
   free(lsr);
+  fid->aux = 0;
+  fid->rm = 0;
 }
 
 void
-event_open(struct p9_connection *c)
+event_open(struct p9_connection *con)
 {
   struct ev_listener *lsr;
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   struct file *f = (struct file *)fid->file;
   struct ev_pool *pool = (struct ev_pool *)f;
 
   lsr = (struct ev_listener *)calloc(1, sizeof(struct ev_listener));
   if (!lsr) {
-    P9_SET_STR(c->r.ename, "out of memory");
+    P9_SET_STR(con->r.ename, "out of memory");
     return;
   }
   lsr->next = pool->listeners;
   pool->listeners = lsr;
   lsr->tag = P9_NOTAG;
+  lsr->time_ms = cur_time_ms;
   fid->aux = lsr;
   fid->rm = event_rm_fid;
 }
@@ -184,17 +190,15 @@ event_flush(struct p9_connection *con)
 static void
 rm_event(struct file *f)
 {
-  struct ev_pool *pool = (struct ev_pool *)f;
-  struct ev_listener *lsr, *lsr_next;
+  struct ev_pool *pool = (struct ev_pool *)f, *p, **pp;
+  struct client *client = pool->client;
 
-  /* NOTE: we assume that event files cannot be deleted in runtime so living
-     fids not taken care of */
-  for (lsr = pool->listeners; lsr; lsr = lsr_next) {
-    lsr_next = lsr->next;
-    if (lsr->buf)
-      free(lsr->buf);
-    free(lsr);
-  }
+  pp = &client->evpools;
+  for (p = client->evpools; p && p != pool; pp = &p->next, p = p->next) {}
+  if (p)
+    *pp = p->next;
+
+  detach_file_fids(f);
   pool->listeners = 0;
 }
 
@@ -205,11 +209,30 @@ static struct p9_fs fs_event = {
 };
 
 void
-init_event(struct ev_pool *pool)
+init_event(struct ev_pool *pool, struct client *client)
 {
   pool->f.mode = 0400;
   pool->f.qpath = new_qid(FS_EVENT);
   pool->f.fs = &fs_event;
   pool->f.rm = rm_event;
+  pool->client = client;
+  pool->min_time_ms = DEF_EVENT_MIN_TIME_MS;
   pool->listeners = 0;
+  pool->next = client->evpools;
+  client->evpools = pool;
+}
+
+void
+send_events_deferred(struct client *c)
+{
+  struct ev_pool *pool;
+  struct ev_listener *lsr;
+  unsigned int t;
+
+  for (pool = c->evpools; pool; pool = pool->next) {
+    t = pool->min_time_ms;
+    for (lsr = pool->listeners; lsr; lsr = lsr->next)
+      if (lsr->tag != P9_NOTAG && cur_time_ms - lsr->time_ms > t)
+        send_event(c, lsr);
+  }
 }

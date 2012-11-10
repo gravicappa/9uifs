@@ -108,8 +108,8 @@ init_uilabel(struct uiobj *u)
   u->ops = &label_ops;
   u->data = x;
   u->f.rm = rm_uilabel;
-  u->bg.i = DEFAULT_LABEL_BG;
-  x->fg.i = DEFAULT_LABEL_FG;
+  u->bg.i = DEF_LABEL_BG;
+  x->fg.i = DEF_LABEL_FG;
   return 0;
 }
 
@@ -138,13 +138,13 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
   case BTN_NORMAL:
     bg = u->bg.i;
     fg = b->fg.i;
-    frame = DEFAULT_BTN_FG;
+    frame = DEF_BTN_FG;
     break;
 
   case BTN_PRESSED:
-    bg = DEFAULT_BTN_PRESSED_BG;
-    fg = DEFAULT_BTN_PRESSED_FG;
-    frame = DEFAULT_BTN_PRESSED_FG;
+    bg = DEF_BTN_PRESSED_BG;
+    fg = DEF_BTN_PRESSED_FG;
+    frame = DEF_BTN_PRESSED_FG;
     break;
   }
 
@@ -231,7 +231,7 @@ init_uibutton(struct uiobj *u)
   x = (struct uiobj_label *)u->data;
   x->state = BTN_NORMAL;
   u->ops = &btn_ops;
-  u->bg.i = DEFAULT_BTN_BG;
-  x->fg.i = DEFAULT_BTN_FG;
+  u->bg.i = DEF_BTN_BG;
+  x->fg.i = DEF_BTN_FG;
   return 0;
 }

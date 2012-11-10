@@ -64,7 +64,7 @@ add_client(int server_fd, int msize)
   c->f.qpath = new_qid(FS_ROOT);
 
   c->ev.f.name = "event";
-  init_event(&c->ev);
+  init_event(&c->ev, c);
   add_file(&c->f, &c->ev.f);
 
   c->f_views.name = "views";
@@ -314,6 +314,8 @@ process_clients(int server_fd, unsigned int time_ms, unsigned int frame_ms)
   int m, r;
   struct client *c, *cnext;
 
+  for (c = clients; c; c = c->next)
+    send_events_deferred(c);
   cur_time_ms = time_ms;
   m = update_sock_set(&fdset, server_fd);
   tv.tv_sec = 0;

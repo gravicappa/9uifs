@@ -24,6 +24,7 @@ struct client {
   struct file *images;
   struct file *ui;
 
+  struct ev_pool *evpools;
   struct view *selected_view;
 };
 

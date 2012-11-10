@@ -23,7 +23,7 @@ int scr_w = 320;
 int scr_h = 200;
 int show_cursor = 1;
 int frame_ms = 1000 / 30;
-int moveptr_events_interval_ms = 10;
+int moveptr_events_interval_ms = 1000 / 60;
 char *server_host = 0;
 struct sdl_screen screen;
 UFont default_font = 0;
@@ -231,9 +231,9 @@ default_screen()
 static void
 init_fonts()
 {
-  imlib_add_path_to_font_path(DEFAULT_FONT_DIR);
+  imlib_add_path_to_font_path(DEF_FONT_DIR);
   if (!default_font)
-    default_font = create_font(DEFAULT_FONT, DEFAULT_FONT_SIZE, "");
+    default_font = create_font(DEF_FONT, DEF_FONT_SIZE, "");
 }
 
 int

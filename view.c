@@ -117,7 +117,7 @@ mk_view(int x, int y, int w, int h, struct client *client)
     free(v);
     return 0;
   }
-  draw_rect(v->blit.img, 0, 0, w, h, 0, DEFAULT_VIEW_BG);
+  draw_rect(v->blit.img, 0, 0, w, h, 0, DEF_VIEW_BG);
   v->blit.aux = v;
   v->blit.update = update_blit;
   v->f.mode = 0500 | P9_DMDIR;
@@ -125,15 +125,15 @@ mk_view(int x, int y, int w, int h, struct client *client)
   v->f.rm = rm_view;
 
   v->ev.f.name = "event";
-  init_event(&v->ev);
+  init_event(&v->ev, client);
   add_file(&v->f, &v->ev.f);
 
   v->ev_pointer.f.name = "pointer";
-  init_event(&v->ev_pointer);
+  init_event(&v->ev_pointer, client);
   add_file(&v->f, &v->ev_pointer.f);
 
   v->ev_keyboard.f.name = "keyboard";
-  init_event(&v->ev_keyboard);
+  init_event(&v->ev_keyboard, client);
   add_file(&v->f, &v->ev_keyboard.f);
 
   v->f_visible.name = "visible";

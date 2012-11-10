@@ -3,33 +3,18 @@ MKSHELL = rc
 name = uifs
 
 LANG = C
-CC = gcc
-O = o
-#CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
-CFLAGS = -Wall -O0 -g 
-
-CFLAGS = $CFLAGS -pg
-LDFLAGS = -pg
-
-CFLAGS = $CFLAGS `{sdl-config --cflags}
-#LDFLAGS = $LDFLAGS -static
-LDFLAGS = $LDFLAGS `{sdl-config --static-libs}
-
-CFLAGS = $CFLAGS -DX_DISPLAY_MISSING
-LDFLAGS = $LDFLAGS -lImlib2
 
 exe = $name
 run_flags = -s 400x300
-
+target = unix
 <| test -f $target.mk && cat $target.mk || echo
 
-obj = config.$O 9pmsg.$O fs.$O main_sdl.$O util.$O net.$O client.$O \
+obj = $obj config.$O 9pmsg.$O fs.$O main_sdl.$O util.$O net.$O client.$O \
 			fsutil.$O fs.$O 9pdbg.$O surface.c view.c event.$O ctl.$O wm.$O \
 			ui.$O uievent.$O prop.$O uiobj_grid.$O uiobj_scroll.$O uiobj_label.$O \
 			uiobj_image.$O text.$O font.$O stb_image.$O images.$O
 
-obj = $obj net_unix.$O
-obj = $obj profile.$O
+#obj = $obj profile.$O
 
 docs = docs/doc.html
 
@@ -45,9 +30,6 @@ $exe.exe: $obj
 
 $exe: $obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
-
-test/test_arr: test/test_arr.c util.o
-test/test_path: test/test_path.c util.o
 
 %.$O: %.c
   $CC $CFLAGS -c -o $target $stem.c

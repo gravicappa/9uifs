@@ -228,7 +228,7 @@ mk_uiobj(struct client *client)
   u->flags |= UI_DIRTY;
 
   r = init_prop_buf(&u->f, &u->type, "type", 0, "", 0, u)
-      || init_prop_colour(&u->f, &u->bg, "background", DEFAULT_BG, u)
+      || init_prop_colour(&u->f, &u->bg, "background", DEF_BG, u)
       || init_prop_int(&u->f, &u->visible, "visible", 0, u)
       || init_prop_int(&u->f, &u->drawable, "drawable", 1, u)
       || init_prop_rect(&u->f, &u->restraint, "restraint", 1, u)
