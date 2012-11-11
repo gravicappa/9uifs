@@ -1,7 +1,7 @@
 fn mnt {
-	9umount mnt
-	test -z $"host && host='tcp!127.0.0.1!5558' 
-	9mount -i $host mnt
+  fusermount -u mnt
+  test -z $"host && host='127.0.0.1:5558'
+  9pfuse 127.0.0.1:5558 mnt
 }
 
 fn start {
@@ -25,49 +25,42 @@ fn assert_file {
   }
 }
 
-fn show {
-  echo ';; '^$1: `{cat $1}
-}
+fn show {echo ';; '^$1: `{cat $1}}
 
 asserted_fields=(type path background foreground text font)
 
 fn write_fields {
-	dir=$1 {
-		shift
-		while (test $#* -gt 0) {
-			key=`{echo $1 | sed 's/^-//'} {
-				if (test -n $2) {
-					echo $2 >$dir/$key
-					if (~ $key $asserted_fields)
-						assert_file $dir/$key $2
-				}
-			}
-			shift 2
-		}
-	}
-	true
+  dir=$1 {
+    shift
+    while (test $#* -gt 0) {
+      key=`{echo $1 | sed 's/^-//'} {
+        if (test -n $2) {
+          echo $2 >$dir/$key
+          if (~ $key $asserted_fields)
+            assert_file $dir/$key $2
+        }
+      }
+      shift 2
+    }
+  }
+  true
 }
 
 fn add_widget {
-	w=$1 dir=$2 {
-		mkdir -p $dir
-		shift 2
-		write_fields $dir -path $w $*
-	}
+  w=$1 dir=$2 {
+    mkdir -p $dir
+    shift 2
+    write_fields $dir -path $w $*
+  }
 }
 
 fn mk_item {
-	dir=$1 {
-		mkdir -p $dir
-		shift
-		write_fields $dir $*
-	}
+  dir=$1 {
+    mkdir -p $dir
+    shift
+    write_fields $dir $*
+  }
 }
 
-fn mk_widget {
-	mk_item $*
-}
-
-fn mk_view {
-	mk_item $*
-}
+fn mk_widget {mk_item $*}
+fn mk_view {mk_item $*}
