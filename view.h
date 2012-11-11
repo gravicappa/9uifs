@@ -30,9 +30,15 @@ struct view {
   struct file *uipointed;
 };
 
+struct input_event;
+struct uiobj;
+
 extern struct p9_fs fs_views;
 
+void mk_views_dir(struct file *f);
 struct view *mk_view(int x, int y, int w, int h, struct client *client);
 void moveresize_view(struct view *v, int x, int y, int w, int h);
 int draw_view(struct view *v);
 void update_view(struct view *v);
+void handle_view_input(struct view *v, struct uiobj *u,
+                       struct input_event *ev);

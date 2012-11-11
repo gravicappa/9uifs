@@ -18,9 +18,7 @@
 #include "ui.h"
 #include "wm.h"
 #include "config.h"
-
-extern int scr_w;
-extern int scr_h;
+#include "input.h"
 
 void
 rm_view(struct file *f)
@@ -189,4 +187,55 @@ draw_view(struct view *v)
     return 1;
   }
   return 0;
+}
+
+void
+handle_view_input(struct view *v, struct uiobj *u, struct input_event *ev)
+{
+  switch (ev->type) {
+  case IN_PTR_MOVE:
+    if (v->ev_pointer.listeners) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "m"}},
+        {ev_uint, {.u = ev->id}},
+        {ev_uint, {.u = ev->x - v->g.r[0]}},
+        {ev_uint, {.u = ev->y - v->g.r[1]}},
+        {ev_int, {.u = ev->dx}},
+        {ev_int, {.u = ev->dy}},
+        {ev_uint, {.u = ev->state}},
+        {0}
+      };
+      put_event(v->c, &v->ev_pointer, evfmt);
+    }
+    ui_pointer_event(v, u, ev);
+    break;
+  case IN_PTR_UP:
+  case IN_PTR_DOWN:
+    if (v->ev_pointer.listeners) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
+        {ev_uint, {.u = ev->id}},
+        {ev_uint, {.u = ev->x - v->g.r[0]}},
+        {ev_uint, {.u = ev->y - v->g.r[1]}},
+        {ev_uint, {.u = ev->key}},
+        {0}
+      };
+      put_event(v->c, &v->ev_pointer, evfmt);
+    }
+    ui_pointer_event(v, u, ev);
+    break;
+  case IN_KEY_UP:
+  case IN_KEY_DOWN:
+    if (v->ev_keyboard.listeners) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
+        {ev_uint, {.u = ev->key}},
+        {ev_uint, {.u = ev->state}},
+        {ev_uint, {.u = ev->unicode}},
+        {0}
+      };
+      put_event(v->c, &v->ev_keyboard, evfmt);
+    }
+    ui_keyboard(v, u, ev);
+  }
 }

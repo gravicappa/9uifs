@@ -50,27 +50,15 @@ ev_uiobj(char *buf, struct ev_fmt *ev)
 }
 
 int
-ui_keyboard(struct view *v, struct input_event *ev)
+ui_keyboard(struct view *v, struct uiobj *u, struct input_event *ev)
 {
-  struct uiobj *u = (struct uiobj *)v->uisel;
   char *type;
 
+  u = (u) ? u : (struct uiobj *)v->uisel;
   if (u && u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
 
   type = (ev->type == IN_KEY_DOWN) ? "d" : "u";
-  if (v->flags & VIEW_KBD_EV) {
-    struct ev_fmt evfmt[] = {
-      {ev_str, {.s = "key"}},
-      {ev_str, {.s = type}},
-      {ev_uint, {.u = ev->key}},
-      {ev_uint, {.u = ev->state}},
-      {ev_uint, {.u = ev->unicode}},
-      {ev_uiobj, {.o = u}},
-      {0}
-    };
-    put_event(v->c, &v->c->ev, evfmt);
-  }
   if (u && u->flags & UI_KBD_EV) {
     struct ev_fmt evfmt[] = {
       {ev_str, {.s = "key"}},
@@ -239,11 +227,14 @@ onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
 }
 
 int
-ui_pointer_event(struct view *v, struct input_event *ev)
+ui_pointer_event(struct view *v, struct uiobj *u, struct input_event *ev)
 {
-  struct input_context ctx = { ev, 0, 0, v };
+  struct input_context ctx = {ev, 0, 0, v};
   struct uiobj *t, *obj;
   struct uiplace *up;
+
+  if (u)
+    return on_input(v, u, ev);
 
   t = onexit(v, (struct uiobj *)v->uipointed, ev->x, ev->y);
   if ((v->flags & VIEW_EV_DIRTY) || !t)

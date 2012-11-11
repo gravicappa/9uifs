@@ -604,6 +604,17 @@ ui_propagate_dirty(struct uiplace *up)
   }
 }
 
+struct view *
+ui_get_uiobj_view(struct uiobj *u)
+{
+  struct uiplace *up = u->parent;
+
+  for (; up && (u = uiplace_container(up)); up = u->parent) {}
+  if (!up)
+    return 0;
+  return uiplace_container_view(up);
+}
+
 void
 ui_prop_update_default(struct prop *p)
 {

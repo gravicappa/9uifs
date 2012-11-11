@@ -23,13 +23,10 @@
 #include "config.h"
 #include "font.h"
 #include "images.h"
+#include "wm.h"
 
 struct client *clients = 0;
-struct client *selected_client = 0;
-struct view *selected_view = 0;
 unsigned int cur_time_ms;
-int framecnt[2] = {0, 0};
-int prevframecnt = -1;
 
 struct client *
 add_client(int server_fd, int msize)
@@ -192,53 +189,7 @@ process_client_io(struct client *c)
 void
 client_input_event(struct input_event *ev)
 {
-  if (!selected_view)
-    return;
-
-  switch (ev->type) {
-  case IN_PTR_MOVE:
-    if (selected_view->ev_pointer.listeners) {
-      struct ev_fmt evfmt[] = {
-        {ev_str, {.s = "m"}}, {ev_uint, {.u = ev->id}},
-        {ev_uint, {.u = ev->x}}, {ev_uint, {.u = ev->y}},
-        {ev_int, {.u = ev->dx}}, {ev_int, {.u = ev->dy}},
-        {ev_uint, {.u = ev->state}},
-        {0}
-      };
-      put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
-    }
-    ui_pointer_event(selected_view, ev);
-    break;
-
-  case IN_PTR_DOWN:
-  case IN_PTR_UP:
-    if (selected_view->ev_pointer.listeners) {
-      struct ev_fmt evfmt[] = {
-        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
-        {ev_uint, {.u = ev->id}}, {ev_uint, {.u = ev->x}},
-        {ev_uint, {.u = ev->y}}, {ev_uint, {.u = ev->key}},
-        {0}
-      };
-      put_event(selected_view->c, &selected_view->ev_pointer, evfmt);
-    }
-    ui_pointer_event(selected_view, ev);
-    break;
-
-  case IN_KEY_DOWN:
-  case IN_KEY_UP:
-    if (selected_view->ev_keyboard.listeners) {
-      struct ev_fmt evfmt[] = {
-        {ev_str, {.s = (ev->type == IN_PTR_DOWN) ? "d" : "u"}},
-        {ev_uint, {.u = ev->key}},
-        {ev_uint, {.u = ev->state}},
-        {ev_uint, {.u = ev->unicode}},
-        {0}
-      };
-      put_event(selected_view->c, &selected_view->ev_keyboard, evfmt);
-    }
-    ui_keyboard(selected_view, ev);
-    break;
-  }
+  wm_on_input(ev);
 }
 
 static int

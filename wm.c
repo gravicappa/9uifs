@@ -8,6 +8,13 @@
 #include "surface.h"
 #include "prop.h"
 #include "view.h"
+#include "input.h"
+
+struct view *selected_view = 0;
+struct uiobj *grabbed_ptr_uiobj = 0;
+struct uiobj *grabbed_kbd_uiobj = 0;
+struct view *grabbed_ptr_view = 0;
+struct view *grabbed_kbd_view = 0;
 
 void
 wm_new_view_geom(int *r)
@@ -42,8 +49,85 @@ wm_on_rm_view(struct view *v)
 {
   struct client *c = v->c;
   struct screen *s = default_screen();
-  c->selected_view = ((v == (struct view *)c->f_views.child)
-                      ? (struct view *)v->f.next
-                      : (struct view *)c->f_views.child);
-  moveresize_view(c->selected_view, 0, 0, s->w, s->h);
+  selected_view = ((v == (struct view *)c->f_views.child)
+                  ? (struct view *)v->f.next
+                  : (struct view *)c->f_views.child);
+  moveresize_view(selected_view, 0, 0, s->w, s->h);
+}
+
+static int
+inside_view(int x, int y, struct view *v)
+{
+  int *r = v->g.r;
+  return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
+}
+
+int
+wm_on_input(struct input_event *ev)
+{
+  struct client *c;
+  struct view *prevsel, *v = selected_view;
+  struct file *vf;
+  struct uiobj *u = 0;
+
+  switch (ev->type) {
+  case IN_PTR_MOVE:
+    v = grabbed_ptr_view;
+    u = grabbed_ptr_uiobj;
+    if (!grabbed_ptr_view) {
+      prevsel = selected_view;
+      selected_view = 0;
+      for (c = clients; c; c = c->next)
+        for (vf = c->f_views.child; vf; vf = vf->next) {
+          v = (struct view *)vf;
+          if (inside_view(ev->x, ev->y, v)) {
+            selected_view = v;
+            break;
+          }
+        }
+      v = selected_view;
+    }
+    break;
+  case IN_PTR_UP:
+  case IN_PTR_DOWN:
+    v = (grabbed_ptr_view) ? grabbed_ptr_view : selected_view;
+    u = grabbed_ptr_uiobj;
+    break;
+  case IN_KEY_UP:
+  case IN_KEY_DOWN:
+    v = (grabbed_kbd_view) ? grabbed_kbd_view : selected_view;
+    u = grabbed_ptr_uiobj;
+    break;
+  }
+  if (v)
+    handle_view_input(v, u, ev);
+  return 0;
+}
+
+void
+wm_grab_ptr(struct view *v, struct uiobj *u)
+{
+  grabbed_ptr_view = v;
+  grabbed_ptr_uiobj = u;
+}
+
+void
+wm_ungrab_ptr()
+{
+  grabbed_ptr_view = 0;
+  grabbed_ptr_uiobj = 0;
+}
+
+void
+wm_grab_kbd(struct view *v, struct uiobj *u)
+{
+  grabbed_kbd_view = v;
+  grabbed_kbd_uiobj = u;
+}
+
+void
+wm_ungrab_kbd()
+{
+  grabbed_kbd_view = 0;
+  grabbed_kbd_uiobj = 0;
 }
