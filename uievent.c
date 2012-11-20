@@ -29,6 +29,7 @@ static struct evmask {
   {"ptr_move", UI_MOVE_PTR_EV},
   {"ptr_updown", UI_UPDOWN_PTR_EV},
   {"ptr_inout", UI_INOUT_EV},
+  {"resize", UI_RESIZE_EV},
   {0}
 };
 

@@ -3,8 +3,7 @@ struct view;
 struct input_event;
 struct uiobj;
 
-extern struct view *selected_view;
-extern unsigned int grab_flags;
+extern struct view *wm_selected_view;
 
 void wm_new_view_geom(int *r);
 void wm_on_create_view(struct view *v);

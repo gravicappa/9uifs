@@ -397,6 +397,18 @@ resize_place(struct uiplace *up, void *aux)
   if (u) {
     if (u->ops->resize)
       u->ops->resize(u);
+    if (u->client->ev.listeners && (u->flags & UI_RESIZE_EV)) {
+      struct ev_fmt evfmt[] = {
+        {ev_str, {.s = "resize"}},
+        {ev_uiobj, {.o = u}},
+        {ev_int, {.i = u->g.r[0]}},
+        {ev_int, {.i = u->g.r[1]}},
+        {ev_int, {.i = u->g.r[2]}},
+        {ev_int, {.i = u->g.r[3]}},
+        {0}
+      };
+      put_event(u->client, &u->client->ev, evfmt);
+    }
     memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
   }
   return 1;

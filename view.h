@@ -7,6 +7,7 @@ enum viewflags {
   VIEW_KBD_EV = (1 << 3),
   VIEW_UPDOWN_PTR_EV = (1 << 4),
   VIEW_MOVE_PTR_EV = (1 << 5),
+  VIEW_FOCUS_EV = (1 << 6),
 };
 
 struct view {

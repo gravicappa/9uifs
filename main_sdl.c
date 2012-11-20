@@ -10,6 +10,7 @@
 #include "fs.h"
 #include "event.h"
 #include "client.h"
+#include "net.h"
 
 struct sdl_screen {
   struct screen s;
@@ -466,7 +467,7 @@ parse_args(int argc, char **argv)
     } else if (!strcmp(argv[i], "-nocursor"))
       show_cursor = 0;
     else
-      die("Usage: uifs [-d logmask] [-s WxH]");
+      die("Usage: uifs [-d logmask] [-s WxH] [-nocursor]");
   log_printf(LOG_CLIENT, "logging: client\n");
   log_printf(LOG_DATA, "logging: data\n");
   log_printf(LOG_DBG, "logging: dbg\n");
@@ -480,7 +481,6 @@ main(int argc, char **argv)
   int fd;
 
   parse_args(argc, argv);
-
   if (init_network())
     die("Cannot initialize network");
   fd = net_listen(server_host, server_port);
@@ -489,6 +489,7 @@ main(int argc, char **argv)
   if (sdl_init(scr_w, scr_h))
     die("Cannot init SDL");
   main_loop(fd);
+  close(fd);
   free_screen();
   free_network();
   SDL_Quit();

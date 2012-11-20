@@ -161,9 +161,6 @@ mk_view(int x, int y, int w, int h, struct client *client)
 void
 moveresize_view(struct view *v, int x, int y, int w, int h)
 {
-  char buf[64];
-  int len;
-
   if (!v)
     return;
   v->g.r[0] = x;
@@ -173,8 +170,29 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   resize_surface(&v->blit, w, h);
   v->flags |= VIEW_DIRTY;
 
-  len = snprintf(buf, sizeof(buf), "geom %u %u %u %u\n", x, y, w, h);
-  put_event_str(v->c, &v->ev, len, buf);
+  if (v->ev.listeners) {
+    struct ev_fmt evfmt[] = {
+      {ev_str, {.s = "geom"}},
+      {ev_int, {.u = v->g.r[0]}},
+      {ev_int, {.u = v->g.r[1]}},
+      {ev_int, {.u = v->g.r[2]}},
+      {ev_int, {.u = v->g.r[3]}},
+      {0}
+    };
+    put_event(v->c, &v->ev, evfmt);
+  }
+  if (v->c->ev.listeners) {
+    struct ev_fmt evfmt[] = {
+      {ev_str, {.s = "viewgeom"}},
+      {ev_str, {.v = v}},
+      {ev_int, {.u = v->g.r[0]}},
+      {ev_int, {.u = v->g.r[1]}},
+      {ev_int, {.u = v->g.r[2]}},
+      {ev_int, {.u = v->g.r[3]}},
+      {0}
+    };
+    put_event(v->c, &v->c->ev, evfmt);
+  }
 }
 
 int

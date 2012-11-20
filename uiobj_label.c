@@ -12,6 +12,7 @@
 #include "ctl.h"
 #include "surface.h"
 #include "view.h"
+#include "ui.h"
 #include "uiobj.h"
 #include "config.h"
 #include "client.h"
