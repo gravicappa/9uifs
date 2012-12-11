@@ -140,7 +140,7 @@ add_fid(unsigned int fid, struct fid_pool *pool, int msize)
   }
   memset(f, 0, sizeof(*f));
   f->f.fid = fid;
-  f->f.iounit = msize - 23;
+  f->f.iounit = msize - 24;
   f->f.open_mode = 0;
   f->f.uid = 0;
   f->fprev = f->fnext = 0;
@@ -213,6 +213,9 @@ attach_fid(struct p9_fid *fid, struct file *file)
 
   if (!fid)
     return;
+
+  if (fid->file)
+    detach_fid(fid);
 
   fid->file = file;
   f->fprev = 0;
@@ -377,36 +380,37 @@ fs_open(struct p9_connection *con)
 }
 
 static void
-fs_create(struct p9_connection *c)
+fs_create(struct p9_connection *con)
 {
   struct file *f;
 
-  if (get_req_fid(c))
+  if (get_req_fid(con))
     return;
-  f = (struct file *)c->t.pfid->file;
+  f = (struct file *)con->t.pfid->file;
   if (!(f->mode & P9_DMDIR)) {
-    P9_SET_STR(c->r.ename, "Not a directory");
+    P9_SET_STR(con->r.ename, "Not a directory");
     return;
   }
-  if (get_file(f, c->t.name_len, c->t.name)) {
-    P9_SET_STR(c->r.ename, "File exists");
+  if (get_file(f, con->t.name_len, con->t.name)) {
+    P9_SET_STR(con->r.ename, "File exists");
     return;
   }
   if (!(f->fs && f->fs->create)) {
-    P9_SET_STR(c->r.ename, "Operation not permitted");
+    P9_SET_STR(con->r.ename, "Operation not permitted");
     return;
   }
-  f->fs->create(c);
+  f->fs->create(con);
 }
 
 void
-resp_file_create(struct p9_connection *c, struct file *f)
+resp_file_create(struct p9_connection *con, struct file *f)
 {
-  c->t.pfid->open_mode = c->t.mode;
-  c->r.iounit = c->msize - 23;
-  c->r.qid.type = f->mode >> 24;
-  c->r.qid.version = f->version;
-  c->r.qid.path = f->qpath;
+  con->t.pfid->open_mode = con->t.mode;
+  con->r.iounit = con->msize - 24;
+  con->r.qid.type = f->mode >> 24;
+  con->r.qid.version = f->version;
+  con->r.qid.path = f->qpath;
+  attach_fid(con->t.pfid, f);
 }
 
 void

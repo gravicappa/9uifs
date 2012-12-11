@@ -142,8 +142,8 @@ struct p9_msg {
   struct p9_qid aqid;
 
   struct p9_qid wqid[P9_MAXWELEM];
-  int deferred;
   struct p9_fid *pfid;
+  int deferred;
 };
 
 #define P9_WRITE_MODE(mode) \
