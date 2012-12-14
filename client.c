@@ -152,37 +152,42 @@ process_client_io(struct client *c)
   unsigned int size, off;
   char *buf = c->inbuf;
 
-  do {
-    if (c->read >= c->con.msize - (c->con.msize >> 4)) {
+  if (c->read >= c->con.msize - (c->con.msize >> 4)) {
+    if (c->read > c->off)
       memmove(buf, buf + c->off, c->read - c->off);
-      c->read -= c->off;
-      c->off = 0;
+    c->read -= c->off;
+    c->off = 0;
+  }
+  r = recv(c->fd, buf + c->read, c->con.msize - c->read, 0);
+  if (r <= 0)
+    return (net_wouldblock())? 0 : -1;
+  c->read += r;
+  if (c->read < 4)
+    return 0;
+  off = c->off;
+  while (c->read - off >= 4) {
+    size = unpack_uint4((unsigned char *)buf + off);
+    if (size < 7 || size > c->con.msize) {
+      log_printf(LOG_DBG, "wrong message size size: %u msize: %u\n",
+                 size, c->con.msize);
+      return -1;
     }
-    r = recv(c->fd, buf + c->read, c->con.msize - c->read, 0);
-    if (r <= 0)
-      return (net_wouldblock())? 0 : -1;
-    c->read += r;
-    if (c->read < 4)
-      return 0;
-    off = c->off;
-    while (c->read - off >= 4) {
-      size = unpack_uint4((unsigned char *)buf + off);
-      if (size < 7 || size > c->con.msize)
-        return -1;
-      if (off + size > c->read)
-        break;
-      if (p9_unpack_msg(size, buf + off, &c->con.t))
-        return -1;
-      c->con.r.deferred = 0;
-      if (p9_process_treq(&c->con, &fs))
-        return -1;
-      if (!c->con.r.deferred && client_send_resp(c))
-        return -1;
-      off += size;
-      size = 0;
+    if (off + size > c->read)
+      break;
+    if (p9_unpack_msg(size, buf + off, &c->con.t)) {
+      log_printf(LOG_DBG, "unpack message error\n");
+      return -1;
     }
-    c->off = off;
-  } while (1);
+    c->con.r.deferred = 0;
+    if (p9_process_treq(&c->con, &fs)) {
+      log_printf(LOG_DBG, "process message error\n");
+      return -1;
+    }
+    if (!c->con.r.deferred && client_send_resp(c))
+      return -1;
+    off += size;
+  }
+  c->off = off;
   return 0;
 }
 

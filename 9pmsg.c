@@ -1,6 +1,5 @@
 #include <string.h>
 #include "9p.h"
-#include "util.h"
 
 struct p9_stream {
   unsigned int off;

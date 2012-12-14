@@ -80,6 +80,8 @@ free_fid_list(struct fid *fids)
   struct fid *f, *fnext;
   for (f = fids; f; f = fnext) {
     fnext = f->next;
+    if (f->f.file)
+      ((struct file *)f->f.file)->fids = 0;
     free_fid(&f->f);
     free(f);
   }
@@ -184,6 +186,7 @@ detach_file_fids(struct file *file)
 
   for (f = file->fids; f; f = f->fnext)
     f->f.file = 0;
+  file->fids = 0;
 }
 
 void
@@ -196,12 +199,16 @@ detach_fid(struct p9_fid *fid)
 
   if (!file)
     return;
-  if (f == file->fids)
-    file->fids = file->fids->fnext;
-  if (f->fprev)
-    f->fprev->fnext = f->fnext;
-  if (f->fnext)
-    f->fnext->fprev = f->fprev;
+  if (f == file->fids) {
+    file->fids = f->fnext;
+    if (file->fids)
+      file->fids->fprev = 0;
+  } else {
+    if (f->fprev)
+      f->fprev->fnext = f->fnext;
+    if (f->fnext)
+      f->fnext->fprev = f->fprev;
+  }
   f->fprev = f->fnext = 0;
   fid->file = 0;
 }
