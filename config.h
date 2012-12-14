@@ -1,3 +1,5 @@
+#define MSIZE 1024
+
 #define DEF_EVENT_MIN_TIME_MS 20
 
 #define DEF_FONT_DIR "data"
@@ -26,5 +28,3 @@
 #define SCROLL_THRESHOLD 10
 #define SCROLL_HINT_SIZE 5
 #define SCROLL_HINT_BG 0x5f00f000
-
-#define MSIZE 1024

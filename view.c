@@ -170,9 +170,9 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
   resize_surface(&v->blit, w, h);
   v->flags |= VIEW_DIRTY;
 
-  if (v->ev.listeners) {
+  if ((v->flags & VIEW_GEOMETRY_EV) && v->ev.listeners) {
     struct ev_fmt evfmt[] = {
-      {ev_str, {.s = "geom"}},
+      {ev_str, {.s = "viewgeom"}},
       {ev_int, {.u = v->g.r[0]}},
       {ev_int, {.u = v->g.r[1]}},
       {ev_int, {.u = v->g.r[2]}},
@@ -181,7 +181,7 @@ moveresize_view(struct view *v, int x, int y, int w, int h)
     };
     put_event(v->c, &v->ev, evfmt);
   }
-  if (v->c->ev.listeners) {
+  if ((v->flags & VIEW_GEOMETRY_EV) && v->c->ev.listeners) {
     struct ev_fmt evfmt[] = {
       {ev_str, {.s = "viewgeom"}},
       {ev_str, {.v = v}},
