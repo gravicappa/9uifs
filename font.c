@@ -15,17 +15,16 @@ font_from_str(const char *str)
 {
   static char buf[64];
   const char *s = str, *name = str;
-  int size = DEF_FONT_SIZE;
+  int size;
 
-  s = strpbrk(str, ":\n");
+  s = strchr(str, ':');
   if (s) {
     snprintf(buf, sizeof(buf), "%.*s", s - str, str);
     name = buf;
     str = s + 1;
+    if (sscanf(str, "%d", &size) != 1)
+      size = DEF_FONT_SIZE;
   }
-  s = strpbrk(str, ":\n");
-  if (s)
-    size = atoi(str);
   return create_font(name, size, "");
 }
 
