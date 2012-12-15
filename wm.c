@@ -87,8 +87,9 @@ wm_on_input(struct input_event *ev)
           }
         }
       v = wm_selected_view;
-      if (prevsel != wm_selected_view && c->ev.listeners) {
-        if (prevsel->flags & VIEW_FOCUS_EV) {
+      if (prevsel != wm_selected_view) {
+        if (prevsel && (prevsel->flags & VIEW_FOCUS_EV)
+            && prevsel->c->ev.listeners) {
           struct ev_fmt evfmt[] = {
             {ev_str, {.s = "unfocus"}},
             {ev_view, {.v = prevsel}},
@@ -96,7 +97,7 @@ wm_on_input(struct input_event *ev)
           };
           put_event(c, &c->ev, evfmt);
         }
-        if (wm_selected_view->flags & VIEW_FOCUS_EV) {
+        if (wm_selected_view && (wm_selected_view->flags & VIEW_FOCUS_EV)) {
           struct ev_fmt evfmt[] = {
             {ev_str, {.s = "focus"}},
             {ev_view, {.v = wm_selected_view}},
