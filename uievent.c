@@ -46,8 +46,8 @@ ev_uiobj(char *buf, struct ev_fmt *ev)
 {
   struct uiobj *u = ev->x.o;
   if (!buf)
-    return file_path_len((struct file *)u, u->client->ui);
-  return file_path(ev->len, buf, (struct file *)u, u->client->ui);
+    return file_path_len((struct file *)u, u->client->ui) - 1;
+  return file_path(ev->len + 1, buf, (struct file *)u, u->client->ui) - 1;
 }
 
 int
