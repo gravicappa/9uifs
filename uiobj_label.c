@@ -83,6 +83,17 @@ update_size(struct uiobj *u)
   u->reqsize[1] = h;
 }
 
+static void
+update_text(struct prop *p)
+{
+  struct uiobj *u = p->aux;
+  update_size(u);
+  u->flags |= UI_DIRTY;
+  if (u->reqsize[0] > u->g.r[2] || u->reqsize[1] > u->g.r[3])
+    if (u->parent)
+      ui_propagate_dirty(u->parent);
+}
+
 static struct uiobj_ops label_ops = {
   .draw = draw,
   .update_size = update_size
@@ -104,7 +115,8 @@ init_uilabel(struct uiobj *u)
     free(x);
     return -1;
   }
-  x->text.p.update = x->fg.p.update = ui_prop_update_default;
+  x->fg.p.update = ui_prop_update_default;
+  x->text.p.update = update_text;
   x->font_str.p.update = update_font;
   u->ops = &label_ops;
   u->data = x;
