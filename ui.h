@@ -16,3 +16,5 @@ int ui_update();
 
 int ev_uiobj(char *buf, struct ev_fmt *ev);
 int ev_view(char *buf, struct ev_fmt *ev);
+
+void ui_intersect_clip(int *r, int *c1, int *c2);

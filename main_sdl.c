@@ -24,7 +24,7 @@ int scr_w = 320;
 int scr_h = 200;
 int show_cursor = 1;
 int frame_ms = 1000 / 30;
-int moveptr_events_interval_ms = 1000 / 60;
+int moveptr_events_interval_ms = 1000 / 30;
 char *server_host = 0;
 struct sdl_screen screen;
 UFont default_font = 0;
@@ -245,13 +245,16 @@ init_screen(int w, int h)
   screen.s.w = w;
   screen.s.h = h;
   screen.front = SDL_SetVideoMode(w, h, 0, SDL_HWSURFACE | SDL_ANYFORMAT);
-  if (!screen.front)
+  if (!screen.front) {
+    log_printf(LOG_ERR, "Cannot change video mode.\n");
     return -1;
+  }
   size = screen.front->w * screen.front->h * 4;
   screen.s.pixels = (char *)malloc(size);
   if (!screen.s.pixels)
     return -1;
   memset(screen.s.pixels, 0xff, size);
+  /* TODO: reuse screen.front if it is 32bit ARGB and is not HWSURFACE */
   screen.back = SDL_CreateRGBSurfaceFrom(screen.s.pixels,
                                          screen.s.w, screen.s.h, 32,
                                          screen.s.w * 4,
@@ -270,6 +273,7 @@ init_screen(int w, int h)
   imlib_context_set_image(screen.s.blit);
   imlib_image_set_has_alpha(0);
   init_fonts();
+  init_dirty(0, 0, w, h);
   return 0;
 }
 
@@ -294,10 +298,18 @@ free_screen()
   }
 }
 
+static void
+refresh_dirty_rect(int r[4], void *aux)
+{
+  SDL_Rect sr = {r[0], r[1], r[2], r[3]};
+  blit_clients(r);
+  SDL_BlitSurface(screen.back, &sr, screen.front, &sr);
+}
+
 void
 refresh_screen()
 {
-  SDL_BlitSurface(screen.back, 0, screen.front, 0);
+  iterate_dirty_rects(refresh_dirty_rect, 0);
   SDL_UpdateRect(screen.front, 0, 0, 0, 0);
 }
 
@@ -436,8 +448,10 @@ main_loop(int server_fd)
 int
 sdl_init(int w, int h)
 {
-  if (SDL_Init(SDL_INIT_VIDEO) < 0)
+  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    log_printf(LOG_ERR, "SDL_Init failed.\n");
     return -1;
+  }
   SDL_ShowCursor(show_cursor);
 
   if (init_screen(w, h))
@@ -454,6 +468,7 @@ parse_args(int argc, char **argv)
     if (!strcmp(argv[i], "-d") && i + 1 < argc)
       for (++i, j = 0; argv[i][j]; ++j)
         switch (argv[i][j]) {
+        case 'e': logmask |= LOG_ERR; break;
         case 'c': logmask |= LOG_CLIENT; break;
         case 'd': logmask |= LOG_DATA; break;
         case 'g': logmask |= LOG_DBG; break;
@@ -464,6 +479,10 @@ parse_args(int argc, char **argv)
       if (sscanf(argv[++i], "%dx%d", &scr_w, &scr_h) != 2 || scr_w <= 0
           || scr_h <= 0)
         die("Wrong resolution.");
+    } else if (!strcmp(argv[i], "-f") && i + 1 < argc) {
+      if (sscanf(argv[++i], "%d", &j) != 1 || j <= 0)
+        die("Wrong frames per second.");
+      moveptr_events_interval_ms = frame_ms = 1000 / j;
     } else if (!strcmp(argv[i], "-nocursor"))
       show_cursor = 0;
     else
@@ -481,13 +500,14 @@ main(int argc, char **argv)
   int fd;
 
   parse_args(argc, argv);
+
   if (init_network())
-    die("Cannot initialize network");
+    die("Cannot initialize network.");
   fd = net_listen(server_host, server_port);
   if (fd < 0)
-    die("Cannot create listening socket");
+    die("Cannot create listening socket.");
   if (sdl_init(scr_w, scr_h))
-    die("Cannot init SDL");
+    die("Cannot init SDL.");
   main_loop(fd);
   close(fd);
   free_screen();

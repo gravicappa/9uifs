@@ -69,6 +69,7 @@ draw(struct uiobj *u, struct uicontext *uc)
   if ((fg & 0xff000000) && x->text.buf)
     multi_draw_utf8(blit->img, r[0], r[1], fg, x->font,
                     x->text.buf->used - 1, x->text.buf->b);
+  mark_dirty_rect(r);
 }
 
 static void
@@ -131,12 +132,14 @@ update_btn(struct uiobj *u, struct uicontext *uc)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
   unsigned int t;
+
   if (b->state == BTN_PRESSED) {
     t = cur_time_ms - b->pressed_ms ;
     if (b->pressed_ms > 0 && t > BTN_PRESS_TIME_MS) {
       b->state = BTN_NORMAL;
       u->flags |= UI_DIRTY;
     }
+    ui_enqueue_update(u);
   }
 }
 
@@ -146,6 +149,7 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
   unsigned int fg, bg, frame;
   struct uiobj_label *b = (struct uiobj_label *)u->data;
   struct surface *blit = &uc->v->blit;
+  int *r = u->g.r, x, y;
 
   switch (b->state) {
   case BTN_NORMAL:
@@ -161,10 +165,14 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
     break;
   }
 
-  draw_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], frame, bg);
-  if ((fg & 0xff000000) && b->text.buf)
-    multi_draw_utf8(blit->img, u->g.r[0], u->g.r[1], fg, b->font,
-                    b->text.buf->used - 1, b->text.buf->b);
+  draw_rect(blit->img, r[0], r[1], r[2], r[3], frame, bg);
+  if ((fg & 0xff000000) && b->text.buf) {
+    x = r[0] + ((r[2] - u->reqsize[0]) >> 1);
+    y = r[1] + ((r[3] - u->reqsize[1]) >> 1);
+    multi_draw_utf8(blit->img, x, y, fg, b->font, b->text.buf->used - 1,
+                    b->text.buf->b);
+  }
+  mark_dirty_rect(r);
 }
 
 static void
@@ -213,6 +221,7 @@ on_btn_input(struct uiobj *u, struct input_event *ev)
   default: return 0;
   }
   u->flags |= UI_DIRTY;
+  ui_enqueue_update(u);
   return 1;
 }
 

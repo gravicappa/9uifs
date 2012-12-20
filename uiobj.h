@@ -31,6 +31,7 @@ struct uiobj_ops {
 
 struct uiobj {
   struct file f;
+  struct uiobj *next;
 
   struct prop_buf type;
   struct prop_int bg;
@@ -112,3 +113,4 @@ void ui_walk_view_tree(struct uiplace *up,
 
 int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);
 void ui_init_evfilter(struct file *f);
+void ui_enqueue_update(struct uiobj *u);

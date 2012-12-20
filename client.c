@@ -237,12 +237,34 @@ draw_clients()
   struct client *c;
   int changed = 0;
 
+  clean_dirty_rects();
   for (c = clients; c; c = c->next) {
     update_views(c);
     changed |= draw_views(c);
   }
   changed |= ui_update();
   return changed;
+}
+
+void
+blit_clients(int rect[4])
+{
+  struct client *c;
+  struct view *v;
+  struct file *f;
+  struct screen *s = default_screen();
+  int r[4], x, y;
+
+  for (c = clients; c; c = c->next) {
+    for (f = c->f_views.child; f; f = f->next) {
+      v = (struct view *)f;
+      ui_intersect_clip(r, v->g.r, rect);
+      x = v->g.r[0];
+      y = v->g.r[1];
+      blit_image(s->blit, r[0], r[1], r[2], r[3],
+                 v->blit.img, r[0] - x, r[1] - y, r[2], r[3]);
+    }
+  }
 }
 
 int

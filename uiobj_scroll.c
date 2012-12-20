@@ -65,6 +65,7 @@ draw(struct uiobj *u, struct uicontext *ctx)
     r[3] = u->viewport.r[3] - child->reqsize[1];
     draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
   }
+  mark_dirty_rect(u->g.r);
 }
 
 static void

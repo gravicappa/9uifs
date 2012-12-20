@@ -151,8 +151,10 @@ draw(struct uiobj *u, struct uicontext *ctx)
   struct surface *s = img->s;
   int *r = u->g.r;
 
-  if (s && s->img)
+  if (s && s->img) {
     blit_image(blit->img, r[0], r[1], r[2], r[3], s->img, 0, 0, s->w, s->h);
+    mark_dirty_rect(r);
+  }
 }
 
 static struct uiobj_ops image_ops = {

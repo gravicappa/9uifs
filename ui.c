@@ -23,6 +23,8 @@
 
 #define UI_NAME_PREFIX '_'
 
+static struct uiobj *update_list = 0;
+
 extern int init_uigrid(struct uiobj *);
 extern int init_uiscroll(struct uiobj *);
 extern struct uiobj_maker uitypes[];
@@ -46,6 +48,13 @@ struct p9_fs root_items_fs = {
 struct p9_fs container_fs = {
   .create = create_place
 };
+
+void
+ui_enqueue_update(struct uiobj *u)
+{
+  u->next = update_list;
+  update_list = u;
+}
 
 static void
 rm_dir(struct file *dir)
@@ -184,8 +193,10 @@ default_draw_uiobj(struct uiobj *u, struct uicontext *uc)
   unsigned int bg;
 
   bg = u->bg.i;
-  if (bg & 0xff000000)
+  if (bg & 0xff000000) {
     draw_rect(blit->img, u->g.r[0], u->g.r[1], u->g.r[2], u->g.r[3], 0, bg);
+    mark_dirty_rect(u->g.r);
+  }
 }
 
 void
@@ -276,13 +287,7 @@ static struct file *
 up_children(struct uiplace *up)
 {
   struct uiobj *u = up->obj;
-#if 1
   return (u && u->ops->get_children) ? u->ops->get_children(u) : 0;
-#else
-  return (u && u->ops->get_children)
-         ? ((struct uiobj_container *)u->data)->f_items.child
-         : 0;
-#endif
 }
 
 static int
@@ -300,10 +305,6 @@ ui_walk_view_tree(struct uiplace *up,
   struct file *f;
   struct uiplace *x, *t, *parent;
 
-#if 0
-  log_printf(LOG_UI, ">> ui_walk_view_tree\n");
-#endif
-
   if (!up->obj)
     return;
 
@@ -313,55 +314,28 @@ ui_walk_view_tree(struct uiplace *up,
   parent = up->parent;
   x = up;
   x->parent = 0;
-#if 0
-  log_printf(LOG_UI, "  0 x = up: %p '%s'\n", x, x->f.name);
-#endif
   do {
-#if 0
-    log_printf(LOG_UI, "  1 x: %p '%s' up: %p\n", x, x->f.name, up);
-#endif
     f = 0;
     if (x->obj && before_fn(x, aux))
       f = up_children(x);
     t = x;
-#if 0
-    log_printf(LOG_UI, "  2 f: %p\n", f);
-#endif
     if (f) {
       x = (struct uiplace *)f;
-#if 0
-      log_printf(LOG_UI, "  %s->parent <- %p\n", x->f.name, t);
-#endif
       x->parent = t;
     } else if (x->f.next && x != up) {
-#if 0
-      log_printf(LOG_UI, "  !1 x: %p '%s' next: %p parent: %p\n", x,
-                 x->f.name, x->f.next, x->parent);
-#endif
       if (!after_fn(x, aux))
         goto end;
       x = (struct uiplace *)x->f.next;
       x->parent = t->parent;
     } else {
       while (x && x != up && x->parent && !x->parent->f.next) {
-#if 0
-        if (0)
-          log_printf(LOG_UI, "  !2 x: %p '%s'\n", x, x->f.name);
-#endif
         if (!after_fn(x, aux))
           goto end;
         x = x->parent;
       }
-#if 0
-      log_printf(LOG_UI, "  !3 x: %p '%s'\n", x, x->f.name);
-#endif
       if (!after_fn(x, aux))
         goto end;
       if (x->parent) {
-#if 0
-        if (0)
-          log_printf(LOG_UI, "  !4 x: %p '%s'\n", x, x->parent->f.name);
-#endif
         if (!after_fn(x->parent, aux))
           goto end;
       }
@@ -376,9 +350,6 @@ ui_walk_view_tree(struct uiplace *up,
   } while (x && x != up);
 end:
   up->parent = parent;
-#if 0
-  log_printf(LOG_UI, ">>>> ui_walk_view_tree done\n");
-#endif
 }
 
 static int
@@ -414,8 +385,8 @@ resize_place(struct uiplace *up, void *aux)
   return 1;
 }
 
-static void
-intersect_clip(int *r, int *c1, int *c2)
+void
+ui_intersect_clip(int *r, int *c1, int *c2)
 {
   int i, t;
 
@@ -436,18 +407,11 @@ intersect_clip(int *r, int *c1, int *c2)
                c2[0], c2[1], c2[2], c2[3], r[0], r[1], r[2], r[3]);
 }
 
-static int
-update_obj(struct uiplace *up, void *aux)
+static void
+update_obj(struct uiobj *u, void *aux)
 {
-  struct uicontext *ctx = (struct uicontext *)aux;
-  struct uiobj *u;
-
-  if (up && up->obj) {
-    u = up->obj;
-    if (u->ops->update)
-      u->ops->update(u, ctx);
-  }
-  return 1;
+  if (u && u->ops->update)
+    u->ops->update(u, aux);
 }
 
 static int
@@ -466,7 +430,7 @@ draw_obj(struct uiplace *up, void *aux)
     if (!ctx->dirtyobj)
       ctx->dirtyobj = u;
     memcpy(up->clip, clip, sizeof(up->clip));
-    intersect_clip(r, clip, u->viewport.r);
+    ui_intersect_clip(r, clip, u->viewport.r);
     memcpy(clip, r, sizeof(ctx->clip));
     set_cliprect(clip[0], clip[1], clip[2], clip[3]);
     if (u->ops->draw) {
@@ -885,13 +849,20 @@ ui_redraw_view(struct view *v)
 {
   struct uiplace *up = (struct uiplace *)v->uiplace;
   struct uicontext ctx = {0};
+  struct uiobj *u, *unext;
 
   if (!(up && up->obj))
     return 0;
 
   ctx.v = v;
   memcpy(ctx.clip, v->g.r, sizeof(ctx.clip));
-  ui_walk_view_tree(up, 0, update_obj, &ctx);
+  u = update_list;
+  update_list = 0;
+  for (u = update_list; u; u = unext) {
+    unext = u->next;
+    update_obj(u, &ctx);
+  }
+  /*ui_walk_view_tree(up, 0, update_obj, &ctx);*/
   ui_walk_view_tree(up, draw_obj, draw_over_obj, &ctx);
   return ctx.dirty;
 }
