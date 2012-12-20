@@ -5,7 +5,8 @@
 
 # UI
 - Simultaneous event output into /event, view/event, uiobj/event files.
-  Not sure if more than one event stream is required.
+- Center text in buttons.
+- Optimize label, button text change redraws.
 - Think about keyboard manipulation.
 - New widgets:
     - page

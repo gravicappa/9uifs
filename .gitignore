@@ -8,3 +8,6 @@ uifs.mini2440
 mnt
 test
 gmon.out
+\#*
+.\#*
+callgrind.out.*
