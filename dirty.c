@@ -9,6 +9,7 @@ struct qleaf {
 
 static int qrect[4] = {0}, qused = 0;
 static struct qleaf *draw_qtree = 0;
+static int base[4];
 
 #define QDEPTH 4
 #define NLEAVES(depth) (((1 << (depth << 1)) - 1) / (4 - 1))
@@ -75,12 +76,20 @@ ensure_qleaf(struct qleaf *root, int id)
 void
 init_dirty(int x, int y, int w, int h)
 {
-  qrect[0] = x;
-  qrect[1] = y;
-  qrect[2] = w;
-  qrect[3] = h;
+  base[0] = qrect[0] = x;
+  base[1] = qrect[1] = y;
+  base[2] = qrect[2] = w;
+  base[3] = qrect[3] = h;
   qused = 0;
   draw_qtree = 0;
+}
+
+void
+set_dirty_base_rect(int r[4])
+{
+  int i;
+  for (i = 0; i < 4; ++i)
+    base[i] = r[i];
 }
 
 static void
@@ -110,6 +119,10 @@ void
 mark_dirty_rect(int r[4])
 {
   int i;
+  if (r[0] > base[2] || r[1] > base[3] || r[0] + r[2] < 0 || r[1] + r[3] < 0)
+    return;
+  r[0] += base[0];
+  r[1] += base[1];
   if (!draw_qtree) {
     qused = 0;
     draw_qtree = &leaves[qused++];

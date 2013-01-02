@@ -159,6 +159,8 @@ process_client_io(struct client *c)
     c->off = 0;
   }
   r = recv(c->fd, buf + c->read, c->con.msize - c->read, 0);
+  if (r == 0)
+    return 1;
   if (r <= 0)
     return (net_wouldblock())? 0 : -1;
   c->read += r;

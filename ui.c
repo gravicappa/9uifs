@@ -855,6 +855,7 @@ ui_redraw_view(struct view *v)
     return 0;
 
   ctx.v = v;
+  set_dirty_base_rect(v->g.r);
   memcpy(ctx.clip, v->g.r, sizeof(ctx.clip));
   u = update_list;
   update_list = 0;

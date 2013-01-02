@@ -18,6 +18,11 @@ struct sdl_screen {
   SDL_Surface *back;
 };
 
+struct image {
+  Imlib_Image imlib;
+  SDL_Surface *sdl;
+};
+
 int server_fd = -1;
 int server_port = 5558;
 int scr_w = 320;
@@ -32,21 +37,25 @@ UFont default_font = 0;
 void
 draw_line(UImage dst, int x1, int y1, int x2, int y2, unsigned int c)
 {
-  imlib_context_set_image(dst);
-  imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
-  imlib_image_draw_line(x1, y1, x2, y2, 0);
+  if (dst && ((struct image *)dst)->imlib && (c & 0xff000000)) {
+    imlib_context_set_image(((struct image *)dst)->imlib);
+    imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
+    imlib_image_draw_line(x1, y1, x2, y2, 0);
+  }
 }
 
 void
 draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int fg,
           unsigned int bg)
 {
-  imlib_context_set_image(dst);
-  if (bg) {
+  if (!dst || !((struct image *)dst)->imlib)
+    return;
+  imlib_context_set_image(((struct image *)dst)->imlib);
+  if (bg & 0xff000000) {
     imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
     imlib_image_fill_rectangle(x, y, w, h);
   }
-  if (fg) {
+  if (fg & 0xff000000) {
     imlib_context_set_color(RGBA_R(fg), RGBA_G(fg), RGBA_B(fg), RGBA_A(fg));
     imlib_image_draw_rectangle(x, y, w, h);
   }
@@ -57,12 +66,14 @@ draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
 {
   ImlibPolygon poly;
 
+  if (!dst || !((struct image *)dst)->imlib)
+    return;
   poly = imlib_polygon_new();
   if (!poly)
     return;
   for (; npts; npts--, pts += 2)
     imlib_polygon_add_point(poly, pts[0], pts[1]);
-  imlib_context_set_image(dst);
+  imlib_context_set_image(((struct image *)dst)->imlib);
   if (bg) {
     imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
     imlib_image_fill_polygon(poly);
@@ -77,21 +88,25 @@ draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
 void
 free_image(UImage img)
 {
-  if (!img)
+  if (!(img && ((struct image *)img)->imlib))
     return;
-  imlib_context_set_image(img);
+  imlib_context_set_image(((struct image *)img)->imlib);
   imlib_free_image();
+  free(img);
 }
 
 UImage
 create_image(int w, int h, void *rgba)
 {
-  Imlib_Image img;
+  struct image *img;
 
-  img = imlib_create_image(w, h);
+  img = calloc(1, sizeof(struct image));
   if (!img)
     return 0;
-  imlib_context_set_image(img);
+  img->imlib = imlib_create_image(w, h);
+  if (!img->imlib)
+    return 0;
+  imlib_context_set_image(img->imlib);
   imlib_image_set_has_alpha(1);
   if (rgba)
     image_write_rgba(img, 0, w * h * 4, rgba);
@@ -106,9 +121,9 @@ image_write_rgba(UImage img, unsigned int off_bytes, int len_bytes,
   DATA32 *pixels, *dst, pix;
   int w, h, size;
 
-  if (!img)
+  if (!img || !((struct image *)img)->imlib)
     return;
-  imlib_context_set_image(img);
+  imlib_context_set_image(((struct image *)img)->imlib);
   w = imlib_image_get_width();
   h = imlib_image_get_height();
   size = w * h * 4;
@@ -153,9 +168,9 @@ image_read_rgba(UImage img, unsigned int off_bytes, int len_bytes, void *rgba)
   unsigned char *dst = rgba;
   int w, h, pix, size;
 
-  if (!img)
+  if (!img || !((struct image *)img)->imlib)
     return;
-  imlib_context_set_image(img);
+  imlib_context_set_image(((struct image *)img)->imlib);
   w = imlib_image_get_width();
   h = imlib_image_get_height();
   size = w * h * 4;
@@ -197,24 +212,33 @@ UImage
 resize_image(UImage img, int w, int h, int flags)
 {
   UImage newimg;
+  struct image *im = (struct image *)img;
 
-  imlib_context_set_image(img);
+  if (!img || !im->imlib)
+    return 0;
+
+  imlib_context_set_image(im->imlib);
   imlib_context_set_anti_alias(1);
   newimg = imlib_create_cropped_image(0, 0, w, h);
   if (!newimg)
     return 0;
   imlib_free_image();
-  return newimg;
+  im->imlib = newimg;
+  return img;
 }
 
 void
 blit_image(UImage dst, int dx, int dy, int dw, int dh,
            UImage src, int sx, int sy, int sw, int sh)
 {
-  imlib_context_set_image(dst);
+  struct image *s = (struct image *)src, *d = (struct image *)dst;
+
+  if (!(s && s->imlib && d && d->imlib))
+    return;
+  imlib_context_set_image(d->imlib);
   imlib_context_set_anti_alias(1);
   imlib_context_set_blend(1);
-  imlib_blend_image_onto_image(src, 0, sx, sy, sw, sh, dx, dy, dw, dh);
+  imlib_blend_image_onto_image(s->imlib, 0, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 void
@@ -241,6 +265,7 @@ int
 init_screen(int w, int h)
 {
   int size;
+  struct image *img;
 
   screen.s.w = w;
   screen.s.h = h;
@@ -264,13 +289,17 @@ init_screen(int w, int h)
     free(screen.s.pixels);
     return -1;
   }
-  screen.s.blit
+  img = calloc(1, sizeof(struct image));
+  if (img)
+    img->imlib
       = imlib_create_image_using_data(w, h, (DATA32 *)screen.s.pixels);
-  if (!screen.s.blit) {
+  if (!(img && img->imlib)) {
     SDL_FreeSurface(screen.back);
     free(screen.s.pixels);
+    return -1;
   }
-  imlib_context_set_image(screen.s.blit);
+  screen.s.blit = img;
+  imlib_context_set_image(img->imlib);
   imlib_image_set_has_alpha(0);
   init_fonts();
   init_dirty(0, 0, w, h);
@@ -318,11 +347,11 @@ draw_utf8(UImage dst, int x, int y, int c, UFont font, int len, char *str)
 {
   char let;
 
-  if (!(len && str))
+  if (!(len && str && dst && ((struct image *)dst)->imlib))
     return;
 
   imlib_context_set_font((font) ? font : default_font);
-  imlib_context_set_image(dst);
+  imlib_context_set_image(((struct image *)dst)->imlib);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
 
   /* FIXME: use patched imlib2 */
