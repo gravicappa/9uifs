@@ -3,17 +3,16 @@
 
 #include "config.h"
 #include "util.h"
-#include "input.h"
+#include "api.h"
 #include "9p.h"
 #include "fs.h"
 #include "fstypes.h"
-#include "draw.h"
+#include "backend.h"
 #include "prop.h"
 
 #include "ctl.h"
-#include "event.h"
+#include "bus.h"
 #include "surface.h"
-#include "view.h"
 
 #include "uiobj.h"
 
@@ -42,7 +41,6 @@ draw(struct uiobj *u, struct uicontext *ctx)
   int i, *cr, *sr, r[4];
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child;
-  struct surface *blit = &ctx->v->blit;
 
   if (!(us && us->place.obj))
     return;
@@ -56,16 +54,15 @@ draw(struct uiobj *u, struct uicontext *ctx)
     r[1] = u->viewport.r[1];
     r[2] = u->viewport.r[2] - child->reqsize[0];
     r[3] = u->viewport.r[3];
-    draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
+    draw_rect(screen_image, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
   }
   if (child->reqsize[1] < u->viewport.r[3]) {
     r[0] = u->viewport.r[0];
     r[1] = child->reqsize[1];
     r[2] = u->viewport.r[2];
     r[3] = u->viewport.r[3] - child->reqsize[1];
-    draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
+    draw_rect(screen_image, r[0], r[1], r[2], r[3], 0, SCROLL_BG);
   }
-  mark_dirty_rect(u->g.r);
 }
 
 static void
@@ -100,7 +97,6 @@ draw_over(struct uiobj *u, struct uicontext *ctx)
   int i, r[4];
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child;
-  struct surface *blit = &ctx->v->blit;
 
   if (!(us && us->place.obj))
     return;
@@ -110,7 +106,7 @@ draw_over(struct uiobj *u, struct uicontext *ctx)
   for (i = 0; i < 2; ++i)
     if (us->scrollopts[i] && child->reqsize[i] > u->viewport.r[i + 2]) {
       scroll_rect(r, u, i);
-      draw_rect(blit->img, r[0], r[1], r[2], r[3], SCROLL_FRAME,
+      draw_rect(screen_image, r[0], r[1], r[2], r[3], SCROLL_FRAME,
                 SCROLL_HANDLE);
     }
 }
@@ -203,8 +199,8 @@ scroll(struct uiobj *u, int dx, int dy)
   }
   u->flags |= UI_DIRTY;
   child->flags |= UI_DIRTY;
-  if (u->parent)
-    ui_walk_view_tree(&us->place, scroll_obj, 0, p);
+  if (u->place)
+    walk_ui_tree(&us->place, scroll_obj, 0, p);
   memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
 }
 
@@ -242,7 +238,7 @@ on_ptr_move(struct uiobj *u, struct input_event *ev)
 }
 
 static int
-on_inout(struct uiobj *u, int inside)
+on_ptr_intersect(struct uiobj *u, int inside)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   if (us && us->mode != NORMAL) {
@@ -290,7 +286,7 @@ static struct uiobj_ops scroll_ops = {
   .resize = resize,
   .get_children = get_children,
   .on_input = on_input,
-  .on_inout_pointer = on_inout
+  .on_ptr_intersect = on_ptr_intersect
 };
 
 int

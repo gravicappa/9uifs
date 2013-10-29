@@ -1,9 +1,9 @@
 #include "config.h"
+#include "ui.h"
 
-#include "9p.h"
-#include "fs.h"
-#include "prop.h"
-#include "uiobj.h"
+int server_port = 5558;
+
+struct uiobj;
 
 extern int init_uigrid(struct uiobj *u);
 extern int init_uiscroll(struct uiobj *u);
@@ -19,7 +19,7 @@ struct uiobj_maker uitypes[] = {
   {"image", init_uiimage},
   /*
   {"entry", init_uientry},
-  {"blit", init_uientry},
+  {"canvas", init_uicanvas},
   */
   {0, 0}
 };

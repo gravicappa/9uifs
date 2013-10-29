@@ -28,3 +28,5 @@
 #define SCROLL_THRESHOLD 10
 #define SCROLL_HINT_SIZE 5
 #define SCROLL_HINT_BG 0x5f00f000
+
+extern int server_port;

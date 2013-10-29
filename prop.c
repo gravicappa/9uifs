@@ -8,7 +8,8 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "prop.h"
-#include "draw.h"
+#include "backend.h"
+#include "raster.h"
 
 #define INT_BUF_SIZE 16
 #define RECT_BUF_SIZE 64

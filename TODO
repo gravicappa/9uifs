@@ -1,16 +1,45 @@
+# FS
+
+- Static directory structure probably can be defined as statid data.
+  + Qid can be stored in separate set.
+
 # WM
-## Define WM (window manager) interface
-  - probably make an interface for wm to be an external application
-    (full blown 9p fs or some simple text/binary stream).
+
+The conept of separate WM is not required. Allowing importing widgets from
+other clients is enough (with sane permission management).
 
 # UI
-- Simultaneous event output into /event, view/event, uiobj/event files.
+
+Choose widget name defining character:
+
+    widgets/service/wifi/_status/places/0
+
+    widgets/service/wifi/+status/places/0
+    widgets/service/wifi/@status/places/0
+    widgets/service/wifi/^status/places/0
+    widgets/service/wifi/:status/places/0
+    widgets/service/wifi/&status/places/0
+    widgets/service/wifi/%status/places/0
+    widgets/service/wifi/#status/places/0
+    widgets/service/wifi/$status/places/0
+    widgets/service/wifi/!status/places/0
+    widgets/service/wifi/,status/places/0
+    widgets/service/wifi/=status/places/0
+    widgets/service/wifi/-status/places/0
+    widgets/service/wifi/~status/places/0
+
+
 - Optimize label, button text change redraws.
-- Think about keyboard manipulation.
+- Think about default keybindings
+  + Autoassign keys to buttons?
+- Timed update.
 - New widgets:
-    - page
-    - check button
-    - radio button
-    - slider
-    - progress bar
-    - canvas.
+    + page,
+    + check button,
+    + radio button,
+    + slider,
+    + progress bar,
+    + vector canvas (like tk's canvas(n)).
+
+# Bus
+- Unify UI events with bus?

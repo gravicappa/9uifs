@@ -1,9 +1,6 @@
 enum {
   FS_NONE = 0,
   FS_ROOT,
-  FS_EVENT,
-  FS_VIEW,
-  FS_VIEWS,
   FS_IMAGES,
   FS_CTL,
   FS_UIOBJ,
@@ -14,5 +11,9 @@ enum {
   FS_FONTS,
   FS_FNT_LIST,
   FS_SURFACE,
-  FS_IMGDIR
+  FS_IMGDIR,
+  FS_BUS,
+  FS_BUS_CHAN,
+  FS_BUS_CHAN_IN,
+  FS_BUS_CHAN_OUT,
 };

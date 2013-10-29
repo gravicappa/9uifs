@@ -10,6 +10,9 @@ enum log_masks {
 #define containerof(ptr, type, member) \
   ((type *)((char *)ptr - offsetof(type, member)))
 
+#define TODO(x) (x)
+#define NITEMS(x) (sizeof(x) / sizeof(x[0]))
+
 extern int logmask;
 
 void die(char *fmt, ...);

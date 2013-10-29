@@ -2,16 +2,15 @@
 #include <string.h>
 
 #include "util.h"
-#include "input.h"
-#include "draw.h"
+#include "api.h"
+#include "backend.h"
 #include "text.h"
 #include "9p.h"
 #include "fs.h"
 #include "prop.h"
-#include "event.h"
+#include "bus.h"
 #include "ctl.h"
 #include "surface.h"
-#include "view.h"
 #include "ui.h"
 #include "uiobj.h"
 #include "config.h"
@@ -58,18 +57,16 @@ draw(struct uiobj *u, struct uicontext *uc)
 {
   unsigned int fg, bg;
   struct uiobj_label *x = (struct uiobj_label *)u->data;
-  struct surface *blit = &uc->v->blit;
   int *r = u->g.r;
 
   bg = u->bg.i;
   fg = x->fg.i;
 
   if (bg & 0xff000000)
-    draw_rect(blit->img, r[0], r[1], r[2], r[3], 0, bg);
+    draw_rect(screen_image, r[0], r[1], r[2], r[3], 0, bg);
   if ((fg & 0xff000000) && x->text.buf)
-    multi_draw_utf8(blit->img, r[0], r[1], fg, x->font,
+    multi_draw_utf8(screen_image, r[0], r[1], fg, x->font,
                     x->text.buf->used - 1, x->text.buf->b);
-  mark_dirty_rect(r);
 }
 
 static void
@@ -91,8 +88,8 @@ update_text(struct prop *p)
   update_size(u);
   u->flags |= UI_DIRTY;
   if (u->reqsize[0] > u->g.r[2] || u->reqsize[1] > u->g.r[3])
-    if (u->parent)
-      ui_propagate_dirty(u->parent);
+    if (u->place)
+      ui_propagate_dirty(u->place);
 }
 
 static struct uiobj_ops label_ops = {
@@ -128,7 +125,7 @@ init_uilabel(struct uiobj *u)
 }
 
 static void
-update_btn(struct uiobj *u, struct uicontext *uc)
+update_btn(struct uiobj *u)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
   unsigned int t;
@@ -148,7 +145,6 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
 {
   unsigned int fg, bg, frame;
   struct uiobj_label *b = (struct uiobj_label *)u->data;
-  struct surface *blit = &uc->v->blit;
   int *r = u->g.r, x, y;
 
   switch (b->state) {
@@ -165,14 +161,13 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
     break;
   }
 
-  draw_rect(blit->img, r[0], r[1], r[2], r[3], frame, bg);
+  draw_rect(screen_image, r[0], r[1], r[2], r[3], frame, bg);
   if ((fg & 0xff000000) && b->text.buf) {
     x = r[0] + ((r[2] - u->reqsize[0]) >> 1);
     y = r[1] + ((r[3] - u->reqsize[1]) >> 1);
-    multi_draw_utf8(blit->img, x, y, fg, b->font, b->text.buf->used - 1,
+    multi_draw_utf8(screen_image, x, y, fg, b->font, b->text.buf->used - 1,
                     b->text.buf->b);
   }
-  mark_dirty_rect(r);
 }
 
 static void
@@ -181,12 +176,13 @@ press_button(struct uiobj *u, int by_kbd)
   struct uiobj_label *b = (struct uiobj_label *)u->data;
 
   if (b->state == BTN_PRESSED) {
-    struct ev_fmt evfmt[] = {
+    struct ev_arg ev[] = {
       {ev_str, {.s = "press_button"}},
       {ev_uiobj, {.o = u}},
       {0}
     };
-    put_event(u->client, &u->client->ev, evfmt);
+    const char *tags[] = {bus_ch_all, bus_ch_ui, 0};
+    put_event(u->client->bus, tags, ev);
   }
   if (by_kbd)
     b->pressed_ms = cur_time_ms;
@@ -197,6 +193,7 @@ static int
 on_btn_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
+  log_printf(LOG_UI, "on btn input '%s'\n", u->f.name);
   switch (ev->type) {
   case IN_PTR_DOWN:
     b->state = BTN_PRESSED;
@@ -226,7 +223,7 @@ on_btn_input(struct uiobj *u, struct input_event *ev)
 }
 
 static int
-on_btn_inout_pointer(struct uiobj *u, int inside)
+on_btn_ptr_intersect(struct uiobj *u, int inside)
 {
   struct uiobj_label *x = (struct uiobj_label *)u->data;
   if (!inside) {
@@ -241,7 +238,7 @@ static struct uiobj_ops btn_ops = {
   .draw = draw_btn,
   .update_size = update_size,
   .on_input = on_btn_input,
-  .on_inout_pointer = on_btn_inout_pointer
+  .on_ptr_intersect = on_btn_ptr_intersect
 };
 
 int

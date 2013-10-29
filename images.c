@@ -5,7 +5,7 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "ctl.h"
-#include "draw.h"
+#include "backend.h"
 #include "surface.h"
 
 #define IMG_NAME_PREFIX '_'
@@ -77,7 +77,7 @@ image_create(struct p9_connection *con)
 }
 
 struct file *
-init_image_dir(char *name)
+mk_image_dir(char *name)
 {
   struct image_dir *dir;
   dir = (struct image_dir *)image_mkdir(name, 0);

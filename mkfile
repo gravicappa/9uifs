@@ -9,12 +9,14 @@ run_flags = -s 400x300
 target = unix
 <| test -f $target.mk && cat $target.mk || echo
 
-obj = $obj config.$O 9pmsg.$O fs.$O main_sdl.$O util.$O net.$O client.$O \
-      fsutil.$O fs.$O 9pdbg.$O surface.c view.c event.$O ctl.$O wm.$O \
-      ui.$O uievent.$O prop.$O uiobj_grid.$O uiobj_scroll.$O uiobj_label.$O \
-      uiobj_image.$O text.$O font.$O stb_image.$O images.$O dirty.$O
+obj = $obj config.$O 9pmsg.$O fs.$O util.$O net.$O client.$O \
+      fsutil.$O fs.$O 9pdbg.$O surface.c bus.$O ctl.$O \
+      ui.$O uiplace.$O uievent.$O prop.$O uiobj_grid.$O uiobj_scroll.$O \
+      uiobj_label.$O uiobj_image.$O text.$O font.$O stb_image.$O images.$O \
+      dirty_qtree.$O raster.$O
 
-#obj = $obj profile.$O
+backend_obj = main_sdl.$O 
+obj = $obj profile.$O
 
 docs = docs/doc.html
 
@@ -25,10 +27,10 @@ clean:V:
 
 docs:V: $docs
 
-$exe.exe: $obj
+$exe.exe: $obj $backend_obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
 
-$exe: $obj
+$exe: $obj $backend_obj
   $CC $CFLAGS $prereq $LDFLAGS -o $target
 
 %.$O: %.c

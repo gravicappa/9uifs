@@ -1,44 +1,40 @@
 #include <SDL/SDL.h>
 #include <Imlib2.h>
+#include <unistd.h>
 
-#include "9p.h"
 #include "net.h"
 #include "util.h"
-#include "input.h"
-#include "draw.h"
+#include "api.h"
+#include "raster.h"
+#include "backend.h"
+#include "dirty.h"
 #include "config.h"
-#include "fs.h"
-#include "event.h"
-#include "client.h"
-#include "net.h"
+#include "profile.h"
 
-struct sdl_screen {
-  struct screen s;
-  SDL_Surface *front;
-  SDL_Surface *back;
-};
+static int sdl_flags = SDL_HWSURFACE | SDL_DOUBLEBUF | SDL_ANYFORMAT;
+static int scr_w = 320;
+static int scr_h = 200;
+static int show_cursor = 1;
+static int frame_ms = 1000 / 30;
+static int moveptr_events_interval_ms = 1000 / 30;
+static char *server_host = 0;
+static UFont default_font = 0;
 
-struct image {
-  Imlib_Image imlib;
-  SDL_Surface *sdl;
-};
+static SDL_mutex *event_mutex;
+static int nevents;
+static SDL_Event events[16];
+static int event_pipe[2] = {-1, -1};
+static int running = 1;
+static SDL_Surface *screen = 0;
+static SDL_Surface *backbuffer = 0;
 
-int server_fd = -1;
-int server_port = 5558;
-int scr_w = 320;
-int scr_h = 200;
-int show_cursor = 1;
-int frame_ms = 1000 / 30;
-int moveptr_events_interval_ms = 1000 / 30;
-char *server_host = 0;
-struct sdl_screen screen;
-UFont default_font = 0;
+Imlib_Image screen_image = 0;
 
 void
-draw_line(UImage dst, int x1, int y1, int x2, int y2, unsigned int c)
+draw_line(Imlib_Image dst, int x1, int y1, int x2, int y2, unsigned int c)
 {
-  if (dst && ((struct image *)dst)->imlib && (c & 0xff000000)) {
-    imlib_context_set_image(((struct image *)dst)->imlib);
+  if (dst && (c & 0xff000000)) {
+    imlib_context_set_image(dst);
     imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
     imlib_image_draw_line(x1, y1, x2, y2, 0);
   }
@@ -48,9 +44,9 @@ void
 draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int fg,
           unsigned int bg)
 {
-  if (!dst || !((struct image *)dst)->imlib)
+  if (!dst)
     return;
-  imlib_context_set_image(((struct image *)dst)->imlib);
+  imlib_context_set_image(dst);
   if (bg & 0xff000000) {
     imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
     imlib_image_fill_rectangle(x, y, w, h);
@@ -62,18 +58,19 @@ draw_rect(Imlib_Image dst, int x, int y, int w, int h, unsigned int fg,
 }
 
 void
-draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
+draw_poly(Imlib_Image dst, int npts, int *pts, unsigned int fg,
+          unsigned int bg)
 {
   ImlibPolygon poly;
 
-  if (!dst || !((struct image *)dst)->imlib)
+  if (!dst)
     return;
   poly = imlib_polygon_new();
   if (!poly)
     return;
   for (; npts; npts--, pts += 2)
     imlib_polygon_add_point(poly, pts[0], pts[1]);
-  imlib_context_set_image(((struct image *)dst)->imlib);
+  imlib_context_set_image(dst);
   if (bg) {
     imlib_context_set_color(RGBA_R(bg), RGBA_G(bg), RGBA_B(bg), RGBA_A(bg));
     imlib_image_fill_polygon(poly);
@@ -86,144 +83,87 @@ draw_poly(UImage dst, int npts, int *pts, unsigned int fg, unsigned int bg)
 }
 
 void
-free_image(UImage img)
+free_image(Imlib_Image img)
 {
-  if (!(img && ((struct image *)img)->imlib))
+  if (!img)
     return;
-  imlib_context_set_image(((struct image *)img)->imlib);
+  imlib_context_set_image(img);
   imlib_free_image();
-  free(img);
 }
 
-UImage
+Imlib_Image
 create_image(int w, int h, void *rgba)
 {
   struct image *img;
 
-  img = calloc(1, sizeof(struct image));
+  img = imlib_create_image(w, h);
   if (!img)
     return 0;
-  img->imlib = imlib_create_image(w, h);
-  if (!img->imlib)
-    return 0;
-  imlib_context_set_image(img->imlib);
+  imlib_context_set_image(img);
   imlib_image_set_has_alpha(1);
   if (rgba)
     image_write_rgba(img, 0, w * h * 4, rgba);
   return img;
 }
 
+int
+image_get_size(Imlib_Image img, int *w, int *h)
+{
+  if (!img) {
+    *w = *h = 0;
+    return -1;
+  }
+  imlib_context_set_image(img);
+  *w = imlib_image_get_width();
+  *h = imlib_image_get_height();
+  return 0;
+}
+
 void
-image_write_rgba(UImage img, unsigned int off_bytes, int len_bytes,
+image_write_rgba(Imlib_Image img, unsigned int off_bytes, int len_bytes,
                  void *rgba)
 {
-  unsigned char *src = rgba;
-  DATA32 *pixels, *dst, pix;
-  int w, h, size;
+  int w, h;
+  DATA32 *pixels;
 
-  if (!img || !((struct image *)img)->imlib)
+  if (!img)
     return;
-  imlib_context_set_image(((struct image *)img)->imlib);
+  imlib_context_set_image(img);
   w = imlib_image_get_width();
   h = imlib_image_get_height();
-  size = w * h * 4;
-  if (size <= off_bytes)
-    return;
-  if (off_bytes + len_bytes >= size)
-    len_bytes = size - off_bytes;
   pixels = imlib_image_get_data();
-  dst = pixels + (off_bytes >> 2);
-  pix = *dst;
-  switch (off_bytes & 3) {
-  case 1:
-    if (len_bytes-- > 0)
-      pix = (pix & 0xffff00ff) | (*src++ << 8);
-  case 2:
-    if (len_bytes-- > 0)
-      pix = (pix & 0xffffff00) | *src++;
-  case 3:
-    if (len_bytes-- > 0)
-      pix = (pix & 0x00ffffff) | (*src++ << 24);
-  }
-  if (off_bytes & 3)
-    *dst++ = pix;
-  for (; len_bytes >= 4; len_bytes -= 4, src += 4, ++dst)
-    *dst = src[2] | (src[1] << 8) | (src[0] << 16) | (src[3] << 24);
-  if (len_bytes) {
-    pix = *dst;
-    switch (len_bytes) {
-    case 3: pix = (pix & 0xffffff00) | src[2];
-    case 2: pix = (pix & 0xffff00ff) | (src[1] << 8);
-    case 1: pix = (pix & 0xff00ffff) | (src[0] << 16);
-    }
-    *dst = pix;
-  }
+  rgba_pixels_to_argb_image(off_bytes, len_bytes, w * h * 4, rgba, pixels);
   imlib_image_put_back_data(pixels);
 }
 
 void
 image_read_rgba(UImage img, unsigned int off_bytes, int len_bytes, void *rgba)
 {
-  DATA32 *src;
-  unsigned char *dst = rgba;
-  int w, h, pix, size;
+  int w, h;
 
-  if (!img || !((struct image *)img)->imlib)
+  if (!img)
     return;
-  imlib_context_set_image(((struct image *)img)->imlib);
+  imlib_context_set_image(img);
   w = imlib_image_get_width();
   h = imlib_image_get_height();
-  size = w * h * 4;
-  if (size <= off_bytes)
-    return;
-  if (off_bytes + len_bytes >= size)
-    len_bytes = size - off_bytes;
-  src = imlib_image_get_data_for_reading_only() + (off_bytes >> 2);
-  pix = *src;
-  switch (off_bytes & 3) {
-  case 1:
-    if (len_bytes-- > 0)
-      *dst++ = (pix >> 8) & 0xff;
-  case 2:
-    if (len_bytes-- > 0)
-      *dst++ = pix & 0xff;
-  case 3:
-    if (len_bytes-- > 0)
-      *dst++ = pix >> 24;
-  }
-  if (off_bytes & 3)
-    pix = *(++src);
-  for (; len_bytes >= 4; pix = *src++, len_bytes -= 4) {
-    *dst++ = (pix >> 16) & 0xff;
-    *dst++ = (pix >> 8) & 0xff;
-    *dst++ = pix & 0xff;
-    *dst++ = pix >> 24;
-  }
-  if (len_bytes)
-    pix = *src;
-  switch (len_bytes) {
-  case 3: dst[2] = pix & 0xff;
-  case 2: dst[1] = (pix >> 8) & 0xff;
-  case 1: dst[0] = (pix >> 16) & 0xff;
-  }
+  rgba_pixels_from_argb_image(off_bytes, len_bytes, w * h * 4,
+                              rgba, imlib_image_get_data_for_reading_only());
 }
 
 UImage
 resize_image(UImage img, int w, int h, int flags)
 {
   UImage newimg;
-  struct image *im = (struct image *)img;
 
-  if (!img || !im->imlib)
+  if (!img);
     return 0;
 
-  imlib_context_set_image(im->imlib);
+  imlib_context_set_image(img);
   imlib_context_set_anti_alias(1);
   newimg = imlib_create_cropped_image(0, 0, w, h);
   if (!newimg)
     return 0;
   imlib_free_image();
-  im->imlib = newimg;
   return img;
 }
 
@@ -231,14 +171,14 @@ void
 blit_image(UImage dst, int dx, int dy, int dw, int dh,
            UImage src, int sx, int sy, int sw, int sh)
 {
-  struct image *s = (struct image *)src, *d = (struct image *)dst;
-
-  if (!(s && s->imlib && d && d->imlib))
+  if (!(dst && src))
     return;
-  imlib_context_set_image(d->imlib);
+  dw = (dw < 0) ? sw : dw;
+  dh = (dh < 0) ? sh : dh;
+  imlib_context_set_image(dst);
   imlib_context_set_anti_alias(1);
   imlib_context_set_blend(1);
-  imlib_blend_image_onto_image(s->imlib, 0, sx, sy, sw, sh, dx, dy, dw, dh);
+  imlib_blend_image_onto_image(src, 0, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 void
@@ -247,79 +187,45 @@ set_cliprect(int x, int y, int w, int h)
   imlib_context_set_cliprect(x, y, w, h);
 }
 
-struct screen *
-default_screen()
-{
-  return &screen.s;
-}
-
 static void
-init_fonts()
+init_fonts(void)
 {
   imlib_add_path_to_font_path(DEF_FONT_DIR);
   if (!default_font)
     default_font = create_font(DEF_FONT, DEF_FONT_SIZE, "");
 }
 
-int
+static int
 init_screen(int w, int h)
 {
-  int size;
-  struct image *img;
+  SDL_PixelFormat *fmt;
 
-  screen.s.w = w;
-  screen.s.h = h;
-  screen.front = SDL_SetVideoMode(w, h, 0, SDL_HWSURFACE | SDL_ANYFORMAT);
-  if (!screen.front) {
+  screen = SDL_SetVideoMode(w, h, 0, sdl_flags);
+  if (!screen) {
     log_printf(LOG_ERR, "Cannot change video mode.\n");
     return -1;
   }
-  size = screen.front->w * screen.front->h * 4;
-  screen.s.pixels = (char *)malloc(size);
-  if (!screen.s.pixels)
-    return -1;
-  memset(screen.s.pixels, 0xff, size);
-  /* TODO: reuse screen.front if it is 32bit ARGB and is not HWSURFACE */
-  screen.back = SDL_CreateRGBSurfaceFrom(screen.s.pixels,
-                                         screen.s.w, screen.s.h, 32,
-                                         screen.s.w * 4,
-                                         0x00ff0000, 0x0000ff00, 0x000000ff,
-                                         0xff000000);
-  if (!screen.back) {
-    free(screen.s.pixels);
-    return -1;
+  fmt = screen->format;
+  if (!(fmt->BitsPerPixel == 32 && fmt->Rmask == 0x00ff0000
+        && fmt->Gmask == 0x0000ff00 && fmt->Bmask == 0x000000ff
+        && fmt->Amask == 0xff000000)) {
+    backbuffer = SDL_CreateRGBSurface(0, screen->w, screen->h, 32,
+                                      0x00ff0000, 0x0000ff00, 0x000000ff,
+                                      0xff000000);
+    if (!backbuffer)
+      return -1;
   }
-  img = calloc(1, sizeof(struct image));
-  if (img)
-    img->imlib
-      = imlib_create_image_using_data(w, h, (DATA32 *)screen.s.pixels);
-  if (!(img && img->imlib)) {
-    SDL_FreeSurface(screen.back);
-    free(screen.s.pixels);
-    return -1;
-  }
-  screen.s.blit = img;
-  imlib_context_set_image(img->imlib);
-  imlib_image_set_has_alpha(0);
   init_fonts();
   init_dirty(0, 0, w, h);
   return 0;
 }
 
-void
-free_screen()
+static void
+free_screen(void)
 {
-  if (screen.s.blit) {
-    free_image(screen.s.blit);
-    screen.s.blit = 0;
-  }
-  if (screen.back) {
-    SDL_FreeSurface(screen.back);
-    screen.back = 0;
-  }
-  if (screen.s.pixels) {
-    free(screen.s.pixels);
-    screen.s.pixels = 0;
+  if (backbuffer) {
+    SDL_FreeSurface(backbuffer);
+    backbuffer = 0;
   }
   if (default_font) {
     free_font(default_font);
@@ -327,31 +233,16 @@ free_screen()
   }
 }
 
-static void
-refresh_dirty_rect(int r[4], void *aux)
-{
-  SDL_Rect sr = {r[0], r[1], r[2], r[3]};
-  blit_clients(r);
-  SDL_BlitSurface(screen.back, &sr, screen.front, &sr);
-}
-
-void
-refresh_screen()
-{
-  iterate_dirty_rects(refresh_dirty_rect, 0);
-  SDL_UpdateRect(screen.front, 0, 0, 0, 0);
-}
-
 void
 draw_utf8(UImage dst, int x, int y, int c, UFont font, int len, char *str)
 {
   char let;
 
-  if (!(len && str && dst && ((struct image *)dst)->imlib))
+  if (!(len && str && dst))
     return;
 
   imlib_context_set_font((font) ? font : default_font);
-  imlib_context_set_image(((struct image *)dst)->imlib);
+  imlib_context_set_image(dst);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
 
   /* FIXME: use patched imlib2 */
@@ -405,76 +296,150 @@ font_list(int *n)
   return (const char **)imlib_list_fonts(n);
 }
 
-int
-main_loop(int server_fd)
+unsigned int
+current_time_ms(void)
 {
-  SDL_Event ev;
-  struct input_event in_ev;
-  int running = 1;
-  unsigned int prev_draw_ms = 0, time_ms;
-  unsigned int prev_motion_event_ms = SDL_GetTicks();
-  unsigned int prev_x[8], prev_y[8];
+  return SDL_GetTicks();
+}
 
-  while (running) {
-    time_ms = SDL_GetTicks();
-    while (SDL_PollEvent(&ev))
-      switch (ev.type) {
+static int
+event_thread_fn(void *aux)
+{
+  for (;;) {
+    if (SDL_mutexP(event_mutex) < 0)
+      return -1;
+    if (!running)
+      break;
+    while (nevents < NITEMS(events) && SDL_PollEvent(&events[nevents]))
+      switch (events[nevents].type) {
       case SDL_QUIT:
-        running = 0;
-        break;
-      case SDL_MOUSEMOTION:
-        if (time_ms - prev_motion_event_ms > moveptr_events_interval_ms) {
-          in_ev.type = IN_PTR_MOVE;
-          in_ev.id = 0;
-          in_ev.ms = time_ms;
-          in_ev.x = ev.motion.x;
-          in_ev.y = ev.motion.y;
-          in_ev.dx = ev.motion.xrel;
-          in_ev.dy = ev.motion.yrel;
-          in_ev.dx = ev.motion.x - prev_x[in_ev.id];
-          in_ev.dy = ev.motion.y - prev_y[in_ev.id];
-          in_ev.state = ev.motion.state;
-          client_input_event(&in_ev);
-          prev_x[in_ev.id] = in_ev.x;
-          prev_y[in_ev.id] = in_ev.y;
-          prev_motion_event_ms = time_ms;
-        }
-        break;
-      case SDL_MOUSEBUTTONUP:
-      case SDL_MOUSEBUTTONDOWN:
-        in_ev.type = (ev.type == SDL_MOUSEBUTTONUP) ? IN_PTR_UP : IN_PTR_DOWN;
-        in_ev.id = 0;
-        in_ev.ms = time_ms;
-        in_ev.x = ev.button.x;
-        in_ev.y = ev.button.y;
-        in_ev.key = ev.button.button;
-        client_input_event(&in_ev);
-        break;
-      case SDL_KEYUP:
-        if (ev.key.keysym.sym == SDLK_ESCAPE
-            && (ev.key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
-          running = 0;
-      case SDL_KEYDOWN:
-        in_ev.type = (ev.type == SDL_KEYUP) ? IN_KEY_UP : IN_KEY_DOWN;
-        in_ev.ms = time_ms;
-        in_ev.key = ev.key.keysym.sym;
-        in_ev.state = ev.key.keysym.mod;
-        in_ev.unicode = ev.key.keysym.unicode;
-        client_input_event(&in_ev);
-        break;
+      case SDL_MOUSEMOTION: case SDL_MOUSEBUTTONUP: case SDL_MOUSEBUTTONDOWN:
+      case SDL_KEYUP: case SDL_KEYDOWN:
+        nevents++;
+      default:;
       }
-    if (process_clients(server_fd, time_ms, frame_ms))
-      running = 0;
-    if (time_ms - prev_draw_ms > frame_ms) {
-      if (draw_clients())
-        refresh_screen();
-      prev_draw_ms = time_ms;
-    }
+    if (SDL_mutexV(event_mutex) < 0)
+      return -1;
   }
   return 0;
 }
 
-int
+static void
+process_event(SDL_Event *ev, unsigned int time_ms)
+{
+  struct input_event in_ev = {0};
+
+  switch (ev->type) {
+  case SDL_QUIT:
+    running = 0;
+    break;
+  case SDL_MOUSEMOTION:
+    in_ev.type = IN_PTR_MOVE;
+    in_ev.id = 0;
+    in_ev.ms = time_ms;
+    in_ev.x = ev->motion.x;
+    in_ev.y = ev->motion.y;
+    in_ev.dx = ev->motion.xrel;
+    in_ev.dy = ev->motion.yrel;
+    in_ev.state = ev->motion.state;
+    uifs_input_event(&in_ev);
+    break;
+  case SDL_MOUSEBUTTONUP:
+  case SDL_MOUSEBUTTONDOWN:
+    in_ev.type = (ev->type == SDL_MOUSEBUTTONUP) ? IN_PTR_UP : IN_PTR_DOWN;
+    in_ev.id = 0;
+    in_ev.ms = time_ms;
+    in_ev.x = ev->button.x;
+    in_ev.y = ev->button.y;
+    in_ev.key = ev->button.button;
+    uifs_input_event(&in_ev);
+    break;
+  case SDL_KEYUP:
+    if (ev->key.keysym.sym == SDLK_ESCAPE
+        && (ev->key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
+      running = 0;
+  case SDL_KEYDOWN:
+    in_ev.type = (ev->type == SDL_KEYUP) ? IN_KEY_UP : IN_KEY_DOWN;
+    in_ev.ms = time_ms;
+    in_ev.key = ev->key.keysym.sym;
+    in_ev.state = ev->key.keysym.mod;
+    in_ev.unicode = ev->key.keysym.unicode;
+    uifs_input_event(&in_ev);
+    break;
+  default:;
+  }
+}
+
+static int
+redraw(void)
+{
+  SDL_Surface *s = (backbuffer) ? backbuffer : screen;
+  int i, *rect;
+
+  if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) < 0)
+    return -1;
+  screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
+  if (uifs_redraw()) {
+    if (screen->flags & SDL_DOUBLEBUF)
+      SDL_Flip(screen);
+    else for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4)
+      SDL_UpdateRect(screen, rect[0], rect[1], rect[2], rect[3]);
+  }
+  free_image(screen_image);
+  if (SDL_MUSTLOCK(s))
+    SDL_UnlockSurface(s);
+  return 0;
+}
+
+static int
+main_loop(int server_fd)
+{
+  SDL_Thread *event_thread;
+  unsigned int i, prev_draw_ms = 0, time_ms;
+
+  if (pipe(event_pipe) < 0)
+    die("Cannot create event pipe");
+
+  event_mutex = SDL_CreateMutex();
+  if (!event_mutex)
+    die("Cannot create event mutex");
+
+  event_thread = SDL_CreateThread(event_thread_fn, 0);
+  if (!event_thread)
+    die("Cannot create event thread");
+
+  for (;;) {
+    profile_start(PROF_LOOP);
+    time_ms = SDL_GetTicks();
+    profile_start(PROF_EVENTS);
+    profile_end(PROF_EVENTS);
+    profile_start(PROF_IO);
+    if (uifs_process_io(server_fd, event_pipe[0], frame_ms))
+      running = 0;
+    if (SDL_mutexP(event_mutex) < 0)
+      return -1;
+    if (!running)
+      break;
+    for (i = 0; i < nevents; ++i)
+      process_event(&events[i], time_ms);
+    nevents = 0;
+    if (SDL_mutexV(event_mutex) < 0)
+      return -1;
+    profile_end(PROF_IO);
+    profile_start(PROF_DRAW);
+    if (uifs_update() && (time_ms - prev_draw_ms > frame_ms)) {
+      redraw();
+      prev_draw_ms = time_ms;
+    }
+    profile_end(PROF_DRAW);
+    profile_end(PROF_LOOP);
+  }
+  SDL_WaitThread(event_thread, 0);
+  profile_show();
+  return 0;
+}
+
+static int
 sdl_init(int w, int h)
 {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -488,7 +453,7 @@ sdl_init(int w, int h)
   return 0;
 }
 
-void
+static void
 parse_args(int argc, char **argv)
 {
   int i, j;

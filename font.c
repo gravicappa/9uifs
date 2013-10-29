@@ -6,7 +6,7 @@
 #include "fs.h"
 #include "fstypes.h"
 #include "fsutil.h"
-#include "draw.h"
+#include "backend.h"
 #include "config.h"
 #include "util.h"
 
@@ -29,13 +29,13 @@ font_from_str(const char *str)
 }
 
 int
-init_fonts()
+init_fonts(void)
 {
   return 0;
 }
 
 void
-free_fonts()
+free_fonts(void)
 {
 }
 
@@ -117,23 +117,23 @@ static struct p9_fs list_fs = {
   .read = read_list
 };
 
-int
-init_fonts_fs(struct file *root)
+struct file *
+mk_fonts_fs(const char *name)
 {
   struct file *f;
 
   f = calloc(2, sizeof(struct file));
-  if (!f)
-    return -1;
-  root->mode = 0700 | P9_DMDIR;
-  root->qpath = new_qid(FS_FONTS);
+  if (f) {
+    f[0].name = (char *)name;
+    f[0].mode = 0700 | P9_DMDIR;
+    f[0].qpath = new_qid(FS_FONTS);
 
-  f[0].name = "list";
-  f[0].mode = 0400;
-  f[0].qpath = new_qid(FS_FNT_LIST);
-  f[0].fs = &list_fs;
-  f[0].rm = rm_fonts;
-  add_file(root, &f[0]);
-
-  return 0;
+    f[1].name = "list";
+    f[1].mode = 0400;
+    f[1].qpath = new_qid(FS_FNT_LIST);
+    f[1].fs = &list_fs;
+    f[1].rm = rm_fonts;
+    add_file(&f[0], &f[1]);
+  }
+  return f;
 }

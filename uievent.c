@@ -6,17 +6,16 @@
 #include <time.h>
 
 #include "util.h"
-#include "input.h"
+#include "api.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
 #include "fstypes.h"
-#include "event.h"
+#include "bus.h"
 #include "ctl.h"
-#include "draw.h"
+#include "backend.h"
 #include "surface.h"
 #include "prop.h"
-#include "view.h"
 #include "uiobj.h"
 #include "ui.h"
 #include "client.h"
@@ -28,40 +27,25 @@ static struct evmask {
   {"kbd", UI_KBD_EV},
   {"ptr_move", UI_MOVE_PTR_EV},
   {"ptr_updown", UI_UPDOWN_PTR_EV},
-  {"ptr_inout", UI_INOUT_EV},
+  {"ptr_intersect", UI_PTR_INTERSECT_EV},
   {"resize", UI_RESIZE_EV},
   {0}
 };
 
-int
-ev_view(char *buf, struct ev_fmt *ev)
-{
-  if (!buf)
-    return strlen(ev->x.v->f.name);
-  return sprintf(buf, "%s", ev->x.v->f.name);
-}
-
-int
-ev_uiobj(char *buf, struct ev_fmt *ev)
-{
-  struct uiobj *u = ev->x.o;
-  if (!buf)
-    return file_path_len((struct file *)u, u->client->ui) - 1;
-  return file_path(ev->len + 1, buf, (struct file *)u, u->client->ui) - 1;
-}
-
-int
-ui_keyboard(struct view *v, struct uiobj *u, struct input_event *ev)
+static int
+kbd_ev(struct uiobj *u, struct input_event *ev)
 {
   char *type;
 
-  u = (u) ? u : (struct uiobj *)v->uisel;
-  if (u && u->ops->on_input && u->ops->on_input(u, ev))
+  if (!u)
+    return 0;
+
+  if (u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
 
   type = (ev->type == IN_KEY_DOWN) ? "d" : "u";
   if (u && u->flags & UI_KBD_EV) {
-    struct ev_fmt evfmt[] = {
+    struct ev_arg evargs[] = {
       {ev_str, {.s = "key"}},
       {ev_str, {.s = type}},
       {ev_uint, {.u = ev->key}},
@@ -70,7 +54,8 @@ ui_keyboard(struct view *v, struct uiobj *u, struct input_event *ev)
       {ev_uiobj, {.o = u}},
       {0}
     };
-    put_event(v->c, &v->c->ev, evfmt);
+    static const char *tags[] = {bus_ch_kbd, bus_ch_all, 0};
+    put_event(u->client->bus, tags, evargs);
   }
   return 0;
 }
@@ -86,16 +71,15 @@ struct input_context {
   struct input_event *ev;
   struct uiobj *u;
   struct uiobj *over;
-  struct view *v;
 };
 
 static int
-on_input(struct view *v, struct uiobj *u, struct input_event *ev)
+uiobj_input(struct uiobj *u, struct input_event *ev)
 {
   switch (ev->type) {
   case IN_PTR_MOVE:
     if (u->flags & UI_MOVE_PTR_EV) {
-      struct ev_fmt evfmt[] = {
+      struct ev_arg evargs[] = {
         {ev_str, {.s = "ptr"}},
         {ev_str, {.s = "m"}},
         {ev_uint, {.u = ev->id}},
@@ -107,14 +91,15 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      put_event(v->c, &v->c->ev, evfmt);
+      static const char *tags[] = {bus_ch_ptr, 0};
+      put_event(u->client->bus, tags, evargs);
       return 1;
     }
     break;
   case IN_PTR_UP:
   case IN_PTR_DOWN:
     if (u->flags & UI_UPDOWN_PTR_EV) {
-      struct ev_fmt evfmt[] = {
+      struct ev_arg evargs[] = {
         {ev_str, {.s = "ptr"}},
         {ev_str, {.s = (ev->type == IN_PTR_UP) ? "u" : "d"}},
         {ev_uint, {.u = ev->id}},
@@ -124,7 +109,8 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      put_event(v->c, &v->c->ev, evfmt);
+      static const char *tags[] = {bus_ch_ptr, 0};
+      put_event(u->client->bus, tags, evargs);
       return 1;
     }
     break;
@@ -132,7 +118,7 @@ on_input(struct view *v, struct uiobj *u, struct input_event *ev)
   }
 #if 0
   log_printf(LOG_UI, "on-input '%s' %p\n", u->f.name, u->ops->on_input);
-  return 1;
+  /*return 1;*/
 #endif
   return u->ops->on_input && u->ops->on_input(u, ev);
 }
@@ -162,7 +148,7 @@ input_event_fn(struct uiplace *up, void *aux)
   log_printf(LOG_UI, "input_event_fn on-input %s\n", u ? u->f.name : "(nil)");
 #endif
 
-  if (on_input(ctx->v, u, ev)) {
+  if (uiobj_input(u, ev)) {
     ctx->u = u;
     return 0;
   }
@@ -170,27 +156,28 @@ input_event_fn(struct uiplace *up, void *aux)
 }
 
 static struct uiobj *
-onexit(struct view *v, struct uiobj *obj, int x, int y)
+process_ptr_exit(struct uiobj *obj, int x, int y)
 {
   struct uiobj *last = 0;
-  struct ev_fmt evfmt[] = {
+  struct ev_arg evargs[] = {
     {ev_str, {.s = "ptr"}},
     {ev_str, {.s = "out"}},
     {ev_uiobj},
     {0}
   };
+  static const char *tags[] = {bus_ch_ui, bus_ch_all, 0};
   while (obj) {
     last = obj;
     if (inside_uiobj(x, y, obj))
       break;
-    else if (obj->ops->on_inout_pointer)
-      obj->ops->on_inout_pointer(obj, 0);
-    if (obj->flags & UI_INOUT_EV) {
-      evfmt[2].x.o = obj;
-      put_event(v->c, &v->c->ev, evfmt);
+    else if (obj->ops->on_ptr_intersect)
+      obj->ops->on_ptr_intersect(obj, 0);
+    if (obj->flags & UI_PTR_INTERSECT_EV) {
+      evargs[2].x.o = obj;
+      put_event(obj->client->bus, tags, evargs);
     }
-    if  (obj->parent && obj->parent->parent)
-      obj = obj->parent->parent->obj;
+    if  (obj->place && obj->place->parent)
+      obj = obj->place->parent->obj;
     else
       obj = 0;
   }
@@ -198,15 +185,16 @@ onexit(struct view *v, struct uiobj *obj, int x, int y)
 }
 
 static void
-onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
+process_ptr_enter(struct uiobj *u, struct uiobj *prev, int x, int y)
 {
   struct uiobj *obj;
-  struct ev_fmt evfmt[] = {
+  struct ev_arg evargs[] = {
     {ev_str, {.s = "ptr"}},
     {ev_str, {.s = "in"}},
     {ev_uiobj},
     {0}
   };
+  static const char *tags[] = {bus_ch_ui, bus_ch_all, 0};
 
   if (prev == u)
     return;
@@ -214,84 +202,67 @@ onenter(struct view *v, struct uiobj *prev, struct uiobj *u, int x, int y)
   while (obj && obj != prev) {
     if (!inside_uiobj(x, y, obj))
       break;
-    else if (obj->ops->on_inout_pointer)
-      obj->ops->on_inout_pointer(obj, 1);
-    if (obj->flags & UI_INOUT_EV) {
-      evfmt[2].x.o = obj;
-      put_event(v->c, &v->c->ev, evfmt);
+    else if (obj->ops->on_ptr_intersect)
+      obj->ops->on_ptr_intersect(obj, 1);
+    if (obj->flags & UI_PTR_INTERSECT_EV) {
+      evargs[2].x.o = obj;
+      put_event(obj->client->bus, tags, evargs);
     }
-    if  (obj->parent && obj->parent->parent)
-      obj = obj->parent->parent->obj;
+    if  (obj->place && obj->place->parent)
+      obj = obj->place->parent->obj;
     else
       obj = 0;
   }
 }
 
-int
-ui_pointer_event(struct view *v, struct uiobj *u, struct input_event *ev)
+static int
+ptr_ev(struct uiobj *u, struct input_event *ev)
 {
-  struct input_context ctx = {ev, 0, 0, v};
+  struct input_context ctx = {ev, 0, 0};
   struct uiobj *t, *obj;
   struct uiplace *up;
 
-  if (u)
-    return on_input(v, u, ev);
+  if (ui_grabbed)
+    return uiobj_input(ui_grabbed, ev);
 
-  t = onexit(v, (struct uiobj *)v->uipointed, ev->x, ev->y);
-  if ((v->flags & VIEW_EV_DIRTY) || !t)
-    ui_walk_view_tree((struct uiplace *)v->uiplace, 0, input_event_fn, &ctx);
+  t = process_ptr_exit(ui_pointed, ev->x, ev->y);
+  if (!ui_desktop->obj)
+    return 0;
+  if ((ui_desktop->obj->flags & UI_DIRTY) || !t)
+    walk_ui_tree(ui_desktop, 0, input_event_fn, &ctx);
   else {
-    ui_walk_view_tree(t->parent, 0, input_event_fn, &ctx);
-    if (t->parent)
-      for (up = t->parent->parent; up && up->obj; up = up->parent) {
+    walk_ui_tree(t->place, 0, input_event_fn, &ctx);
+    if (t->place)
+      for (up = t->place->parent; up && up->obj; up = up->parent) {
         obj = up->obj;
-        if (on_input(v, obj, ev))
+        if (uiobj_input(obj, ev))
           break;
       }
-    onenter(v, t, ctx.over, ev->x, ev->y);
+    process_ptr_enter(ctx.over, t, ev->x, ev->y);
   }
-  v->flags &= ~VIEW_EV_DIRTY;
-  v->uipointed = (struct file *)ctx.over;
+  ui_pointed = ctx.over;
 
   if (ctx.u)
-    v->uisel = &ctx.u->f;
-
-  switch (ev->type) {
-  case IN_PTR_DOWN:
-  case IN_PTR_UP:
-    obj = ctx.u;
-    while (0 && obj) {
-      if ((v->flags & VIEW_UPDOWN_PTR_EV) && v->ev.listeners) {
-        struct ev_fmt evfmt[] = {
-          {ev_str, {.s = "press_ptr"}},
-          {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
-          {ev_uint, {.u = ev->x}},
-          {ev_uint, {.u = ev->y}},
-          {ev_uint, {.u = ev->key}},
-          {ev_uiobj, {.o = obj}},
-          {0}
-        };
-        put_event(v->c, &v->c->ev, evfmt);
-      }
-      if ((obj->flags & UI_UPDOWN_PTR_EV) && v->ev.listeners) {
-        struct ev_fmt evfmt[] = {
-          {ev_str, {.s = "press_ptr"}},
-          {ev_uint, {.u = (ev->type == IN_PTR_DOWN) ? 1 : 0}},
-          {ev_uint, {.u = ev->x}},
-          {ev_uint, {.u = ev->y}},
-          {ev_uint, {.u = ev->key}},
-          {ev_uiobj, {.o = obj}},
-          {0}
-        };
-        put_event(v->c, &v->c->ev, evfmt);
-      }
-    }
-    return 1;
-  case IN_PTR_MOVE:
-    break;
-  default:;
-  }
+    ui_focused = ctx.u;
   return 0;
+}
+
+int
+uifs_input_event(struct input_event *ev)
+{
+  struct uiobj *u;
+
+  u = (ui_grabbed) ? ui_grabbed : ((ui_focused) ? ui_focused : ui_pointed);
+  switch (ev->type) {
+  case IN_PTR_MOVE:
+  case IN_PTR_UP:
+  case IN_PTR_DOWN:
+    return ptr_ev(u, ev);
+  case IN_KEY_UP:
+  case IN_KEY_DOWN:
+    return kbd_ev(u, ev);
+  default: return 0;
+  }
 }
 
 void

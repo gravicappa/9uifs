@@ -5,15 +5,16 @@ enum uiflags {
   UI_KBD_EV = (1 << 3),
   UI_UPDOWN_PTR_EV = (1 << 4),
   UI_MOVE_PTR_EV = (1 << 5),
-  UI_INOUT_EV = (1 << 6),
-  UI_RESIZE_EV = (1 << 7)
+  UI_PTR_INTERSECT_EV = (1 << 6),
+  UI_RESIZE_EV = (1 << 7),
+  UI_SEE_THROUGH = (1 << 8),
 };
 
 struct uiplace;
 struct view;
 struct uiobj;
-struct ev_pool;
-struct ev_fmt;
+struct bus;
+struct ev_arg;
 struct uicontext;
 struct input_event;
 
@@ -21,17 +22,18 @@ struct uiobj_ops {
   int allocated;
   void (*draw)(struct uiobj *u, struct uicontext *uc);
   void (*draw_over)(struct uiobj *u, struct uicontext *uc);
-  void (*update)(struct uiobj *u, struct uicontext *uc);
+  void (*update)(struct uiobj *u);
   void (*resize)(struct uiobj *u);
   void (*update_size)(struct uiobj *u);
   int (*on_input)(struct uiobj *u, struct input_event *ev);
-  int (*on_inout_pointer)(struct uiobj *u, int inside);
+  int (*on_ptr_intersect)(struct uiobj *u, int inside);
   struct file *(*get_children)(struct uiobj *u);
 };
 
 struct uiobj {
   struct file f;
   struct uiobj *next;
+  struct uiobj_ops *ops;
 
   struct prop_buf type;
   struct prop_int bg;
@@ -44,19 +46,17 @@ struct uiobj {
   struct file f_evfilter;
   struct file f_parent;
 
-  struct uiobj_ops *ops;
-
   int flags;
   int reqsize[2];
-  struct uiplace *parent;
+  struct uiplace *place;
   struct client *client;
   void *data;
 };
 
 struct uiplace {
   struct file f;
-
   struct uiobj *obj;
+
   struct prop_buf sticky;
   struct prop_rect padding;
   struct prop_rect place;
@@ -75,19 +75,13 @@ struct uiobj_container {
   struct uiobj *u;
 };
 
-struct uiobj_maker {
-  char *type;
-  int (*init)(struct uiobj *);
-};
-
 struct uicontext {
   int dirty;
-  struct view *v;
   int clip[4];
   struct uiobj *dirtyobj;
 };
 
-struct uiobj *mk_uiobj();
+struct uiobj *mk_uiobj(struct client *c);
 void ui_rm_uiobj(struct file *f);
 
 void ui_update_placement(struct uiobj *u);
@@ -106,11 +100,16 @@ int ui_init_place(struct uiplace *up, int setup);
 
 void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
 
-void ui_walk_view_tree(struct uiplace *up,
-                       int (*before_fn)(struct uiplace *, void *),
-                       int (*after_fn)(struct uiplace *, void *),
-                       void *aux);
+void walk_ui_tree(struct uiplace *up,
+                  int (*before_fn)(struct uiplace *, void *),
+                  int (*after_fn)(struct uiplace *, void *),
+                  void *aux);
 
-int put_ui_event(struct ev_pool *ev, struct client *c, const char *fmt, ...);
+int put_ui_event(struct bus *bus, struct client *c, const char *fmt, ...);
 void ui_init_evfilter(struct file *f);
 void ui_enqueue_update(struct uiobj *u);
+
+struct file *uiobj_children(struct uiobj *u);
+struct uiobj *uiplace_container(struct uiplace *up);
+
+int ev_uiobj(char *buf, struct ev_arg *ev);

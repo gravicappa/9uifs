@@ -8,8 +8,6 @@
 #include "fsutil.h"
 #include "prop.h"
 #include "uiobj.h"
-#include "event.h"
-#include "client.h"
 
 struct gridopt {
   struct file f;

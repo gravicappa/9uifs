@@ -4,6 +4,7 @@ core
 vgcore.*
 uifs
 uifs.mini2440
+uifs_mini2440
 *.log
 mnt
 test

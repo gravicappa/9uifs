@@ -1,15 +1,14 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "util.h"
-#include "draw.h"
+#include "backend.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
 #include "prop.h"
-#include "event.h"
+#include "bus.h"
 #include "ctl.h"
 #include "surface.h"
-#include "view.h"
 #include "uiobj.h"
 #include "client.h"
 #include "config.h"
@@ -121,7 +120,7 @@ path_clunk(struct p9_connection *con)
   }
   if (img->s != prevs) {
     if (!img->s || img->s->w != prevw || img->s->h != prevh)
-      ui_propagate_dirty(img->obj->parent);
+      ui_propagate_dirty(img->obj->place);
     img->obj->flags |= UI_DIRTY;
   }
 }
@@ -147,14 +146,12 @@ static void
 draw(struct uiobj *u, struct uicontext *ctx)
 {
   struct uiobj_image *img = u->data;
-  struct surface *blit = &ctx->v->blit;
   struct surface *s = img->s;
   int *r = u->g.r;
 
-  if (s && s->img) {
-    blit_image(blit->img, r[0], r[1], r[2], r[3], s->img, 0, 0, s->w, s->h);
-    mark_dirty_rect(r);
-  }
+  if (s && s->img)
+    blit_image(screen_image, r[0], r[1], r[2], r[3], s->img, 0, 0, s->w,
+               s->h);
 }
 
 static struct uiobj_ops image_ops = {

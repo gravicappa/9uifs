@@ -2,46 +2,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <Imlib2.h>
 #include <errno.h>
 
 #include "util.h"
 #include "net.h"
-#include "input.h"
+#include "api.h"
+#include "backend.h"
 #include "9p.h"
 #include "9pdbg.h"
 #include "fs.h"
 #include "fstypes.h"
-#include "event.h"
+#include "bus.h"
 #include "client.h"
 #include "ctl.h"
-#include "draw.h"
-#include "surface.h"
-#include "prop.h"
 #include "ui.h"
-#include "view.h"
 #include "config.h"
 #include "font.h"
 #include "images.h"
-#include "wm.h"
 
 struct client *clients = 0;
 unsigned int cur_time_ms;
 
+static void rm_client(struct client *c);
+
 struct client *
-add_client(int server_fd, int msize)
+add_client(int fd, int msize)
 {
   struct client *c;
-  int fd, opt = 1;
-  struct sockaddr_in addr;
-  socklen_t len;
-
-  len = sizeof(addr);
-  fd = accept(server_fd, (struct sockaddr *)&addr, &len);
-  if (fd < 0 || nonblock_socket(fd))
-    return 0;
-  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-  log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
   c = (struct client *)calloc(1, sizeof(struct client));
   if (!c)
     die("Cannot allocate memory");
@@ -60,33 +47,25 @@ add_client(int server_fd, int msize)
   c->f.mode = 0500 | P9_DMDIR;
   c->f.qpath = new_qid(FS_ROOT);
 
-  c->ev.f.name = "event";
-  init_event(&c->ev, c);
-  add_file(&c->f, &c->ev.f);
+  c->bus = mk_bus("ev", c);
+  if (!c->bus)
+    goto error;
+  add_file(&c->f, c->bus);
 
-  c->f_views.name = "views";
-  c->f_views.mode = 0700 | P9_DMDIR;
-  c->f_views.qpath = new_qid(FS_VIEWS);
-  c->f_views.fs = &fs_views;
-  add_file(&c->f, &c->f_views);
-
-  c->images = init_image_dir("images");
+  c->images = mk_image_dir("images");
+  if (!c->images)
+    goto error;
   add_file(&c->f, c->images);
 
-  if (init_fonts_fs(&c->f_fonts) == 0) {
-    c->f_fonts.name = "fonts";
-    add_file(&c->f, &c->f_fonts);
-  }
+  c->fonts = mk_fonts_fs("fonts");
+  if (!c->fonts)
+    goto error;
+  add_file(&c->f, c->fonts);
 
-  c->f_comm.name = "comm";
-  c->f_comm.mode = 0700 | P9_DMDIR;
-  c->f_comm.qpath = new_qid(FS_NONE);
-  add_file(&c->f, &c->f_comm);
+  c->ui = mk_ui("ui");
+  if (!c->ui)
+    goto error;
 
-  if (ui_init_ui(c) == 0) {
-    c->ui->name = "ui";
-    add_file(&c->f, c->ui);
-  }
   if (clients)
     clients->prev = c;
   c->next = clients;
@@ -94,9 +73,12 @@ add_client(int server_fd, int msize)
 
   log_printf(LOG_CLIENT, "# Added new client (fd: %d)\n", fd);
   return c;
+error:
+  rm_client(c);
+  return 0;
 }
 
-void
+static void
 rm_client(struct client *c)
 {
   if (!c)
@@ -137,7 +119,7 @@ client_send_resp(struct client *c)
 {
   unsigned int outsize;
 
-  if (p9_pack_msg(c->con.msize, c->outbuf, &c->con.r))
+  if (p9_pack_msg(c->con.msize, (char *)c->outbuf, &c->con.r))
     return -1;
   outsize = unpack_uint4((unsigned char *)c->outbuf);
   if (send(c->fd, c->outbuf, outsize, 0) <= 0)
@@ -150,7 +132,7 @@ process_client_io(struct client *c)
 {
   int r;
   unsigned int size, off;
-  char *buf = c->inbuf;
+  unsigned char *buf = c->inbuf;
 
   if (c->read >= c->con.msize - (c->con.msize >> 4)) {
     if (c->read > c->off)
@@ -176,7 +158,7 @@ process_client_io(struct client *c)
     }
     if (off + size > c->read)
       break;
-    if (p9_unpack_msg(size, buf + off, &c->con.t)) {
+    if (p9_unpack_msg(size, (char *)buf + off, &c->con.t)) {
       log_printf(LOG_DBG, "unpack message error\n");
       return -1;
     }
@@ -193,92 +175,17 @@ process_client_io(struct client *c)
   return 0;
 }
 
-void
-client_input_event(struct input_event *ev)
-{
-  wm_on_input(ev);
-}
-
-static int
-update_views(struct client *c)
-{
-  struct file *vf;
-  struct view *v;
-  int changed = 0;
-
-  for (vf = c->f_views.child; vf; vf = vf->next) {
-    v = (struct view *)vf;
-    if ((v->flags & VIEW_VISIBLE) && (v->flags & VIEW_DIRTY)) {
-      v->flags |= VIEW_EV_DIRTY;
-      ui_update_view(v);
-      changed = 1;
-    }
-  }
-  return changed;
-}
-
-static int
-draw_views(struct client *c)
-{
-  struct file *vf;
-  struct view *v;
-  int changed = 0;
-
-  for (vf = c->f_views.child; vf; vf = vf->next) {
-    v = (struct view *)vf;
-    if (v->flags & VIEW_VISIBLE)
-      changed |= draw_view((struct view *)vf);
-    v->flags &= ~VIEW_DIRTY;
-  }
-  return changed;
-}
-
 int
-draw_clients()
-{
-  struct client *c;
-  int changed = 0;
-
-  clean_dirty_rects();
-  for (c = clients; c; c = c->next) {
-    update_views(c);
-    changed |= draw_views(c);
-  }
-  changed |= ui_update();
-  return changed;
-}
-
-void
-blit_clients(int rect[4])
-{
-  struct client *c;
-  struct view *v;
-  struct file *f;
-  struct screen *s = default_screen();
-  int r[4], x, y;
-
-  for (c = clients; c; c = c->next) {
-    for (f = c->f_views.child; f; f = f->next) {
-      v = (struct view *)f;
-      ui_intersect_clip(r, v->g.r, rect);
-      x = v->g.r[0];
-      y = v->g.r[1];
-      blit_image(s->blit, r[0], r[1], r[2], r[3],
-                 v->blit.img, r[0] - x, r[1] - y, r[2], r[3]);
-    }
-  }
-}
-
-int
-update_sock_set(fd_set *fdset, int server_fd)
+update_sock_set(fd_set *fdset, int server_fd, int event_fd)
 {
   struct client *c = clients;
   int m;
 
   FD_ZERO(fdset);
   FD_SET(server_fd, fdset);
+  FD_SET(event_fd, fdset);
 
-  m = server_fd;
+  m = (server_fd > event_fd) ? server_fd : event_fd;
   for (c = clients; c; c = c->next) {
     FD_SET(c->fd, fdset);
     m = (m > c->fd) ? m : c->fd;
@@ -286,26 +193,47 @@ update_sock_set(fd_set *fdset, int server_fd)
   return m;
 }
 
+static struct client *
+accept_client(int server_fd)
+{
+  int fd, opt = 1;
+  struct sockaddr_in addr;
+  socklen_t len;
+
+  len = sizeof(addr);
+  fd = accept(server_fd, (struct sockaddr *)&addr, &len);
+  if (fd < 0 || nonblock_socket(fd))
+    return 0;
+  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+  log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
+  return add_client(fd, MSIZE);
+}
+
 int
-process_clients(int server_fd, unsigned int time_ms, unsigned int frame_ms)
+uifs_process_io(int srvfd, int evfd, unsigned int frame_ms)
 {
   struct timeval tv;
   fd_set fdset;
   int m, r;
   struct client *c, *cnext;
+  unsigned char evbuf[1];
 
   for (c = clients; c; c = c->next)
-    send_events_deferred(c);
-  cur_time_ms = time_ms;
-  m = update_sock_set(&fdset, server_fd);
-  tv.tv_sec = 0;
-  tv.tv_usec = 1000 * frame_ms;
-  r = select(m + 1, &fdset, 0, 0, &tv);
+    send_events_deferred(c->bus);
+  m = update_sock_set(&fdset, srvfd, evfd);
+  if (ui_update_list) {
+    tv.tv_sec = 0;
+    tv.tv_usec = 1000 * frame_ms;
+  }
+  r = select(m + 1, &fdset, 0, 0, (ui_update_list) ? &tv : 0);
   if (r < 0 && errno != EINTR && errno != 514)
     return -1;
+  cur_time_ms = current_time_ms();
   if (r > 0) {
-    if (FD_ISSET(server_fd, &fdset))
-      add_client(server_fd, MSIZE);
+    if (FD_ISSET(srvfd, &fdset))
+      accept_client(srvfd);
+    if (FD_ISSET(evfd, &fdset))
+      read(evfd, evbuf, sizeof(evbuf));
     for (c = clients; c; c = cnext) {
       cnext = c->next;
       if (FD_ISSET(c->fd, &fdset))

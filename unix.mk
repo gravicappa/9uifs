@@ -1,10 +1,10 @@
 CC = gcc
 O = o
 #CFLAGS = -Wall -O0 -g -pedantic -Wno-long-long
-CFLAGS = -Wall -O0 -g 
+CFLAGS = -Wall -O0 -g
 
-#CFLAGS = $CFLAGS -pg
-#LDFLAGS = -pg
+CFLAGS = $CFLAGS -pg
+LDFLAGS = -pg
 
 CFLAGS = $CFLAGS `{sdl-config --cflags}
 #LDFLAGS = $LDFLAGS -static
