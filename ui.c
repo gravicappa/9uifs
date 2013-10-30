@@ -609,7 +609,7 @@ uifs_update(void)
 }
 
 int
-uifs_redraw(void)
+uifs_redraw(int force)
 {
   struct uicontext ctx = {0};
   ui_set_desktop(ui_desktop->obj);
@@ -617,6 +617,8 @@ uifs_redraw(void)
   if (!ui_desktop->obj)
     return 0;
 
+  if (force)
+    ui_desktop->obj->flags |= UI_DIRTY;
   ctx.clip[0] = 0;
   ctx.clip[1] = 0;
   image_get_size(screen_image, &ctx.clip[2], &ctx.clip[3]);

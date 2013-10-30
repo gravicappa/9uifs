@@ -65,6 +65,7 @@ add_client(int fd, int msize)
   c->ui = mk_ui("ui");
   if (!c->ui)
     goto error;
+  add_file(&c->f, c->ui);
 
   if (clients)
     clients->prev = c;
