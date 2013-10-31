@@ -1,4 +1,5 @@
 #include <SDL/SDL.h>
+#include <SDL/SDL_thread.h>
 #include <Imlib2.h>
 #include <unistd.h>
 
@@ -21,10 +22,9 @@ static char *server_host = 0;
 static UFont default_font = 0;
 
 static SDL_mutex *event_mutex;
-static int nevents;
-static SDL_Event events[16];
+static SDL_cond *event_cond;
+static SDL_Event event;
 static int event_pipe[2] = {-1, -1};
-static int running = 1;
 static SDL_Surface *screen = 0;
 static SDL_Surface *backbuffer = 0;
 
@@ -302,36 +302,66 @@ current_time_ms(void)
   return SDL_GetTicks();
 }
 
+static const char *
+event_type_str(SDL_Event *ev)
+{
+#define CASE(x) case x: return #x
+  switch (ev->type) {
+  CASE(SDL_QUIT);
+  CASE(SDL_VIDEOEXPOSE);
+  CASE(SDL_VIDEORESIZE);
+  CASE(SDL_MOUSEMOTION);
+  CASE(SDL_MOUSEBUTTONUP);
+  CASE(SDL_MOUSEBUTTONDOWN);
+  CASE(SDL_KEYUP);
+  CASE(SDL_KEYDOWN);
+  CASE(SDL_USEREVENT);
+  default: return "unknown";
+  }
+#undef CASE
+}
+
 static int
 event_thread_fn(void *aux)
 {
-  for (;;) {
-    if (SDL_mutexP(event_mutex) < 0)
-      return -1;
-    if (!running)
-      break;
-    while (nevents < NITEMS(events) && SDL_PollEvent(&events[nevents]))
-      switch (events[nevents].type) {
-      case SDL_QUIT:
-      case SDL_MOUSEMOTION: case SDL_MOUSEBUTTONUP: case SDL_MOUSEBUTTONDOWN:
-      case SDL_KEYUP: case SDL_KEYDOWN:
-        nevents++;
-      default:;
+  int thread_running;
+  SDL_Event ev;
+
+  for (thread_running = 1; thread_running;) {
+    event.type = SDL_NOEVENT;
+    if (SDL_WaitEvent(&ev) == 1) {
+      if (SDL_mutexP(event_mutex) < 0) {
+        log_printf(LOG_DBG, "event thread: cannot lock mutex\n");
+        return -1;
       }
-    if (SDL_mutexV(event_mutex) < 0)
-      return -1;
+      memcpy(&event, &ev, sizeof(event));
+      write(event_pipe[1], "x", 1);
+      switch (ev.type) {
+        case SDL_USEREVENT:
+        case SDL_QUIT:
+          thread_running = 0;
+          break;
+        default:
+          SDL_CondWait(event_cond, event_mutex);
+      }
+      if (SDL_mutexV(event_mutex) < 0)
+        return -1;
+    }
   }
   return 0;
 }
 
-static void
-process_event(SDL_Event *ev, unsigned int time_ms)
+static int
+process_event(SDL_Event *ev, unsigned int time_ms, int *redraw_all)
 {
   struct input_event in_ev = {0};
 
   switch (ev->type) {
   case SDL_QUIT:
-    running = 0;
+    return -1;
+  case SDL_VIDEOEXPOSE:
+  case SDL_VIDEORESIZE:
+    *redraw_all = 1;
     break;
   case SDL_MOUSEMOTION:
     in_ev.type = IN_PTR_MOVE;
@@ -357,7 +387,7 @@ process_event(SDL_Event *ev, unsigned int time_ms)
   case SDL_KEYUP:
     if (ev->key.keysym.sym == SDLK_ESCAPE
         && (ev->key.keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)))
-      running = 0;
+      return -1;
   case SDL_KEYDOWN:
     in_ev.type = (ev->type == SDL_KEYUP) ? IN_KEY_UP : IN_KEY_DOWN;
     in_ev.ms = time_ms;
@@ -368,10 +398,11 @@ process_event(SDL_Event *ev, unsigned int time_ms)
     break;
   default:;
   }
+  return 0;
 }
 
 static int
-redraw(void)
+redraw(int force_redraw)
 {
   SDL_Surface *s = (backbuffer) ? backbuffer : screen;
   int i, *rect;
@@ -379,7 +410,7 @@ redraw(void)
   if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) < 0)
     return -1;
   screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
-  if (uifs_redraw()) {
+  if (uifs_redraw(force_redraw)) {
     if (screen->flags & SDL_DOUBLEBUF)
       SDL_Flip(screen);
     else for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4)
@@ -395,10 +426,16 @@ static int
 main_loop(int server_fd)
 {
   SDL_Thread *event_thread;
-  unsigned int i, prev_draw_ms = 0, time_ms;
+  SDL_Event quit_event = {0};
+  unsigned int prev_draw_ms = 0, time_ms;
+  int running, force_redraw = 1;
 
   if (pipe(event_pipe) < 0)
     die("Cannot create event pipe");
+
+  event_cond = SDL_CreateCond();
+  if (!event_cond)
+    die("Cannot create condition variable");
 
   event_mutex = SDL_CreateMutex();
   if (!event_mutex)
@@ -408,33 +445,45 @@ main_loop(int server_fd)
   if (!event_thread)
     die("Cannot create event thread");
 
-  for (;;) {
+  for (running = 1; running;) {
     profile_start(PROF_LOOP);
     time_ms = SDL_GetTicks();
-    profile_start(PROF_EVENTS);
-    profile_end(PROF_EVENTS);
     profile_start(PROF_IO);
     if (uifs_process_io(server_fd, event_pipe[0], frame_ms))
       running = 0;
+    profile_start(PROF_EVENTS);
     if (SDL_mutexP(event_mutex) < 0)
-      return -1;
-    if (!running)
-      break;
-    for (i = 0; i < nevents; ++i)
-      process_event(&events[i], time_ms);
-    nevents = 0;
+      die("unable to lock mutex");
+    if (event.type != SDL_NOEVENT) {
+      if (process_event(&event, time_ms, &force_redraw) < 0)
+        running = 0;
+      SDL_PumpEvents();
+      while (SDL_PollEvent(&event))
+        if (process_event(&event, time_ms, &force_redraw) < 0)
+          running = 0;
+      event.type = SDL_NOEVENT;
+      SDL_CondSignal(event_cond);
+    }
     if (SDL_mutexV(event_mutex) < 0)
-      return -1;
+      die("unable to unlock mutex");
+    profile_end(PROF_EVENTS);
     profile_end(PROF_IO);
     profile_start(PROF_DRAW);
-    if (uifs_update() && (time_ms - prev_draw_ms > frame_ms)) {
-      redraw();
+    if ((force_redraw || uifs_update())
+        && (time_ms - prev_draw_ms > frame_ms)) {
+      redraw(force_redraw);
+      force_redraw = 0;
       prev_draw_ms = time_ms;
     }
     profile_end(PROF_DRAW);
     profile_end(PROF_LOOP);
   }
+  quit_event.type = SDL_QUIT;
+  if (SDL_PushEvent(&quit_event) < 0)
+    log_printf(LOG_ERR, "push quit event failed\n");
   SDL_WaitThread(event_thread, 0);
+  SDL_DestroyCond(event_cond);
+  SDL_DestroyMutex(event_mutex);
   profile_show();
   return 0;
 }
