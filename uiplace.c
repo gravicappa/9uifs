@@ -9,6 +9,7 @@
 #include "fstypes.h"
 #include "fsutil.h"
 #include "prop.h"
+#include "ui.h"
 #include "uiobj.h"
 #include "util.h"
 #include "client.h"
@@ -23,7 +24,7 @@ rm_place(struct file *f)
   if (up->obj) {
     up->obj->place = 0;
     up->obj = 0;
-    ui_propagate_dirty(up);
+    ui_enqueue_update(ui_desktop->obj);
   }
   if (up->sticky.buf)
     free(up->sticky.buf);
@@ -159,7 +160,7 @@ path_clunk(struct p9_connection *con)
     place_uiobj(up, (struct uiobj *)find_file(client->ui, buf->used, buf->b));
   }
   if (up->obj != prevu)
-    ui_propagate_dirty(up);
+    ui_enqueue_update(ui_desktop->obj);
 }
 
 static struct p9_fs path_fs = {

@@ -1,6 +1,8 @@
 typedef void *UImage;
 typedef void *UFont;
 
+extern int screen_w;
+extern int screen_h;
 extern UImage screen_image;
 
 void set_cliprect(int x, int y, int w, int h);

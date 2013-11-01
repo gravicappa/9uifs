@@ -13,8 +13,6 @@
 #include "profile.h"
 
 static int sdl_flags = SDL_HWSURFACE | SDL_DOUBLEBUF | SDL_ANYFORMAT;
-static int scr_w = 320;
-static int scr_h = 200;
 static int show_cursor = 1;
 static int frame_ms = 1000 / 30;
 static int moveptr_events_interval_ms = 1000 / 30;
@@ -28,6 +26,8 @@ static int event_pipe[2] = {-1, -1};
 static SDL_Surface *screen = 0;
 static SDL_Surface *backbuffer = 0;
 
+int screen_w = 320;
+int screen_h = 200;
 Imlib_Image screen_image = 0;
 
 void
@@ -195,20 +195,67 @@ init_fonts(void)
     default_font = create_font(DEF_FONT, DEF_FONT_SIZE, "");
 }
 
+static void
+show_info(const SDL_VideoInfo *info)
+{
+  char buffer[256];
+
+  log_printf(LOG_FRONT, ";; Info: %p\n", info);
+  if (SDL_VideoDriverName(buffer, sizeof(buffer))) {
+    log_printf(LOG_FRONT, ";; Video driver: %s\n", buffer);
+  }
+  if (info) {
+    log_printf(LOG_FRONT, ";; Video info:\n");
+    log_printf(LOG_FRONT, ";;       hw: %d\n", info->hw_available);
+    log_printf(LOG_FRONT, ";;       blit_hw: %d\n", info->blit_hw);
+    log_printf(LOG_FRONT, ";;       blit_hw_CC: %d\n", info->blit_hw_CC);
+    log_printf(LOG_FRONT, ";;       blit_hw_A: %d\n", info->blit_hw_A);
+    log_printf(LOG_FRONT, ";;       blit_sw: %d\n", info->blit_sw);
+    log_printf(LOG_FRONT, ";;       blit_sw_CC: %d\n", info->blit_sw_CC);
+    log_printf(LOG_FRONT, ";;       blit_sw_A: %d\n", info->blit_sw_A);
+    log_printf(LOG_FRONT, ";;       blit_fill: %d\n", info->blit_fill);
+    log_printf(LOG_FRONT, ";;       mem: %d\n", info->video_mem);
+  }
+}
+
+static void
+show_surface_info(SDL_Surface *s, const char *name)
+{
+  if (s) {
+    log_printf(LOG_FRONT, ";; surface '%s'\n", name);
+    log_printf(LOG_FRONT, ";;         w: %d\n", s->w);
+    log_printf(LOG_FRONT, ";;         h: %d\n", s->h);
+    log_printf(LOG_FRONT, ";;         pitch: %d\n", s->pitch);
+    if (s->format) {
+      log_printf(LOG_FRONT, ";;         depth: %d bytes/pixel\n",
+                 s->format->BytesPerPixel);
+      log_printf(LOG_FRONT, ";;         rmask: %08x\n", s->format->Rmask);
+      log_printf(LOG_FRONT, ";;         gmask: %08x\n", s->format->Gmask);
+      log_printf(LOG_FRONT, ";;         bmask: %08x\n", s->format->Bmask);
+      log_printf(LOG_FRONT, ";;         amask: %08x\n", s->format->Amask);
+    }
+  }
+}
+
 static int
-init_screen(int w, int h)
+init_screen()
 {
   SDL_PixelFormat *fmt;
+  const SDL_VideoInfo *info;
 
-  screen = SDL_SetVideoMode(w, h, 0, sdl_flags);
+  info = SDL_GetVideoInfo();
+  screen_w = (screen_w > 0) ? screen_w : info->current_w;
+  screen_h = (screen_h > 0) ? screen_h : info->current_h;
+  show_info(info);
+  screen = SDL_SetVideoMode(screen_w, screen_h, 0, sdl_flags);
+  show_surface_info(screen, "screen");
   if (!screen) {
     log_printf(LOG_ERR, "Cannot change video mode.\n");
     return -1;
   }
   fmt = screen->format;
   if (!(fmt->BitsPerPixel == 32 && fmt->Rmask == 0x00ff0000
-        && fmt->Gmask == 0x0000ff00 && fmt->Bmask == 0x000000ff
-        && fmt->Amask == 0xff000000)) {
+        && fmt->Gmask == 0x0000ff00 && fmt->Bmask == 0x000000ff)) {
     backbuffer = SDL_CreateRGBSurface(0, screen->w, screen->h, 32,
                                       0x00ff0000, 0x0000ff00, 0x000000ff,
                                       0xff000000);
@@ -216,7 +263,7 @@ init_screen(int w, int h)
       return -1;
   }
   init_fonts();
-  init_dirty(0, 0, w, h);
+  init_dirty(0, 0, screen_w, screen_h);
   return 0;
 }
 
@@ -402,21 +449,33 @@ process_event(SDL_Event *ev, unsigned int time_ms, int *redraw_all)
 }
 
 static int
-redraw(int force_redraw)
+draw(int redraw_all)
 {
   SDL_Surface *s = (backbuffer) ? backbuffer : screen;
+  SDL_Rect blitrect;
   int i, *rect;
 
   if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) < 0)
     return -1;
+  log_printf(LOG_DBG, "main/draw/ direct: %d\n", s == screen);
   screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
-  if (uifs_redraw(force_redraw)) {
+  draw_rect(screen_image, 10, 10, 100, 100, 0xffffffff, 0xffff00ff);
+  if (uifs_redraw(redraw_all)) {
+    if (backbuffer)
+      for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4) {
+        blitrect.x = rect[0];
+        blitrect.y = rect[1];
+        blitrect.w = rect[2];
+        blitrect.h = rect[3];
+        SDL_BlitSurface(backbuffer, &blitrect, screen, &blitrect);
+      }
     if (screen->flags & SDL_DOUBLEBUF)
       SDL_Flip(screen);
     else for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4)
       SDL_UpdateRect(screen, rect[0], rect[1], rect[2], rect[3]);
   }
   free_image(screen_image);
+  screen_image = 0;
   if (SDL_MUSTLOCK(s))
     SDL_UnlockSurface(s);
   return 0;
@@ -428,7 +487,7 @@ main_loop(int server_fd)
   SDL_Thread *event_thread;
   SDL_Event quit_event = {0};
   unsigned int prev_draw_ms = 0, time_ms;
-  int running, force_redraw = 1;
+  int running, redraw_all = 1, redraw;
 
   if (pipe(event_pipe) < 0)
     die("Cannot create event pipe");
@@ -455,11 +514,11 @@ main_loop(int server_fd)
     if (SDL_mutexP(event_mutex) < 0)
       die("unable to lock mutex");
     if (event.type != SDL_NOEVENT) {
-      if (process_event(&event, time_ms, &force_redraw) < 0)
+      if (process_event(&event, time_ms, &redraw_all) < 0)
         running = 0;
       SDL_PumpEvents();
       while (SDL_PollEvent(&event))
-        if (process_event(&event, time_ms, &force_redraw) < 0)
+        if (process_event(&event, time_ms, &redraw_all) < 0)
           running = 0;
       event.type = SDL_NOEVENT;
       SDL_CondSignal(event_cond);
@@ -469,10 +528,10 @@ main_loop(int server_fd)
     profile_end(PROF_EVENTS);
     profile_end(PROF_IO);
     profile_start(PROF_DRAW);
-    if ((force_redraw || uifs_update())
-        && (time_ms - prev_draw_ms > frame_ms)) {
-      redraw(force_redraw);
-      force_redraw = 0;
+    redraw = uifs_update() ? 1 : redraw;
+    if ((redraw_all || redraw) && (time_ms - prev_draw_ms > frame_ms)) {
+      draw(redraw_all);
+      redraw = redraw_all = 0;
       prev_draw_ms = time_ms;
     }
     profile_end(PROF_DRAW);
@@ -489,7 +548,7 @@ main_loop(int server_fd)
 }
 
 static int
-sdl_init(int w, int h)
+sdl_init()
 {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     log_printf(LOG_ERR, "SDL_Init failed.\n");
@@ -497,7 +556,7 @@ sdl_init(int w, int h)
   }
   SDL_ShowCursor(show_cursor);
 
-  if (init_screen(w, h))
+  if (init_screen())
     return -1;
   return 0;
 }
@@ -517,11 +576,11 @@ parse_args(int argc, char **argv)
         case 'g': logmask |= LOG_DBG; break;
         case 'm': logmask |= LOG_MSG; break;
         case 'u': logmask |= LOG_UI; break;
+        case 'f': logmask |= LOG_FRONT; break;
         }
     else if (!strcmp(argv[i], "-s") && i + 1 < argc) {
-      if (sscanf(argv[++i], "%dx%d", &scr_w, &scr_h) != 2 || scr_w <= 0
-          || scr_h <= 0)
-        die("Wrong resolution.");
+      if (sscanf(argv[++i], "%dx%d", &screen_w, &screen_h) != 2)
+        screen_w = screen_h = 0;
     } else if (!strcmp(argv[i], "-f") && i + 1 < argc) {
       if (sscanf(argv[++i], "%d", &j) != 1 || j <= 0)
         die("Wrong frames per second.");
@@ -535,6 +594,7 @@ parse_args(int argc, char **argv)
   log_printf(LOG_DBG, "logging: dbg\n");
   log_printf(LOG_MSG, "logging: msg\n");
   log_printf(LOG_UI, "logging: ui\n");
+  log_printf(LOG_FRONT, "logging: front\n");
 }
 
 int
@@ -549,7 +609,7 @@ main(int argc, char **argv)
   fd = net_listen(server_host, server_port);
   if (fd < 0)
     die("Cannot create listening socket.");
-  if (sdl_init(scr_w, scr_h))
+  if (sdl_init())
     die("Cannot init SDL.");
   main_loop(fd);
   close(fd);

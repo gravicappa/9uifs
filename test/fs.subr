@@ -1,5 +1,5 @@
 fn mnt {
-  fusermount -u mnt
+  mountpoint mnt >/dev/null >[2=1] && fusermount -q -u mnt >[2]/dev/null
   test -z $"host && host='127.0.0.1:5558'
   9pfuse 127.0.0.1:5558 mnt
 }

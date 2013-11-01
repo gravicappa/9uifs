@@ -252,6 +252,7 @@ uifs_input_event(struct input_event *ev)
 {
   struct uiobj *u;
 
+  return 0;
   u = (ui_grabbed) ? ui_grabbed : ((ui_focused) ? ui_focused : ui_pointed);
   switch (ev->type) {
   case IN_PTR_MOVE:

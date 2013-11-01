@@ -8,6 +8,8 @@ enum uiflags {
   UI_PTR_INTERSECT_EV = (1 << 6),
   UI_RESIZE_EV = (1 << 7),
   UI_SEE_THROUGH = (1 << 8),
+  UI_UPD_QUEUED = (1 << 9),
+  UI_DELETED = (1 << 10),
 };
 
 struct uiplace;
@@ -37,8 +39,6 @@ struct uiobj {
 
   struct prop_buf type;
   struct prop_int bg;
-  struct prop_int visible;
-  struct prop_int drawable;
   struct prop_rect restraint;
   struct prop_rect g;
   struct prop_rect viewport;
@@ -81,11 +81,8 @@ struct uicontext {
   struct uiobj *dirtyobj;
 };
 
-struct uiobj *mk_uiobj(struct client *c);
 void ui_rm_uiobj(struct file *f);
-
 void ui_update_placement(struct uiobj *u);
-
 void ui_init_container_items(struct uiobj_container *c, char *name);
 void ui_update_uiobj(struct uiobj *u);
 void ui_redraw_uiobj(struct uiobj *u);

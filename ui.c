@@ -22,7 +22,10 @@
 #include "dirty.h"
 
 #define UI_NAME_PREFIX '_'
+#define UI_NAME_MAIN "_main"
 
+extern struct uiobj_maker uitypes[];
+static struct arr desktop_place_sticky = {4, 4, "tblr"};
 static struct uiplace desktop_place;
 struct uiplace *ui_desktop = &desktop_place;
 struct uiobj *ui_update_list = 0;
@@ -30,9 +33,8 @@ struct uiobj *ui_focused = 0;
 struct uiobj *ui_grabbed = 0;
 struct uiobj *ui_pointed = 0;
 
-int init_uigrid(struct uiobj *);
-int init_uiscroll(struct uiobj *);
-extern struct uiobj_maker uitypes[];
+static void ui_set_desktop(struct uiobj *u);
+struct uiobj *mk_uiobj(char *name, struct client *c);
 
 struct uiobj_dir {
   struct file f;
@@ -44,10 +46,6 @@ static struct p9_fs items_fs = {
   .create = items_create,
 };
 
-static struct p9_fs root_items_fs = {
-  .create = items_create
-};
-
 static struct p9_fs container_fs = {
   .create = ui_create_place
 };
@@ -55,6 +53,9 @@ static struct p9_fs container_fs = {
 void
 ui_enqueue_update(struct uiobj *u)
 {
+  if (!u || (u->flags & UI_UPD_QUEUED))
+    return;
+  u->flags |= UI_UPD_QUEUED;
   u->next = ui_update_list;
   ui_update_list = u;
 }
@@ -99,14 +100,13 @@ items_create(struct p9_connection *c)
     return;
   }
   if (name[0] == UI_NAME_PREFIX)
-    f = (struct file *)mk_uiobj((struct client *)c);
+    f = (struct file *)mk_uiobj(name, (struct client *)c);
   else
     f = items_mkdir(name);
   if (!f) {
     P9_SET_STR(c->r.ename, "Cannot allocate memory");
     return;
   }
-  f->name = name;
   f->owns_name = 1;
   resp_file_create(c, f);
   add_file(&dir->f, f);
@@ -142,9 +142,11 @@ prop_type_clunk(struct p9_connection *c)
   u = (struct uiobj *)p->p.aux;
   for (i = 0; uitypes[i].type && uitypes[i].init; ++i)
     if (!strcmp(uitypes[i].type, p->buf->b))
-      if (uitypes[i].init(u) == 0)
+      if (uitypes[i].init(u) == 0) {
+        log_printf(LOG_UI, "making %s a %s\n", u->f.name, uitypes[i].type);
+        ui_enqueue_update(u);
         good = 1;
-  u->flags |= UI_DIRTY;
+      }
   if (!good)
     memset(p->buf->b, 0, p->buf->size);
 }
@@ -217,15 +219,10 @@ ui_rm_uiobj(struct file *f)
   free(u);
 }
 
-static void
-ui_prop_drawable_upd(struct prop *p)
-{
-  struct uiobj *u = (struct uiobj *)p->aux;
-  u->flags |= UI_DIRTY;
-}
+static struct uiobj_ops empty_obj_ops = {};
 
 struct uiobj *
-mk_uiobj(struct client *client)
+mk_uiobj(char *name, struct client *client)
 {
   int r;
   struct uiobj *u;
@@ -234,7 +231,8 @@ mk_uiobj(struct client *client)
   if (!u)
     return 0;
   u->client = client;
-  u->ops = 0;
+  u->ops = &empty_obj_ops;
+  u->f.name = name;
   u->f.mode = 0500 | P9_DMDIR;
   u->f.qpath = new_qid(FS_UIOBJ);
   u->f.rm = ui_rm_uiobj;
@@ -242,8 +240,6 @@ mk_uiobj(struct client *client)
 
   r = init_prop_buf(&u->f, &u->type, "type", 0, "", 0, u)
       || init_prop_colour(&u->f, &u->bg, "background", DEF_BG, u)
-      || init_prop_int(&u->f, &u->visible, "visible", 0, u)
-      || init_prop_int(&u->f, &u->drawable, "drawable", 1, u)
       || init_prop_rect(&u->f, &u->restraint, "restraint", 1, u)
       || init_prop_rect(&u->f, &u->g, "g", 1, u);
 
@@ -252,10 +248,7 @@ mk_uiobj(struct client *client)
     free(u);
     u = 0;
   }
-
-  u->bg.p.update = u->visible.p.update = u->restraint.p.update
-        = ui_prop_update_default;
-  u->drawable.p.update = ui_prop_drawable_upd;
+  u->bg.p.update = u->restraint.p.update = ui_prop_update_default;
 
   u->type.p.f.fs = &prop_type_fs;
   u->g.p.f.mode = 0400;
@@ -268,7 +261,8 @@ mk_uiobj(struct client *client)
   u->f_parent.qpath = new_qid(0);
   u->f_parent.fs = &parent_fs;
   add_file(&u->f, &u->f_parent);
-
+  if (!ui_desktop->obj && !strcmp(u->f.name, UI_NAME_MAIN))
+    ui_set_desktop(u);
   return u;
 }
 
@@ -302,6 +296,7 @@ walk_ui_tree(struct uiplace *up,
 
   x = up;
   do {
+    if (0) log_printf(LOG_UI, "walk %s\n", (x->obj) ? x->obj->f.name : "(nil)");
     f = 0;
     if (!back && x->obj && before_fn(x, aux))
       f = uiobj_children(x->obj);
@@ -312,7 +307,7 @@ walk_ui_tree(struct uiplace *up,
       if (!after_fn(x, aux))
         goto end;
       x = (struct uiplace *)x->f.next;
-    } else {
+    } else if (x->parent) {
       back = 1;
       if (!after_fn(x, aux))
         goto end;
@@ -324,25 +319,31 @@ end:
   ;
 }
 
-static void
-update_obj_size(struct uiobj *u)
-{
-  if (!u)
-    return;
-  if (u->ops->update_size)
-    u->ops->update_size(u);
-  else {
-    u->reqsize[0] = u->restraint.r[0];
-    u->reqsize[1] = u->restraint.r[1];
-  }
-}
-
 static int
 update_place_size(struct uiplace *up, void *aux)
 {
-  if (up && up->obj)
-    update_obj_size(up->obj);
+  struct uiobj *u;
+
+  if (up && up->obj) {
+    u = up->obj;
+    if (u->ops->update_size)
+      u->ops->update_size(u);
+    else {
+      u->reqsize[0] = u->restraint.r[0];
+      u->reqsize[1] = u->restraint.r[1];
+    }
+    log_printf(LOG_UI, "update_size/ %s -> [%d %d]\n", u->f.name,
+               u->reqsize[0], u->reqsize[1]);
+  }
   return 1;
+}
+
+const char *
+str_from_rect(int r[4])
+{
+  static const char s[16 * 4 + 5 + 1];
+  snprintf(s, sizeof(s), "[%d %d %d %d]", r[0], r[1], r[2], r[3]);
+  return s;
 }
 
 static int
@@ -363,8 +364,9 @@ resize_place(struct uiplace *up, void *aux)
       u->flags |= UI_DIRTY;
       if ((u->flags & UI_SEE_THROUGH) && up->parent && up->parent->obj)
         up->parent->obj->flags |= UI_DIRTY;
-      add_dirty_rect(u->g.r);
     }
+    if (u->flags & UI_DIRTY)
+      add_dirty_rect(u->g.r);
     if (changed && (u->flags & UI_RESIZE_EV)) {
       struct ev_arg ev[] = {
         {ev_str, {.s = "resize"}},
@@ -375,7 +377,7 @@ resize_place(struct uiplace *up, void *aux)
         {ev_int, {.i = u->g.r[3]}},
         {0}
       };
-      const static char *tags[] = {bus_ch_all, bus_ch_ui, 0};
+      const static char *tags[] = {bus_ch_ui, bus_ch_all, 0};
       put_event(u->client->bus, tags, ev);
     }
     memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
@@ -414,8 +416,9 @@ draw_obj(struct uiplace *up, void *aux)
 
   if (up && up->obj) {
     u = up->obj;
-    if (!(u->flags & UI_DIRTY) || ctx->dirtyobj)
+    if (!(u->flags & UI_DIRTY) && !ctx->dirtyobj)
       return 1;
+    log_printf(LOG_UI, "draw %s | %d\n", u->f.name, ndirty_rects);
     if (!ctx->dirtyobj)
       ctx->dirtyobj = u;
     memcpy(up->clip, clip, sizeof(up->clip));
@@ -447,6 +450,7 @@ draw_over_obj(struct uiplace *up, void *aux)
     u = up->obj;
     dirty = (u->flags & UI_DIRTY) || ctx->dirtyobj;
     if (dirty && u->ops->draw_over) {
+      log_printf(LOG_UI, "draw_over %s | %d\n", u->f.name, ndirty_rects);
       for (drect = dirty_rects, i = 0; i < ndirty_rects; ++i, drect += 4) {
         ui_intersect_clip(r, clip, drect);
         if (r[2] && r[3]) {
@@ -470,12 +474,10 @@ draw_over_obj(struct uiplace *up, void *aux)
 void
 ui_propagate_dirty(struct uiplace *up)
 {
-  struct uiobj *u;
-
-  while (up && (u = uiplace_container(up))) {
-    u->flags |= UI_DIRTY;
-    up = u->place;
-  }
+  ui_enqueue_update(ui_desktop->obj);
+  for (; up; up = up->parent)
+    if (up->obj)
+      up->obj->flags |= UI_DIRTY;
 }
 
 void
@@ -563,9 +565,10 @@ struct file *
 mk_ui(const char *name)
 {
   struct file *f;
+  ui_desktop->sticky.buf = &desktop_place_sticky;
   f = items_mkdir(name);
   if (f)
-    f->fs = &root_items_fs;
+    f->fs = &items_fs;
   return f;
 }
 
@@ -585,27 +588,42 @@ ui_set_desktop(struct uiobj *u)
     for (f = uiobj_children(u); f; f = f->next)
       ((struct uiobj *)f)->place->parent = ui_desktop;
     prev = u;
+    u->flags |= UI_DIRTY;
+    ui_enqueue_update(ui_desktop->obj);
   }
 }
 
-void
+int
 uifs_update(void)
 {
   struct uiobj *v, *unext;
+  int r[4], ret = 0;
 
   cur_time_ms = current_time_ms();
   ui_set_desktop(ui_desktop->obj);
+  clean_dirty_rects();
+  ret = (ui_update_list != 0);
   v = ui_update_list;
   ui_update_list = 0;
   for (; v; v = unext) {
     unext = v->next;
+    log_printf(LOG_UI, "update %s\n", v->f.name);
+    v->flags &= ~UI_UPD_QUEUED;
     if (v->ops->update)
       v->ops->update(v);
+    if (v->flags & UI_DELETED) {
+      /* remove uiobj */
+    }
   }
-  if (ui_desktop->obj) {
+  if (ret) {
     walk_ui_tree(ui_desktop, 0, update_place_size, 0);
+    r[0] = r[1] = 0;
+    r[2] = screen_w;
+    r[3] = screen_h;
+    ui_place_with_padding(ui_desktop, r);
     walk_ui_tree(ui_desktop, resize_place, 0, 0);
   }
+  return ret;
 }
 
 int
@@ -617,11 +635,16 @@ uifs_redraw(int force)
   if (!ui_desktop->obj)
     return 0;
 
-  if (force)
+  if (force) {
     ui_desktop->obj->flags |= UI_DIRTY;
+    add_dirty_rect(ui_desktop->obj->g.r);
+  }
   ctx.clip[0] = 0;
   ctx.clip[1] = 0;
   image_get_size(screen_image, &ctx.clip[2], &ctx.clip[3]);
+  log_printf(LOG_UI, "draw\n");
+  prepare_dirty_rects();
   walk_ui_tree(ui_desktop, draw_obj, draw_over_obj, &ctx);
+  log_printf(LOG_UI, "draw DONE\n");
   return ctx.dirty;
 }

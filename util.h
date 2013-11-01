@@ -5,6 +5,7 @@ enum log_masks {
   LOG_DBG = 8,
   LOG_MSG = 16,
   LOG_UI = 32,
+  LOG_FRONT = 64,
 };
 
 #define containerof(ptr, type, member) \

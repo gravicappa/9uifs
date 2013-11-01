@@ -222,7 +222,7 @@ rect_open(struct p9_connection *con)
   p = (struct prop_rect *)fid->file;
   fid->aux = calloc(1, RECT_BUF_SIZE);
   fid->rm = rm_fid_aux;
-  if (P9_WRITE_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
+  if (P9_READ_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, RECT_BUF_SIZE, "%d %d %d %d", p->r[0], p->r[1],
              p->r[2], p->r[3]);
 }

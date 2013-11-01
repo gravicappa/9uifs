@@ -206,6 +206,7 @@ update_grid_size(struct uiobj *u)
   for (s = 0, i = 0; i < ni; ++i)
     s += UIGRID_CELL_SIZE(opts[i]);
   u->reqsize[1] = s;
+  log_printf(LOG_UI, "grid/upd_size [%d %d]\n", u->reqsize[0], u->reqsize[1]);
 }
 
 static void
@@ -244,6 +245,8 @@ resize_grid(struct uiobj *u)
   h = u->g.r[3];
   ni = g->ncols;
   nj = g->nrows;
+
+  log_printf(LOG_UI, "grid/resize [%d %d]\n", ni, nj);
 
   resize_grid_dim(ni, g->cols_opts, u->reqsize[0], w);
   resize_grid_dim(nj, g->rows_opts, u->reqsize[1], h);
@@ -439,6 +442,5 @@ init_uigrid(struct uiobj *u)
   u->ops = &grid_ops;
   u->flags |= UI_CONTAINER;
   u->f.rm = rm_uigrid;
-
   return 0;
 }

@@ -41,7 +41,7 @@ $exe: $obj $backend_obj
 
 run:V: $exe
   ulimit -c unlimited
-  ./$exe $run_flags -d ugc >[2=1] | tee uifs.log
+  ./$exe $run_flags -d fugc >[2=1] | tee uifs.log
 
 valgrind:V: $exe
   flags=()
@@ -50,8 +50,8 @@ valgrind:V: $exe
   #flags=($flags '--gen-suppressions=yes')
   flags=($flags '--suppressions=test/xlib.supp')
   flags=($flags '--suppressions=test/imlib.supp')
-  if (~ $check '*leak*') flags=($flags '--leak-check=full')
-  if not true
+  flags=($flags '--leak-check=full')
+  flags=($flags '--show-reachable=yes')
   valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
 
 callgrind:V: $exe
