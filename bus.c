@@ -45,6 +45,7 @@ struct bus {
 
 struct bus_listener {
   struct bus_listener *next;
+  struct bus_channel *chan;
   unsigned short tag;
   unsigned short flags;
   unsigned int time_ms;
@@ -164,14 +165,12 @@ put_event(struct file *bus, const char **channels, struct ev_arg *ev)
 void
 event_rm_fid(struct p9_fid *fid)
 {
-  struct bus_channel *chan = containerof(fid->file, struct bus_channel, out);
   struct bus_listener *lsr = fid->aux, *p, **pp;
-
+  struct bus_channel *chan = lsr->chan;
   pp = &chan->listeners;
   for (p = *pp; p && p != lsr; pp = &p->next, p = p->next) {}
   if (p)
     *pp = p->next;
-
   if (lsr->buf)
     free(lsr->buf);
   free(lsr);
@@ -195,6 +194,7 @@ out_open(struct p9_connection *con)
   chan->bus->nlisteners++;
   lsr->next = chan->listeners;
   chan->listeners = lsr;
+  lsr->chan = chan;
   lsr->tag = P9_NOTAG;
   lsr->time_ms = cur_time_ms;
   fid->aux = lsr;
@@ -205,10 +205,6 @@ void
 out_read(struct p9_connection *con)
 {
   struct bus_listener *lsr = (struct bus_listener *)con->t.pfid->aux;
-
-  if (0)
-    log_printf(LOG_DBG, "# event_read (buf: %u)\n",
-               (lsr->buf) ? lsr->buf->used : 0);
 
   if (!(lsr->buf && lsr->buf->used)) {
     if (lsr->tag != P9_NOTAG) {
@@ -308,9 +304,14 @@ static void
 init_static_channel(const char *name, struct bus_channel *chan, struct bus *b)
 {
   chan->f.name = (char *)name;
-  chan->f.mode = 0700;
-  chan->f.qpath = new_qid(FS_BUS_CHAN_OUT);
-  chan->f.fs = &fs_out;
+  chan->f.mode = 0500 | P9_DMDIR;
+  chan->f.qpath = new_qid(FS_BUS_CHAN);
+  chan->out.name = "out";
+  chan->out.mode = 0700;
+  chan->out.qpath = new_qid(FS_BUS_CHAN_OUT);
+  chan->out.fs = &fs_out;
+  chan->bus = b;
+  add_file(&chan->f, &chan->out);
   add_file(&b->f, &chan->f);
 }
 
@@ -341,13 +342,13 @@ send_events_deferred(struct file *bus)
   struct bus *b = (struct bus *)bus;
   struct bus_channel *chan;
   struct bus_listener *lsr;
-  unsigned int t;
+  unsigned int t, n = b->nlisteners;
   t = b->min_time_ms;
 
   for (chan = (struct bus_channel *)b->f.child;
-       chan;
+       chan && n;
        chan = (struct bus_channel *)chan->f.next) {
-    for (lsr = chan->listeners; lsr; lsr = lsr->next)
+    for (lsr = chan->listeners; lsr && n; lsr = lsr->next, --n)
       if (lsr->tag != P9_NOTAG && cur_time_ms - lsr->time_ms > t)
         send_event(b->client, lsr);
   }

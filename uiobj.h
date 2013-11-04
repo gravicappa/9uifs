@@ -1,19 +1,20 @@
 enum uiflags {
   UI_CONTAINER = (1 << 0),
-  UI_DIRTY = (1 << 1),
-  UI_DISABLED = (1 << 2),
-  UI_KBD_EV = (1 << 3),
-  UI_UPDOWN_PTR_EV = (1 << 4),
-  UI_MOVE_PTR_EV = (1 << 5),
-  UI_PTR_INTERSECT_EV = (1 << 6),
-  UI_RESIZE_EV = (1 << 7),
-  UI_SEE_THROUGH = (1 << 8),
-  UI_UPD_QUEUED = (1 << 9),
-  UI_DELETED = (1 << 10),
+  UI_DIRTY_VISUAL = (1 << 1),
+  UI_DIRTY = (1 << 2) | UI_DIRTY_VISUAL,
+  UI_DISABLED = (1 << 3),
+  UI_KBD_EV = (1 << 4),
+  UI_UPDOWN_PTR_EV = (1 << 5),
+  UI_MOVE_PTR_EV = (1 << 6),
+  UI_PTR_INTERSECT_EV = (1 << 7),
+  UI_RESIZE_EV = (1 << 8),
+  UI_SEE_THROUGH = (1 << 9),
+  UI_UPD_QUEUED = (1 << 10),
+  UI_DELETED = (1 << 11),
+  UI_EXPORTED = (1 << 12),
 };
 
 struct uiplace;
-struct view;
 struct uiobj;
 struct bus;
 struct ev_arg;
@@ -43,8 +44,8 @@ struct uiobj {
   struct prop_rect g;
   struct prop_rect viewport;
 
-  struct file f_evfilter;
-  struct file f_parent;
+  struct file f_flags;
+  struct file f_place;
 
   int flags;
   int reqsize[2];
@@ -86,7 +87,6 @@ void ui_update_placement(struct uiobj *u);
 void ui_init_container_items(struct uiobj_container *c, char *name);
 void ui_update_uiobj(struct uiobj *u);
 void ui_redraw_uiobj(struct uiobj *u);
-void ui_update_size(struct view *v, struct uiplace *up);
 void ui_place_with_padding(struct uiplace *up, int rect[4]);
 
 void ui_propagate_dirty(struct uiplace *up);
@@ -105,8 +105,10 @@ void walk_ui_tree(struct uiplace *up,
 int put_ui_event(struct bus *bus, struct client *c, const char *fmt, ...);
 void ui_init_evfilter(struct file *f);
 void ui_enqueue_update(struct uiobj *u);
+void uiobj_init_flags(struct file *f);
 
 struct file *uiobj_children(struct uiobj *u);
 struct uiobj *uiplace_container(struct uiplace *up);
 
 int ev_uiobj(char *buf, struct ev_arg *ev);
+

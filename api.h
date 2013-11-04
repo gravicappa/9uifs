@@ -23,6 +23,6 @@ struct input_event {
   frame_ms — minimum time per frame to maintain desired fps
 */
 int uifs_process_io(int srvfd, int evfd, unsigned int frame_ms);
-int uifs_update(void);
+int uifs_update(int force);
 int uifs_redraw(int force);
 int uifs_input_event(struct input_event *ev);

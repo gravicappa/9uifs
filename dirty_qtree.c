@@ -228,9 +228,9 @@ prepare_dirty_rects(void)
 {
   ndirty_rects = 0;
   if (draw_qtree) {
-    print_qtree_leaf(draw_qtree, 0);
+    if (0) print_qtree_leaf(draw_qtree, 0);
     opt_qtree_aux(draw_qtree);
-    print_qtree_leaf(draw_qtree, 0);
+    if (0) print_qtree_leaf(draw_qtree, 0);
     iterate_qtree(draw_qtree, prep_dirty_rect, 0);
   }
 }

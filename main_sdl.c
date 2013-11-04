@@ -30,6 +30,11 @@ int screen_w = 320;
 int screen_h = 200;
 Imlib_Image screen_image = 0;
 
+enum flags {
+  FORCE_REDRAW = 1,
+  FORCE_UPDATE = 2,
+};
+
 void
 draw_line(Imlib_Image dst, int x1, int y1, int x2, int y2, unsigned int c)
 {
@@ -378,7 +383,7 @@ event_thread_fn(void *aux)
     event.type = SDL_NOEVENT;
     if (SDL_WaitEvent(&ev) == 1) {
       if (SDL_mutexP(event_mutex) < 0) {
-        log_printf(LOG_DBG, "event thread: cannot lock mutex\n");
+        log_printf(LOG_ERR, "event thread: cannot lock mutex\n");
         return -1;
       }
       memcpy(&event, &ev, sizeof(event));
@@ -399,7 +404,7 @@ event_thread_fn(void *aux)
 }
 
 static int
-process_event(SDL_Event *ev, unsigned int time_ms, int *redraw_all)
+process_event(SDL_Event *ev, unsigned int time_ms, int *flags)
 {
   struct input_event in_ev = {0};
 
@@ -407,8 +412,9 @@ process_event(SDL_Event *ev, unsigned int time_ms, int *redraw_all)
   case SDL_QUIT:
     return -1;
   case SDL_VIDEOEXPOSE:
+    *flags |= FORCE_REDRAW;
   case SDL_VIDEORESIZE:
-    *redraw_all = 1;
+    *flags |= FORCE_UPDATE;
     break;
   case SDL_MOUSEMOTION:
     in_ev.type = IN_PTR_MOVE;
@@ -448,6 +454,18 @@ process_event(SDL_Event *ev, unsigned int time_ms, int *redraw_all)
   return 0;
 }
 
+static void
+draw_grid(Imlib_Image dst)
+{
+  int i, di, dj, w, h;
+  di = dj = 8;
+  image_get_size(dst, &w, &h);
+  for (i = 0; i < w; i += di)
+    draw_line(dst, i, 0, i, h, 0x7f7f7f7f);
+  for (i = 0; i < h; i += dj)
+    draw_line(dst, 0, i, w, i, 0x7f7f7f7f);
+}
+
 static int
 draw(int redraw_all)
 {
@@ -457,9 +475,8 @@ draw(int redraw_all)
 
   if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) < 0)
     return -1;
-  log_printf(LOG_DBG, "main/draw/ direct: %d\n", s == screen);
   screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
-  draw_rect(screen_image, 10, 10, 100, 100, 0xffffffff, 0xffff00ff);
+  draw_grid(screen_image);
   if (uifs_redraw(redraw_all)) {
     if (backbuffer)
       for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4) {
@@ -487,7 +504,7 @@ main_loop(int server_fd)
   SDL_Thread *event_thread;
   SDL_Event quit_event = {0};
   unsigned int prev_draw_ms = 0, time_ms;
-  int running, redraw_all = 1, redraw;
+  int running, flags = FORCE_UPDATE, redraw;
 
   if (pipe(event_pipe) < 0)
     die("Cannot create event pipe");
@@ -514,11 +531,11 @@ main_loop(int server_fd)
     if (SDL_mutexP(event_mutex) < 0)
       die("unable to lock mutex");
     if (event.type != SDL_NOEVENT) {
-      if (process_event(&event, time_ms, &redraw_all) < 0)
+      if (process_event(&event, time_ms, &flags) < 0)
         running = 0;
       SDL_PumpEvents();
       while (SDL_PollEvent(&event))
-        if (process_event(&event, time_ms, &redraw_all) < 0)
+        if (process_event(&event, time_ms, &flags) < 0)
           running = 0;
       event.type = SDL_NOEVENT;
       SDL_CondSignal(event_cond);
@@ -528,10 +545,10 @@ main_loop(int server_fd)
     profile_end(PROF_EVENTS);
     profile_end(PROF_IO);
     profile_start(PROF_DRAW);
-    redraw = uifs_update() ? 1 : redraw;
-    if ((redraw_all || redraw) && (time_ms - prev_draw_ms > frame_ms)) {
-      draw(redraw_all);
-      redraw = redraw_all = 0;
+    redraw = uifs_update(flags & FORCE_UPDATE);
+    if ((flags || redraw) && (time_ms - prev_draw_ms > frame_ms)) {
+      draw(flags & FORCE_REDRAW);
+      redraw = flags = 0;
       prev_draw_ms = time_ms;
     }
     profile_end(PROF_DRAW);

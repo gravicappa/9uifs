@@ -243,9 +243,9 @@ on_ptr_intersect(struct uiobj *u, int inside)
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   if (us && us->mode != NORMAL) {
     us->mode = NORMAL;
-    u->flags |= UI_DIRTY;
+    u->flags |= UI_DIRTY_VISUAL;
     if (us->place.obj)
-      us->place.obj->flags |= UI_DIRTY;
+      us->place.obj->flags |= UI_DIRTY_VISUAL;
   }
   return 0;
 }
@@ -269,13 +269,12 @@ on_input(struct uiobj *u, struct input_event *ev)
   case IN_PTR_DOWN:
     if (us->mode != NORMAL) {
       us->mode = NORMAL;
-      u->flags |= UI_DIRTY;
-      us->place.obj->flags |= UI_DIRTY;
+      u->flags |= UI_DIRTY_VISUAL;
+      us->place.obj->flags |= UI_DIRTY_VISUAL;
     }
     return 0;
 
-  default:
-    return 0;
+  default: return 0;
   }
 }
 

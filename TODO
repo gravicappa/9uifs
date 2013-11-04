@@ -1,40 +1,16 @@
 # FS
 
-- Static directory structure probably can be defined as statid data.
+- Static directory structure probably can be defined as static data.
   + Qid can be stored in separate set.
 
-# WM
-
-The conept of separate WM is not required. Allowing importing widgets from
-other clients is enough (with sane permission management).
-
 # UI
-
-Choose widget name defining character:
-
-    widgets/service/wifi/_status/places/0
-
-    widgets/service/wifi/+status/places/0
-    widgets/service/wifi/@status/places/0
-    widgets/service/wifi/^status/places/0
-    widgets/service/wifi/:status/places/0
-    widgets/service/wifi/&status/places/0
-    widgets/service/wifi/%status/places/0
-    widgets/service/wifi/#status/places/0
-    widgets/service/wifi/$status/places/0
-    widgets/service/wifi/!status/places/0
-    widgets/service/wifi/,status/places/0
-    widgets/service/wifi/=status/places/0
-    widgets/service/wifi/-status/places/0
-    widgets/service/wifi/~status/places/0
-
 
 - Optimize label, button text change redraws.
 - Think about default keybindings
   + Autoassign keys to buttons?
 - Timed update.
 - New widgets:
-    + page,
+    + entry,
     + check button,
     + radio button,
     + slider,

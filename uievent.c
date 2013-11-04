@@ -20,42 +20,30 @@
 #include "ui.h"
 #include "client.h"
 
-static struct evmask {
-  char *s;
-  int mask;
-} evmask[] = {
-  {"kbd", UI_KBD_EV},
-  {"ptr_move", UI_MOVE_PTR_EV},
-  {"ptr_updown", UI_UPDOWN_PTR_EV},
-  {"ptr_intersect", UI_PTR_INTERSECT_EV},
-  {"resize", UI_RESIZE_EV},
-  {0}
-};
-
 static int
 kbd_ev(struct uiobj *u, struct input_event *ev)
 {
-  char *type;
+  static const char *tags_all[] = {bus_ch_kbd, bus_ch_all, 0};
+  static const char *tags_uiobj[] = {bus_ch_kbd, bus_ch_all, bus_ch_ui, 0};
+  static const char **tags[] = {tags_all, tags_uiobj};
 
   if (!u)
     return 0;
 
   if (u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
-
-  type = (ev->type == IN_KEY_DOWN) ? "d" : "u";
-  if (u && u->flags & UI_KBD_EV) {
+  else {
     struct ev_arg evargs[] = {
       {ev_str, {.s = "key"}},
-      {ev_str, {.s = type}},
+      {ev_str},
       {ev_uint, {.u = ev->key}},
       {ev_uint, {.u = ev->state}},
       {ev_uint, {.u = ev->unicode}},
       {ev_uiobj, {.o = u}},
       {0}
     };
-    static const char *tags[] = {bus_ch_kbd, bus_ch_all, 0};
-    put_event(u->client->bus, tags, evargs);
+    evargs[1].x.s = (ev->type == IN_KEY_DOWN) ? "d" : "u";
+    put_event(u->client->bus, tags[(u->flags & UI_KBD_EV)], evargs);
   }
   return 0;
 }
@@ -91,7 +79,7 @@ uiobj_input(struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      static const char *tags[] = {bus_ch_ptr, 0};
+      static const char *tags[] = {bus_ch_ptr, bus_ch_all, 0};
       put_event(u->client->bus, tags, evargs);
       return 1;
     }
@@ -109,7 +97,7 @@ uiobj_input(struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      static const char *tags[] = {bus_ch_ptr, 0};
+      static const char *tags[] = {bus_ch_ptr, bus_ch_all, 0};
       put_event(u->client->bus, tags, evargs);
       return 1;
     }
@@ -147,7 +135,6 @@ input_event_fn(struct uiplace *up, void *aux)
 #if 0
   log_printf(LOG_UI, "input_event_fn on-input %s\n", u ? u->f.name : "(nil)");
 #endif
-
   if (uiobj_input(u, ev)) {
     ctx->u = u;
     return 0;
@@ -252,7 +239,6 @@ uifs_input_event(struct input_event *ev)
 {
   struct uiobj *u;
 
-  return 0;
   u = (ui_grabbed) ? ui_grabbed : ((ui_focused) ? ui_focused : ui_pointed);
   switch (ev->type) {
   case IN_PTR_MOVE:
@@ -264,82 +250,4 @@ uifs_input_event(struct input_event *ev)
     return kbd_ev(u, ev);
   default: return 0;
   }
-}
-
-void
-evmask_open(struct p9_connection *con)
-{
-  struct p9_fid *fid = con->t.pfid;
-  struct uiobj *u = containerof(fid->file, struct uiobj, f_evfilter);
-  struct arr *buf = 0;
-  int i, n, off;
-
-  fid->aux = 0;
-  fid->rm = rm_fid_aux;
-
-  if (P9_WRITE_MODE(fid->open_mode) && (fid->open_mode & P9_OTRUNC))
-    return;
-  for (i = 0; evmask[i].s; ++i)
-    if (u->flags & evmask[i].mask) {
-      n = strlen(evmask[i].s);
-      off = (buf) ? buf->used : 0;
-      if (arr_memcpy(&buf, 8, -1, n + 1, 0) < 0) {
-        P9_SET_STR(con->r.ename, "out of memory");
-        return;
-      }
-      memcpy(buf->b + off, evmask[i].s, n);
-      buf->b[off + n] = '\n';
-    }
-  fid->aux = buf;
-}
-
-void
-evmask_read(struct p9_connection *con)
-{
-  struct arr *buf = con->t.pfid->aux;
-  if (buf)
-    read_str_fn(con, buf->used, buf->b);
-}
-
-void
-evmask_write(struct p9_connection *con)
-{
-  write_buf_fn(con, 16, (struct arr **)&con->t.pfid->aux);
-}
-
-void
-evmask_clunk(struct p9_connection *con)
-{
-  struct p9_fid *fid = con->t.pfid;
-  struct uiobj *u = containerof(fid->file, struct uiobj, f_evfilter);
-  char *args, *arg;
-  int i, flags = u->flags;
-
-  if (!fid->aux)
-    return;
-
-  for (i = 0; evmask[i].s; ++i)
-    flags &= ~evmask[i].mask;
-  args = ((struct arr *)fid->aux)->b;
-  while ((arg = next_arg(&args)))
-    for (i = 0; evmask[i].s; ++i)
-      if (!strcmp(evmask[i].s, arg))
-        flags |= evmask[i].mask;
-  u->flags = flags;
-}
-
-static struct p9_fs eventmask_fs = {
-  .open = evmask_open,
-  .read = evmask_read,
-  .write = evmask_write,
-  .clunk = evmask_clunk,
-};
-
-void
-ui_init_evfilter(struct file *f)
-{
-  f->name = "evfilter";
-  f->mode = 0600;
-  f->qpath = new_qid(0);
-  f->fs = &eventmask_fs;
 }

@@ -22,7 +22,19 @@
 #include "dirty.h"
 
 #define UI_NAME_PREFIX '_'
-#define UI_NAME_MAIN "_main"
+
+static struct uiobj_flags {
+  char *s;
+  int mask;
+} uiobj_flags[] = {
+  {"ev_kbd", UI_KBD_EV},
+  {"ev_ptr_move", UI_MOVE_PTR_EV},
+  {"ev_ptr_updown", UI_UPDOWN_PTR_EV},
+  {"ev_ptr_intersect", UI_PTR_INTERSECT_EV},
+  {"ev_resize", UI_RESIZE_EV},
+  {"exported", UI_EXPORTED},
+  {0}
+};
 
 extern struct uiobj_maker uitypes[];
 static struct arr desktop_place_sticky = {4, 4, "tblr"};
@@ -143,7 +155,6 @@ prop_type_clunk(struct p9_connection *c)
   for (i = 0; uitypes[i].type && uitypes[i].init; ++i)
     if (!strcmp(uitypes[i].type, p->buf->b))
       if (uitypes[i].init(u) == 0) {
-        log_printf(LOG_UI, "making %s a %s\n", u->f.name, uitypes[i].type);
         ui_enqueue_update(u);
         good = 1;
       }
@@ -167,7 +178,7 @@ parent_open(struct p9_connection *c)
   struct arr *buf = 0;
   int n;
 
-  u = containerof(fid->file, struct uiobj, f_parent);
+  u = containerof(fid->file, struct uiobj, f_place);
   if (!u->place)
     return;
   cl = (struct client *)u->client;
@@ -221,6 +232,86 @@ ui_rm_uiobj(struct file *f)
 
 static struct uiobj_ops empty_obj_ops = {};
 
+static void
+flags_open(struct p9_connection *con)
+{
+  struct p9_fid *fid = con->t.pfid;
+  struct uiobj *u = containerof(fid->file, struct uiobj, f_flags);
+  struct arr *buf = 0;
+  int i, n, off;
+
+  fid->aux = 0;
+  fid->rm = rm_fid_aux;
+
+  if (P9_WRITE_MODE(fid->open_mode) && (fid->open_mode & P9_OTRUNC))
+    return;
+  for (i = 0; uiobj_flags[i].s; ++i)
+    if (u->flags & uiobj_flags[i].mask) {
+      n = strlen(uiobj_flags[i].s);
+      off = (buf) ? buf->used : 0;
+      if (arr_memcpy(&buf, 8, -1, n + 1, 0) < 0) {
+        P9_SET_STR(con->r.ename, "out of memory");
+        return;
+      }
+      memcpy(buf->b + off, uiobj_flags[i].s, n);
+      buf->b[off + n] = '\n';
+    }
+  fid->aux = buf;
+}
+
+static void
+flags_read(struct p9_connection *con)
+{
+  struct arr *buf = con->t.pfid->aux;
+  if (buf)
+    read_str_fn(con, buf->used, buf->b);
+}
+
+static void
+flags_write(struct p9_connection *con)
+{
+  write_buf_fn(con, 16, (struct arr **)&con->t.pfid->aux);
+}
+
+static void
+flags_clunk(struct p9_connection *con)
+{
+  struct p9_fid *fid = con->t.pfid;
+  struct uiobj *u = containerof(fid->file, struct uiobj, f_flags);
+  char *args, *arg;
+  int i, flags = u->flags;
+
+  if (!fid->aux)
+    return;
+
+  for (i = 0; uiobj_flags[i].s; ++i)
+    flags &= ~uiobj_flags[i].mask;
+  args = ((struct arr *)fid->aux)->b;
+  while ((arg = next_arg(&args)))
+    for (i = 0; uiobj_flags[i].s; ++i)
+      if (!strcmp(uiobj_flags[i].s, arg))
+        flags |= uiobj_flags[i].mask;
+  if (!(u->flags & UI_EXPORTED) && (flags & UI_EXPORTED) && !ui_desktop->obj)
+    ui_set_desktop(u);
+  u->flags = flags;
+}
+
+static struct p9_fs flags_fs = {
+  .open = flags_open,
+  .read = flags_read,
+  .write = flags_write,
+  .clunk = flags_clunk,
+};
+
+void
+uiobj_init_flags(struct file *f)
+{
+  f->name = "flags";
+  f->mode = 0600;
+  f->qpath = new_qid(FS_UIOBJ_FLAGS);
+  f->fs = &flags_fs;
+}
+
 struct uiobj *
 mk_uiobj(char *name, struct client *client)
 {
@@ -253,16 +344,14 @@ mk_uiobj(char *name, struct client *client)
   u->type.p.f.fs = &prop_type_fs;
   u->g.p.f.mode = 0400;
 
-  ui_init_evfilter(&u->f_evfilter);
-  add_file(&u->f, &u->f_evfilter);
+  uiobj_init_flags(&u->f_flags);
+  add_file(&u->f, &u->f_flags);
 
-  u->f_parent.name = "container";
-  u->f_parent.mode = 0400;
-  u->f_parent.qpath = new_qid(0);
-  u->f_parent.fs = &parent_fs;
-  add_file(&u->f, &u->f_parent);
-  if (!ui_desktop->obj && !strcmp(u->f.name, UI_NAME_MAIN))
-    ui_set_desktop(u);
+  u->f_place.name = "container";
+  u->f_place.mode = 0400;
+  u->f_place.qpath = new_qid(0);
+  u->f_place.fs = &parent_fs;
+  add_file(&u->f, &u->f_place);
   return u;
 }
 
@@ -294,27 +383,34 @@ walk_ui_tree(struct uiplace *up,
   before_fn = (before_fn) ? before_fn : walk_empty_fn;
   after_fn = (after_fn) ? after_fn : walk_empty_fn;
 
-  x = up;
-  do {
-    if (0) log_printf(LOG_UI, "walk %s\n", (x->obj) ? x->obj->f.name : "(nil)");
-    f = 0;
-    if (!back && x->obj && before_fn(x, aux))
-      f = uiobj_children(x->obj);
-    if (f)
-      x = (struct uiplace *)f;
-    else if (x->f.next) {
-      back = 0;
-      if (!after_fn(x, aux))
-        goto end;
-      x = (struct uiplace *)x->f.next;
-    } else if (x->parent) {
-      back = 1;
-      if (!after_fn(x, aux))
-        goto end;
-      x = x->parent;
+  if (before_fn(up, aux)) {
+    x = (struct uiplace *)uiobj_children(up->obj);
+    if (x) {
+      do {
+        if (0) log_printf(LOG_UI, "walk %s back: %d up: %s\n",
+                          (x->obj) ? x->obj->f.name : "(nil)",
+                          back,
+                          (up->obj) ? up->obj->f.name : "(nil)");
+        f = 0;
+        if (!back && x->obj && before_fn(x, aux))
+          f = uiobj_children(x->obj);
+        if (f)
+          x = (struct uiplace *)f;
+        else if (x->f.next) {
+          back = 0;
+          if (!after_fn(x, aux))
+            goto end;
+          x = (struct uiplace *)x->f.next;
+        } else if (x->parent) {
+          back = 1;
+          if (!after_fn(x, aux))
+            goto end;
+          x = x->parent;
+        }
+      } while (x != up);
     }
-  } while (x != up);
-  after_fn(x, aux);
+  }
+  after_fn(up, aux);
 end:
   ;
 }
@@ -332,7 +428,7 @@ update_place_size(struct uiplace *up, void *aux)
       u->reqsize[0] = u->restraint.r[0];
       u->reqsize[1] = u->restraint.r[1];
     }
-    log_printf(LOG_UI, "update_size/ %s -> [%d %d]\n", u->f.name,
+    if (0) log_printf(LOG_UI, "update_size/ %s -> [%d %d]\n", u->f.name,
                u->reqsize[0], u->reqsize[1]);
   }
   return 1;
@@ -341,7 +437,7 @@ update_place_size(struct uiplace *up, void *aux)
 const char *
 str_from_rect(int r[4])
 {
-  static const char s[16 * 4 + 5 + 1];
+  static char s[16 * 4 + 5 + 1];
   snprintf(s, sizeof(s), "[%d %d %d %d]", r[0], r[1], r[2], r[3]);
   return s;
 }
@@ -416,9 +512,9 @@ draw_obj(struct uiplace *up, void *aux)
 
   if (up && up->obj) {
     u = up->obj;
-    if (!(u->flags & UI_DIRTY) && !ctx->dirtyobj)
+    if (!(u->flags & UI_DIRTY_VISUAL) && !ctx->dirtyobj)
       return 1;
-    log_printf(LOG_UI, "draw %s | %d\n", u->f.name, ndirty_rects);
+    if (0) log_printf(LOG_UI, "draw %s | %d\n", u->f.name, ndirty_rects);
     if (!ctx->dirtyobj)
       ctx->dirtyobj = u;
     memcpy(up->clip, clip, sizeof(up->clip));
@@ -448,9 +544,9 @@ draw_over_obj(struct uiplace *up, void *aux)
 
   if (up && up->obj) {
     u = up->obj;
-    dirty = (u->flags & UI_DIRTY) || ctx->dirtyobj;
+    dirty = (u->flags & UI_DIRTY_VISUAL) || ctx->dirtyobj;
     if (dirty && u->ops->draw_over) {
-      log_printf(LOG_UI, "draw_over %s | %d\n", u->f.name, ndirty_rects);
+      if (0) log_printf(LOG_UI, "draw_over %s | %d\n", u->f.name, ndirty_rects);
       for (drect = dirty_rects, i = 0; i < ndirty_rects; ++i, drect += 4) {
         ui_intersect_clip(r, clip, drect);
         if (r[2] && r[3]) {
@@ -485,11 +581,8 @@ ui_prop_update_default(struct prop *p)
 {
   struct uiobj *u = (struct uiobj *)p->aux;
 
-  if (FSTYPE(*((struct file *)p->aux)) != FS_UIOBJ) {
-    log_printf(LOG_UI, "ui_default_prop_update type: %d\n",
-               FSTYPE(*((struct file *)p->aux)));
+  if (FSTYPE(*((struct file *)p->aux)) != FS_UIOBJ)
     die("Type error");
-  }
   u->flags |= UI_DIRTY;
   if (u->place)
     ui_propagate_dirty(u->place);
@@ -586,7 +679,7 @@ ui_set_desktop(struct uiobj *u)
   if (u && u != prev) {
     u->place = ui_desktop;
     for (f = uiobj_children(u); f; f = f->next)
-      ((struct uiobj *)f)->place->parent = ui_desktop;
+      ((struct uiplace *)f)->parent = ui_desktop;
     prev = u;
     u->flags |= UI_DIRTY;
     ui_enqueue_update(ui_desktop->obj);
@@ -594,28 +687,27 @@ ui_set_desktop(struct uiobj *u)
 }
 
 int
-uifs_update(void)
+uifs_update(int force)
 {
   struct uiobj *v, *unext;
-  int r[4], ret = 0;
+  int r[4], flags = 0;
 
   cur_time_ms = current_time_ms();
   ui_set_desktop(ui_desktop->obj);
   clean_dirty_rects();
-  ret = (ui_update_list != 0);
   v = ui_update_list;
   ui_update_list = 0;
   for (; v; v = unext) {
     unext = v->next;
-    log_printf(LOG_UI, "update %s\n", v->f.name);
     v->flags &= ~UI_UPD_QUEUED;
     if (v->ops->update)
       v->ops->update(v);
+    flags |= (v->flags & UI_DIRTY);
     if (v->flags & UI_DELETED) {
       /* remove uiobj */
     }
   }
-  if (ret) {
+  if (force || ((flags & UI_DIRTY) == UI_DIRTY)) {
     walk_ui_tree(ui_desktop, 0, update_place_size, 0);
     r[0] = r[1] = 0;
     r[2] = screen_w;
@@ -623,7 +715,7 @@ uifs_update(void)
     ui_place_with_padding(ui_desktop, r);
     walk_ui_tree(ui_desktop, resize_place, 0, 0);
   }
-  return ret;
+  return (force || flags != 0);
 }
 
 int
@@ -636,15 +728,13 @@ uifs_redraw(int force)
     return 0;
 
   if (force) {
-    ui_desktop->obj->flags |= UI_DIRTY;
+    ui_desktop->obj->flags |= UI_DIRTY_VISUAL;
     add_dirty_rect(ui_desktop->obj->g.r);
   }
   ctx.clip[0] = 0;
   ctx.clip[1] = 0;
   image_get_size(screen_image, &ctx.clip[2], &ctx.clip[3]);
-  log_printf(LOG_UI, "draw\n");
   prepare_dirty_rects();
   walk_ui_tree(ui_desktop, draw_obj, draw_over_obj, &ctx);
-  log_printf(LOG_UI, "draw DONE\n");
   return ctx.dirty;
 }
