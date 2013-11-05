@@ -675,6 +675,7 @@ ui_set_desktop(struct uiobj *u)
 {
   static struct uiobj *prev;
   struct file *f;
+
   ui_desktop->obj = u;
   if (u && u != prev) {
     u->place = ui_desktop;
@@ -702,6 +703,8 @@ uifs_update(int force)
     v->flags &= ~UI_UPD_QUEUED;
     if (v->ops->update)
       v->ops->update(v);
+    if (v->flags & UI_DIRTY_VISUAL)
+      add_dirty_rect(v->g.r);
     flags |= (v->flags & UI_DIRTY);
     if (v->flags & UI_DELETED) {
       /* remove uiobj */
@@ -735,6 +738,8 @@ uifs_redraw(int force)
   ctx.clip[1] = 0;
   image_get_size(screen_image, &ctx.clip[2], &ctx.clip[3]);
   prepare_dirty_rects();
+  if (0 && ndirty_rects)
+    log_printf(LOG_UI, "drawing (%d rects)\n", ndirty_rects);
   walk_ui_tree(ui_desktop, draw_obj, draw_over_obj, &ctx);
   return ctx.dirty;
 }

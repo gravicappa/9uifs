@@ -134,10 +134,9 @@ update_btn(struct uiobj *u)
     t = cur_time_ms - b->pressed_ms ;
     if (b->pressed_ms > 0 && t > BTN_PRESS_TIME_MS) {
       b->state = BTN_NORMAL;
-      u->flags |= UI_DIRTY_VISUAL;
     }
-    ui_enqueue_update(u);
   }
+  u->flags |= UI_DIRTY_VISUAL;
 }
 
 static void
@@ -186,13 +185,13 @@ press_button(struct uiobj *u, int by_kbd)
   }
   if (by_kbd)
     b->pressed_ms = cur_time_ms;
-  u->flags |= UI_DIRTY_VISUAL;
 }
 
 static int
 on_btn_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *b = (struct uiobj_label *)u->data;
+  int prevstate = b->state;
   if (0) log_printf(LOG_UI, "on btn input '%s'\n", u->f.name);
   switch (ev->type) {
   case IN_PTR_DOWN:
@@ -217,9 +216,8 @@ on_btn_input(struct uiobj *u, struct input_event *ev)
     break;
   default: return 0;
   }
-  u->flags |= UI_DIRTY_VISUAL;
-  ui_enqueue_update(u);
-  log_printf(LOG_UI, "done on btn input '%s'\n", u->f.name);
+  if (prevstate != b->state)
+    ui_enqueue_update(u);
   return 1;
 }
 
@@ -227,9 +225,9 @@ static int
 on_btn_ptr_intersect(struct uiobj *u, int inside)
 {
   struct uiobj_label *x = (struct uiobj_label *)u->data;
-  if (!inside) {
+  if (!inside && (x->state != BTN_NORMAL)) {
+    ui_enqueue_update(u);
     x->state = BTN_NORMAL;
-    u->flags |= UI_DIRTY_VISUAL;
   }
   return 1;
 }
