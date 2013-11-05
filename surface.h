@@ -9,12 +9,21 @@ struct surface {
   unsigned int h;
   UImage img;
   int flags;
-  void (*update)(struct surface *s);
-  void *aux;
+  struct surface_link *links;
   struct file *imglib;
+};
+
+struct surface_link {
+  struct surface_link *next;
+  void (*rm)(void *ptr);
+  void (*update)(void *ptr, int *rect);
+  void *ptr;
 };
 
 struct surface *mk_surface(int w, int h, struct file *imglib);
 int init_surface(struct surface *s, int w, int h, struct file *imglib);
 int resize_surface(struct surface *s, int w, int h);
 void rm_surface(struct file *f);
+
+struct surface_link *link_surface(struct surface *s, void *aux);
+void unlink_surface(struct surface *s, void *aux);

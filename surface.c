@@ -36,10 +36,19 @@ static struct ctl_cmd ctl_cmd[] = {
 };
 
 static struct surface *
-get_surface(struct p9_connection *c)
+get_surface(struct p9_connection *con)
 {
-  struct p9_fid *fid = c->t.pfid;
+  struct p9_fid *fid = con->t.pfid;
   return (struct surface *)((struct file *)fid->file)->parent;
+}
+
+static void
+update_rect(struct surface *s, int *r)
+{
+  struct surface_link *link;
+  for (link = s->links; link; link = link->next)
+    if (link->update)
+      link->update(link->ptr, r);
 }
 
 static void
@@ -90,8 +99,7 @@ size_clunk(struct p9_connection *con)
       P9_SET_STR(con->r.ename, "Cannot resize blit surface");
       return;
     }
-    if (s->update)
-      s->update(s);
+    update_rect(s, 0);
   }
 }
 
@@ -150,8 +158,9 @@ static void
 pixels_clunk(struct p9_connection *con)
 {
   struct surface *s = get_surface(con);
-  if (s->update && (s->flags & SURFACE_DIRTY))
-    s->update(s);
+  /* TODO: calculate smallest rectangle */
+  if (s->flags & SURFACE_DIRTY)
+    update_rect(s, 0);
   s->flags &= ~SURFACE_DIRTY;
 }
 
@@ -194,8 +203,7 @@ png_clunk(struct p9_connection *con)
   s->w = w;
   s->h = h;
   s->f_pixels.length = w * h * 4;
-  if (s->update)
-    s->update(s);
+  update_rect(s, 0);
 }
 
 static struct p9_fs surface_size_fs = {
@@ -223,6 +231,13 @@ void
 rm_surface(struct file *f)
 {
   struct surface *s = (struct surface *)f;
+  struct surface_link *link, *link_next;
+  for (link = s->links; link; link = link_next) {
+    link_next = link->next;
+    if (link->rm)
+      link->rm(link->ptr);
+    free(link);
+  }
   if (s->img) {
     free_image(s->img);
     s->img = 0;
@@ -306,7 +321,7 @@ resize_surface(struct surface *s, int w, int h)
 static void
 cmd_blit(struct file *f, char *cmd)
 {
-  int src_x = 0, src_y = 0, src_w, src_h, x = 0, y = 0, w, h;
+  int s_x = 0, s_y = 0, s_w, s_h, r[4] = {0, 0};
   static const char *fmt = "%d %d %d %d %d %d %d %d";
   char *name;
   struct surface *src, *dst = containerof(f, struct surface, f_ctl);
@@ -317,20 +332,17 @@ cmd_blit(struct file *f, char *cmd)
   src = (struct surface *)find_file(dst->imglib, strlen(name), name);
   if (!src)
     return;
-  src_w = w = src->w;
-  src_h = h = src->h;
-  sscanf(cmd, fmt, &x, &y, &w, &h, &src_x, &src_y, &src_w, &src_h);
-  blit_image(dst->img, x, y, w, h, src->img, src_x, src_y, src_w, src_h);
-
-  if (dst->update)
-    dst->update(dst);
+  s_w = r[2] = src->w;
+  s_h = r[3] = src->h;
+  sscanf(cmd, fmt, &r[0], &r[1], &r[2], &r[3], &s_x, &s_y, &s_w, &s_h);
+  blit_image(dst->img, r[0], r[1], r[2], r[3], src->img, s_x, s_y, s_w, s_h);
+  update_rect(dst, r);
 }
 
 static int
 colour_from_str(const char *s)
 {
-  int n = strlen(s);
-  switch (n) {
+  switch (strlen(s)) {
   case 1: return RGBA_FROM_STR1(s);
   case 2: return RGBA_FROM_STR2(s);
   case 3: return RGBA_FROM_STR3(s);
@@ -364,8 +376,7 @@ cmd_rect(struct file *f, char *cmd)
       break;
     draw_rect(s->img, r[0], r[1], r[2], r[3], fg, bg);
   }
-  if (s->update)
-    s->update(s);
+  update_rect(s, r);
 }
 
 static void
@@ -387,19 +398,20 @@ cmd_line(struct file *f, char *cmd)
       break;
     draw_line(s->img, r[0], r[1], r[2], r[3], fg);
   }
-  if (s->update)
-    s->update(s);
+  update_rect(s, r);
 }
 
 static void
 draw_linestrip(struct surface *s, int fg, char *args)
 {
   char *arg;
-  int i, pt[2], prevpt[2], upd = 0;
+  int i, pt[2], prevpt[2], r[4] = {0};
   UImage img = s->img;
   for (i = 0; i < 2; ++i)
     if (!(arg = next_arg(&args)) || sscanf(arg, "%d", &prevpt[i]) != 1)
       return;
+  r[0] = prevpt[0];
+  r[1] = prevpt[1];
   while (args) {
     for (i = 0; i < 2; ++i)
       if (!(arg = next_arg(&args)) || sscanf(arg, "%d", &pt[i]) != 1)
@@ -407,12 +419,16 @@ draw_linestrip(struct surface *s, int fg, char *args)
     if (i < 2)
       break;
     draw_line(img, prevpt[0], prevpt[1], pt[0], pt[1], fg);
-    upd = 1;
-    for (i = 0; i < 2; ++i)
+    for (i = 0; i < 2; ++i) {
       prevpt[i] = pt[i];
+      if (r[i] + r[i + 2] < pt[i])
+        r[i + 2] = pt[i] - r[i];
+      else if (r[i] > pt[i])
+        r[i] = pt[i];
+    }
   }
-  if (upd && s->update)
-    s->update(s);
+  if (r[2] || r[3])
+    update_rect(s, r);
 }
 
 #define STATIC_NPTS 32
@@ -423,7 +439,7 @@ cmd_poly(struct file *f, char *cmd)
   struct surface *s = containerof(f, struct surface, f_ctl);
   char *arg, *c = cmd;
   int spts[STATIC_NPTS * 2];
-  int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000;
+  int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000, r[4] = {0};
 
   if (!(arg = next_arg(&c)))
     return;
@@ -438,7 +454,7 @@ cmd_poly(struct file *f, char *cmd)
     draw_linestrip(s, fg, c);
     return;
   }
-  if (npts > 32) {
+  if (npts > STATIC_NPTS) {
     pts = malloc(sizeof(int) * npts * 2);
     if (!pts) {
       /* out of memory. shoot out client */
@@ -446,12 +462,16 @@ cmd_poly(struct file *f, char *cmd)
     }
   }
   for (n = 0, p = pts, i = npts * 2; i; --i, ++p)
-    if ((arg = next_arg(&c)) && sscanf(arg, "%d", p) == 1)
+    if ((arg = next_arg(&c)) && sscanf(arg, "%d", p) == 1) {
+      if (r[n & 1] + r[(n & 1) + 1] < *p)
+        r[(n & 1) + 1] = *p - r[n & 1];
+      else if (r[n & 1] > *p)
+        r[n & 1] = *p;
       ++n;
+    }
   if (n == npts * 2) {
     draw_poly(s->img, npts, pts, fg, bg);
-    if (s->update)
-      s->update(s);
+    update_rect(s, r);
   }
   if (pts != spts)
     free(pts);
@@ -463,7 +483,7 @@ cmd_text(struct file *f, char *cmd)
   struct surface *s = containerof(f, struct surface, f_ctl);
   char *arg;
   UFont font;
-  int fg = 0, pt[2], i;
+  int fg = 0, pt[2], i, r[4], n;
 
   if (!(arg = next_arg(&cmd)))
     return;
@@ -474,7 +494,44 @@ cmd_text(struct file *f, char *cmd)
   for (i = 0; i < 2; ++i)
     if (!(arg = next_arg(&cmd)) || sscanf(arg, "%d", &pt[i]) != 1)
       return;
-  draw_utf8(s->img, pt[0], pt[1], fg, font, strlen(cmd), cmd);
-  if (s->update)
-    s->update(s);
+  r[0] = pt[0];
+  r[1] = pt[1];
+  n = strlen(cmd);
+  get_utf8_size(font, n, cmd, &r[2], &r[3]);
+  draw_utf8(s->img, pt[0], pt[1], fg, font, n, cmd);
+  update_rect(s, r);
+}
+
+struct surface_link *
+link_surface(struct surface *s, void *ptr)
+{
+  struct surface_link *link;
+
+  if (!s)
+    return 0;
+
+  unlink_surface(s, ptr);
+  link = calloc(1, sizeof(struct surface_link));
+  if (link) {
+    link->next = s->links;
+    s->links = link;
+    link->ptr = ptr;
+  }
+  return link;
+}
+
+void
+unlink_surface(struct surface *s, void *ptr)
+{
+  struct surface_link **pp, *link;
+  if (!s)
+    return;
+  pp = &s->links;
+  for (link = *pp; link && link->ptr != ptr; pp = &link->next, link = *pp) {}
+  if (link) {
+    *pp = link->next;
+    if (link->rm)
+      link->rm(ptr);
+    free(link);
+  }
 }

@@ -703,8 +703,6 @@ uifs_update(int force)
     v->flags &= ~UI_UPD_QUEUED;
     if (v->ops->update)
       v->ops->update(v);
-    if (v->flags & UI_DIRTY_VISUAL)
-      add_dirty_rect(v->g.r);
     flags |= (v->flags & UI_DIRTY);
     if (v->flags & UI_DELETED) {
       /* remove uiobj */

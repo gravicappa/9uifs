@@ -21,40 +21,33 @@ struct uiobj_image {
 };
 
 static void
-detach(struct uiobj_image *img)
+link_rm(void *ptr)
 {
-  struct uiobj_image *p, **pprev;
-
-  if (!img->s)
-    return;
-  pprev = (struct uiobj_image **)&img->s->aux;
-  for (p = img->s->aux; p && p != img; pprev = &p->next, p = p->next) {}
-  if (p)
-    *pprev = p->next;
+  struct uiobj_image *img = ptr;
   img->s = 0;
+  img->obj->flags |= UI_DIRTY;
+  ui_propagate_dirty(img->obj->place);
 }
 
 static void
-rm_attached(struct file *f)
+link_update(void *ptr, int *r)
 {
-  struct uiobj_image *img = ((struct surface *)f)->aux;
-  for (; img; img = img->next) {
-    img->s = 0;
-    img->obj->flags |= UI_DIRTY;
-  }
-  rm_surface(f);
+  struct uiobj_image *img = ptr;
+  img->obj->flags |= UI_DIRTY;
+  ui_enqueue_update(img->obj);
 }
 
-static void
+static int
 attach(struct uiobj_image *img, struct surface *s)
 {
-  detach(img);
-  img->s = s;
-  if (s) {
-    img->next = s->aux;
-    s->aux = img;
-    s->f.rm = rm_attached;
-  }
+  struct surface_link *link;
+
+  link = link_surface(s, img);
+  if (!link)
+    return -1;
+  link->rm = link_rm;
+  link->update = link_update;
+  return 0;
 }
 
 static void
@@ -122,6 +115,7 @@ path_clunk(struct p9_connection *con)
     if (!img->s || img->s->w != prevw || img->s->h != prevh)
       ui_propagate_dirty(img->obj->place);
     img->obj->flags |= UI_DIRTY;
+    ui_enqueue_update(img->obj);
   }
 }
 
@@ -154,6 +148,15 @@ draw(struct uiobj *u, struct uicontext *ctx)
                s->h);
 }
 
+static void
+rm_image(struct file *f)
+{
+  struct uiobj *u = (struct uiobj *)f;
+  struct uiobj_image *img = u->data;
+  unlink_surface(img->s, img);
+  ui_rm_uiobj(f);
+}
+
 static struct uiobj_ops image_ops = {
   .draw = draw,
   .update_size = update_size
@@ -171,6 +174,7 @@ init_uiimage(struct uiobj *u)
   img->f_path.mode = 0600;
   img->f_path.qpath = new_qid(0);
   img->f_path.fs = &path_fs;
+  u->f.rm = rm_image;
   img->obj = u;
   u->data = img;
   u->ops = &image_ops;

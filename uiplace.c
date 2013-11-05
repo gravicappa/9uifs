@@ -77,7 +77,7 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
       u->place->obj = 0;
     u->place = up;
     for (f = uiobj_children(u); f; f = f->next)
-      ((struct uiobj *)f)->place->parent = up;
+      ((struct uiplace *)f)->parent = up;
   }
   up->obj = u;
 }

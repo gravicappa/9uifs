@@ -9,11 +9,6 @@
 #include "fstypes.h"
 #include "backend.h"
 #include "prop.h"
-
-#include "ctl.h"
-#include "bus.h"
-#include "surface.h"
-
 #include "uiobj.h"
 
 struct uiobj_scroll {
@@ -31,7 +26,8 @@ struct uiobj_scroll {
     WAITING,
     SCROLLING
   } mode;
-  int prev[2];
+  int prev_pos[2];
+  int prev_ptr[2];
   unsigned int stop_ms;
 };
 
@@ -140,9 +136,10 @@ resize(struct uiobj *u)
     return;
 
   child = us->place.obj;
-  if (us->prevobj != child)
-    us->pos[0] = us->pos[1] = 0;
-
+  if (us->prevobj != child) {
+    us->pos[0] = us->pos[1] = us->prev_pos[0] = us->prev_pos[1] = 0;
+    u->flags |= UI_DIRTY_VISUAL;
+  }
   for (i = 0; i < 2; ++i) {
     r[i] = u->g.r[i];
     r[i + 2] = (us->expand[i]) ? u->g.r[i + 2] : child->reqsize[i];
@@ -164,44 +161,38 @@ get_children(struct uiobj *u)
   return (c) ? c->f_items.child : 0;
 }
 
-static int
-scroll_obj(struct uiplace *up, void *aux)
-{
-  int i, *delta = aux;
-  struct uiobj *u = up->obj;
-  if (u) {
-    for (i = 0; i < 2; ++i)
-      u->g.r[i] -= delta[i];
-    for (i = 0; i < 4; ++i)
-      u->viewport.r[i] = u->g.r[i];
-  }
-  return 1;
-}
-
 static void
-scroll(struct uiobj *u, int dx, int dy)
+scroll(struct uiobj *u, int x, int y)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   struct uiobj *child = us->place.obj;
-  int i, m, p[2];
+  int i, m;
 
-  p[0] = us->pos[0];
-  p[1] = us->pos[1];
-  us->pos[0] -= dx;
-  us->pos[1] -= dy;
+  log_printf(LOG_UI, "scroll/ [%d %d]\n", x, y);
+  us->pos[0] = (x > 0) ? x : 0;
+  us->pos[1] = (y > 0) ? y : 0;
+  if (!child)
+    return;
   for (i = 0; i < 2; ++i) {
-    m = child->reqsize[i] - child->viewport.r[i + 2];
-    if (us->pos[i] < 0 || m < 0)
-      us->pos[i] = 0;
-    else if (us->pos[i] > m)
-      us->pos[i] = m;
-    p[i] = us->pos[i] - p[i];
+    m = u->viewport.r[i] + u->viewport.r[i + 2];
+    if (child->reqsize[i] - us->pos[i] < m)
+      us->pos[i] = child->reqsize[i] - m;
   }
-  u->flags |= UI_DIRTY;
-  child->flags |= UI_DIRTY;
-  if (u->place)
-    walk_ui_tree(&us->place, scroll_obj, 0, p);
-  memcpy(child->viewport.r, u->g.r, sizeof(child->viewport.r));
+  if (us->prev_pos[0] != us->pos[0] || us->prev_pos[1] != us->pos[1]) {
+    u->flags |= UI_DIRTY;
+    child->flags |= UI_DIRTY;
+    ui_enqueue_update(u);
+    us->prev_pos[0] = us->pos[0];
+    us->prev_pos[1] = us->pos[1];
+  }
+}
+
+static void
+scroll_rel(struct uiobj *u, int dx, int dy)
+{
+  struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
+  log_printf(LOG_UI, "scroll_rel/ d: [%d %d]\n", dx, dy);
+  scroll(u, us->pos[0] - dx, us->pos[1] - dy);
 }
 
 static int
@@ -218,20 +209,20 @@ on_ptr_move(struct uiobj *u, struct input_event *ev)
 
   switch (us->mode) {
   case NORMAL:
-    us->prev[0] = ev->x;
-    us->prev[1] = ev->y;
+    us->prev_ptr[0] = ev->x;
+    us->prev_ptr[1] = ev->y;
     us->mode = WAITING;
     break;
   case WAITING:
-    if (abs(ev->x - us->prev[0]) < SCROLL_THRESHOLD
-        && abs(ev->y - us->prev[1]) < SCROLL_THRESHOLD)
+    if (abs(ev->x - us->prev_ptr[0]) < SCROLL_THRESHOLD
+        && abs(ev->y - us->prev_ptr[1]) < SCROLL_THRESHOLD)
       return 0;
     us->mode = SCROLLING;
     break;
   case SCROLLING:
-    scroll(u, ev->x - us->prev[0], ev->y - us->prev[1]);
-    us->prev[0] = ev->x;
-    us->prev[1] = ev->y;
+    scroll_rel(u, ev->x - us->prev_ptr[0], ev->y - us->prev_ptr[1]);
+    us->prev_ptr[0] = ev->x;
+    us->prev_ptr[1] = ev->y;
     break;
   }
   return 1;
@@ -260,10 +251,7 @@ on_input(struct uiobj *u, struct input_event *ev)
 
   switch (ev->type) {
   case IN_PTR_MOVE:
-    if (ev->state == 0)
-      return 0;
-    on_ptr_move(u, ev);
-    return 1;
+    return (ev->state != 0) ? on_ptr_move(u, ev) : 0;
 
   case IN_PTR_UP:
   case IN_PTR_DOWN:
@@ -278,6 +266,14 @@ on_input(struct uiobj *u, struct input_event *ev)
   }
 }
 
+static void
+pos_upd(struct prop *p)
+{
+  struct uiobj *u = (struct uiobj *)p->aux;
+  struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
+  scroll(u, us->pos[0], us->pos[1]);
+}
+
 static struct uiobj_ops scroll_ops = {
   .draw = draw,
   .draw_over = draw_over,
@@ -285,7 +281,7 @@ static struct uiobj_ops scroll_ops = {
   .resize = resize,
   .get_children = get_children,
   .on_input = on_input,
-  .on_ptr_intersect = on_ptr_intersect
+  .on_ptr_intersect = on_ptr_intersect,
 };
 
 int
@@ -309,6 +305,7 @@ init_uiscroll(struct uiobj *u)
     return -1;
   }
   x->pos_fs.p.update = x->expand_fs.p.update = ui_prop_update_default;
+  x->pos_fs.p.update = pos_upd;
   x->place.f.name = "_";
   x->place.padding.r[0] = x->place.padding.r[1] = x->place.padding.r[2]
       = x->place.padding.r[3] = 0;
@@ -317,5 +314,8 @@ init_uiscroll(struct uiobj *u)
   u->data = x;
   x->c.u = u;
   add_file(&u->f, &x->c.f_items);
+
+  log_printf(LOG_UI, "init scroll/ (pos n: %d ptr: %p / %p)\n", x->pos_fs.n,
+             x->pos_fs.arr, x->pos);
   return 0;
 }

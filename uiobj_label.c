@@ -9,13 +9,12 @@
 #include "fs.h"
 #include "prop.h"
 #include "bus.h"
-#include "ctl.h"
-#include "surface.h"
 #include "ui.h"
 #include "uiobj.h"
 #include "config.h"
 #include "client.h"
 #include "font.h"
+#include "dirty.h"
 
 enum button_state {
   BTN_NORMAL,
@@ -137,6 +136,7 @@ update_btn(struct uiobj *u)
     }
   }
   u->flags |= UI_DIRTY_VISUAL;
+  add_dirty_rect(u->g.r);
 }
 
 static void
