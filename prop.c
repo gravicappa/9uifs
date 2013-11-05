@@ -282,7 +282,7 @@ intarr_open(struct p9_connection *con)
   struct prop_intarr *p;
   struct p9_fid *fid = con->t.pfid;
   int i, n, off, *arr, len;
-  char buf[16], *sep = "";
+  char buf[16], *sep;
   struct arr *a = 0;
 
   fid->rm = rm_fid_aux;
@@ -291,11 +291,13 @@ intarr_open(struct p9_connection *con)
   p = (struct prop_intarr *)fid->file;
   if (P9_WRITE_MODE(con->t.mode) && (con->t.mode & P9_OTRUNC))
     return;
+
   off = 0;
   arr = p->arr;
   n = p->n;
-  for (i = 0; i < n; ++i, ++arr) {
-    len = snprintf(buf, sizeof(buf), "%s%d", sep, *arr >> 24);
+
+  for (i = 0, sep = ""; i < n; ++i, ++arr) {
+    len = snprintf(buf, sizeof(buf), "%s%d", sep, *arr);
     if (arr_memcpy(&a, 16, off, len + 1, buf) < 0) {
       P9_SET_STR(con->r.ename, "out of memory");
       return;
@@ -303,7 +305,6 @@ intarr_open(struct p9_connection *con)
     off += len;
     sep = " ";
   }
-  p->arr = arr;
   fid->aux = a;
 }
 
@@ -338,6 +339,7 @@ intarr_clunk(struct p9_connection *con)
   for (i = 0, a = next_arg(&s); i < n && a; ++i, a = next_arg(&s), ++ptr)
     if (sscanf(a, "%d", &x) == 1)
       *ptr = x;
+
   if (p->p.update)
     p->p.update(&p->p);
 }
