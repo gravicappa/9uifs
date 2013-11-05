@@ -63,4 +63,3 @@ fn mk_item {
 }
 
 fn mk_widget {mk_item $*}
-fn mk_view {mk_item $*}
