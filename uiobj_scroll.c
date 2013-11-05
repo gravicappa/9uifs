@@ -168,7 +168,6 @@ scroll(struct uiobj *u, int x, int y)
   struct uiobj *child = us->place.obj;
   int i, m;
 
-  log_printf(LOG_UI, "scroll/ [%d %d]\n", x, y);
   us->pos[0] = (x > 0) ? x : 0;
   us->pos[1] = (y > 0) ? y : 0;
   if (!child)
@@ -191,7 +190,6 @@ static void
 scroll_rel(struct uiobj *u, int dx, int dy)
 {
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
-  log_printf(LOG_UI, "scroll_rel/ d: [%d %d]\n", dx, dy);
   scroll(u, us->pos[0] - dx, us->pos[1] - dy);
 }
 
@@ -306,7 +304,7 @@ init_uiscroll(struct uiobj *u)
   }
   x->pos_fs.p.update = x->expand_fs.p.update = ui_prop_update_default;
   x->pos_fs.p.update = pos_upd;
-  x->place.f.name = "_";
+  x->place.f.name = "0";
   x->place.padding.r[0] = x->place.padding.r[1] = x->place.padding.r[2]
       = x->place.padding.r[3] = 0;
   add_file(&x->c.f_items, &x->place.f);
@@ -314,8 +312,5 @@ init_uiscroll(struct uiobj *u)
   u->data = x;
   x->c.u = u;
   add_file(&u->f, &x->c.f_items);
-
-  log_printf(LOG_UI, "init scroll/ (pos n: %d ptr: %p / %p)\n", x->pos_fs.n,
-             x->pos_fs.arr, x->pos);
   return 0;
 }
