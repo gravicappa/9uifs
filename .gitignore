@@ -12,3 +12,4 @@ gmon.out
 \#*
 .\#*
 callgrind.out.*
+ref/
