@@ -2,20 +2,18 @@
 
 - Static directory structure probably can be defined as static data.
   + Qid can be stored in separate set.
+- Access to somehow sandboxed local FS.
 
 # UI
 
 - Optimize label, button text change redraws.
 - Think about default keybindings
   + Autoassign keys to buttons?
-- Timed update.
+- Timed update?
 - New widgets:
     + entry,
-    + check button,
-    + radio button,
-    + slider,
-    + progress bar,
+    + check button?
+    + radio button?
+    + slider?
+    + progress bar??
     + vector canvas (like tk's canvas(n)).
-
-# Bus
-- Unify UI events with bus?

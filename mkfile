@@ -51,7 +51,7 @@ valgrind:V: $exe
   flags=($flags '--suppressions=test/xlib.supp')
   flags=($flags '--suppressions=test/imlib.supp')
   flags=($flags '--leak-check=full')
-  flags=($flags '--show-reachable=yes')
+  #flags=($flags '--show-reachable=yes')
   valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
 
 callgrind:V: $exe

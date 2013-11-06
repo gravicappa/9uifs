@@ -656,15 +656,13 @@ ui_free(void)
 static void
 ui_set_desktop(struct uiobj *u)
 {
-  static struct uiobj *prev;
   struct file *f;
 
-  ui_desktop->obj = u;
-  if (u && u != prev) {
+  if (u && u != ui_desktop->obj) {
+    ui_desktop->obj = u;
     u->place = ui_desktop;
     for (f = uiobj_children(u); f; f = f->next)
       ((struct uiplace *)f)->parent = ui_desktop;
-    prev = u;
     u->flags |= UI_DIRTY;
     ui_enqueue_update(ui_desktop->obj);
   }
@@ -673,11 +671,15 @@ ui_set_desktop(struct uiobj *u)
 int
 uifs_update(int force)
 {
+  static struct uiobj *prev_desk_obj = 0;
   struct uiobj *v, *unext;
   int r[4], flags = 0;
 
+  if (prev_desk_obj != ui_desktop->obj) {
+    force = 1;
+    prev_desk_obj = ui_desktop->obj;
+  }
   cur_time_ms = current_time_ms();
-  ui_set_desktop(ui_desktop->obj);
   clean_dirty_rects();
   v = ui_update_list;
   ui_update_list = 0;
@@ -706,14 +708,15 @@ int
 uifs_redraw(int force)
 {
   struct uicontext ctx = {0};
-  ui_set_desktop(ui_desktop->obj);
+  static struct uiobj *prev_desk_obj = 0;
 
-  if (!ui_desktop->obj && force) {
+  if (!ui_desktop->obj && prev_desk_obj) {
     add_dirty_rect2(0, 0, screen_w, screen_h);
     prepare_dirty_rects();
     draw_rect(screen_image, 0, 0, screen_w, screen_h, DEF_BG, DEF_BG);
     return 1;
   }
+  prev_desk_obj = ui_desktop->obj;
   if (force)
     ui_desktop->obj->flags |= UI_DIRTY_VISUAL;
   ctx.clip[0] = 0;

@@ -64,6 +64,8 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
   up->obj = u;
   for (f = uiobj_children(u); f; f = f->next)
     ((struct uiplace *)f)->parent = up;
+  if (u->ops->place_changed)
+    u->ops->place_changed(u);
 }
 
 static void
@@ -75,6 +77,8 @@ unplace_uiobj(struct uiplace *up)
   up->obj->place = 0;
   for (f = uiobj_children(up->obj); f; f = f->next)
     ((struct uiplace *)f)->parent = 0;
+  if (up->obj->ops->place_changed)
+    up->obj->ops->place_changed(up->obj);
   up->obj = 0;
 }
 
