@@ -7,7 +7,6 @@
 #include "fsutil.h"
 #include "prop.h"
 #include "bus.h"
-#include "ctl.h"
 #include "surface.h"
 #include "uiobj.h"
 #include "client.h"
@@ -93,7 +92,7 @@ path_clunk(struct p9_connection *con)
   struct uiobj_image *img;
   struct arr *buf;
   int prevw = 0, prevh = 0;
-  struct surface *prevs, *s;
+  struct surface *s, *prevs = 0;
   struct client *client;
 
   if (!P9_WRITE_MODE(fid->open_mode))

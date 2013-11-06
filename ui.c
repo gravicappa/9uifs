@@ -11,7 +11,6 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "bus.h"
-#include "ctl.h"
 #include "backend.h"
 #include "surface.h"
 #include "prop.h"

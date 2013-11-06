@@ -1,10 +1,10 @@
 struct surface {
   struct file f;
-  struct ctl_file f_ctl;
   struct file f_size;
   struct file f_pixels;
   struct file f_format;
-  struct file f_png;
+  struct file f_in_png;
+  struct file *ctl;
   unsigned int w;
   unsigned int h;
   UImage img;

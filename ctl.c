@@ -4,9 +4,19 @@
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
+#include "fstypes.h"
 #include "ctl.h"
 
-void
+struct ctl_context {
+  struct arr *buf;
+};
+
+struct ctl_file {
+  struct file f;
+  struct ctl_cmd *cmd;
+};
+
+static void
 exec_cmd(struct ctl_file *f, int n, char *str)
 {
   char *p = str, *s;
@@ -34,7 +44,7 @@ ctl_rm(struct p9_fid *fid)
   fid->aux = 0;
 }
 
-void
+static void
 ctl_open(struct p9_connection *con)
 {
   struct ctl_context *ctx;
@@ -48,7 +58,7 @@ ctl_open(struct p9_connection *con)
   con->t.pfid->rm = ctl_rm;
 }
 
-void
+static void
 ctl_write(struct p9_connection *con)
 {
   struct ctl_context *ctx;
@@ -96,7 +106,7 @@ ctl_write(struct p9_connection *con)
   }
 }
 
-void
+static void
 ctl_clunk(struct p9_connection *con)
 {
   struct ctl_context *ctx;
@@ -111,8 +121,31 @@ ctl_clunk(struct p9_connection *con)
   }
 }
 
-struct p9_fs ctl_fs = {
+static void
+rm_ctl(struct file *f)
+{
+  free(f);
+}
+
+static struct p9_fs ctl_fs = {
   .open = ctl_open,
   .write = ctl_write,
   .clunk = ctl_clunk
 };
+
+struct file *
+mk_ctl(char *name, struct ctl_cmd *cmd)
+{
+  struct ctl_file *f;
+  f = calloc(1, sizeof(struct ctl_file));
+  if (f) {
+    f->f.name = name;
+    f->f.name = "ctl";
+    f->f.mode = 0200 | P9_DMAPPEND;
+    f->f.qpath = new_qid(FS_CTL);
+    f->f.fs = &ctl_fs;
+    f->cmd = cmd;
+    f->f.rm = rm_ctl;
+  }
+  return &f->f;
+}

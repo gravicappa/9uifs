@@ -267,12 +267,12 @@ init_surface(struct surface *s, int w, int h, struct file *imglib)
   s->f.qpath = new_qid(FS_SURFACE);
   s->f.rm = rm_surface_data;
 
-  s->f_ctl.f.name = "ctl";
-  s->f_ctl.f.mode = 0200 | P9_DMAPPEND;
-  s->f_ctl.f.qpath = new_qid(0);
-  s->f_ctl.f.fs = &ctl_fs;
-  s->f_ctl.cmd = ctl_cmd;
-  add_file(&s->f, &s->f_ctl.f);
+  s->ctl = mk_ctl("ctl", ctl_cmd);
+  if (!s->ctl) {
+    free_image(s->img);
+    return -1;
+  }
+  add_file(&s->f, s->ctl);
 
   s->f_size.name = "size";
   s->f_size.mode = 0600;
@@ -287,11 +287,11 @@ init_surface(struct surface *s, int w, int h, struct file *imglib)
   s->f_pixels.length = w * h * 4;
   add_file(&s->f, &s->f_pixels);
 
-  s->f_png.name = "png";
-  s->f_png.mode = 0200;
-  s->f_png.qpath = new_qid(0);
-  s->f_png.fs = &surface_png_fs;
-  add_file(&s->f, &s->f_png);
+  s->f_in_png.name = "in.png";
+  s->f_in_png.mode = 0200;
+  s->f_in_png.qpath = new_qid(0);
+  s->f_in_png.fs = &surface_png_fs;
+  add_file(&s->f, &s->f_in_png);
   return 0;
 }
 
@@ -332,7 +332,7 @@ cmd_blit(struct file *f, char *cmd)
   int s_x = 0, s_y = 0, s_w, s_h, r[4] = {0, 0};
   static const char *fmt = "%d %d %d %d %d %d %d %d";
   char *name;
-  struct surface *src, *dst = containerof(f, struct surface, f_ctl);
+  struct surface *src, *dst = containerof(f, struct surface, ctl);
 
   name = next_quoted_arg(&cmd);
   if (!name)
@@ -366,7 +366,7 @@ cmd_rect(struct file *f, char *cmd)
 {
   int r[4], i, bg = 0, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = containerof(f, struct surface, f_ctl);
+  struct surface *s = containerof(f, struct surface, ctl);
 
   if (!(arg = next_arg(&c)))
     return;
@@ -392,7 +392,7 @@ cmd_line(struct file *f, char *cmd)
 {
   int r[4], i, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = containerof(f, struct surface, f_ctl);
+  struct surface *s = containerof(f, struct surface, ctl);
   if (!(arg = next_arg(&c)))
     return;
   fg = colour_from_str(arg);
@@ -444,7 +444,7 @@ draw_linestrip(struct surface *s, int fg, char *args)
 static void
 cmd_poly(struct file *f, char *cmd)
 {
-  struct surface *s = containerof(f, struct surface, f_ctl);
+  struct surface *s = containerof(f, struct surface, ctl);
   char *arg, *c = cmd;
   int spts[STATIC_NPTS * 2];
   int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000, r[4] = {0};
@@ -488,7 +488,7 @@ cmd_poly(struct file *f, char *cmd)
 static void
 cmd_text(struct file *f, char *cmd)
 {
-  struct surface *s = containerof(f, struct surface, f_ctl);
+  struct surface *s = containerof(f, struct surface, ctl);
   char *arg;
   UFont font;
   int fg = 0, pt[2], i, r[4], n;
