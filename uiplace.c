@@ -14,22 +14,6 @@
 #include "util.h"
 #include "client.h"
 
-static void
-rm_place(struct file *f)
-{
-  struct uiplace *up = (struct uiplace *)f;
-
-  if (!up)
-    return;
-  if (up->obj) {
-    up->obj->place = 0;
-    up->obj = 0;
-    ui_enqueue_update(ui_desktop->obj);
-  }
-  if (up->sticky.buf)
-    free(up->sticky.buf);
-}
-
 struct uiobj *
 uiplace_container(struct uiplace *up)
 {
@@ -70,28 +54,52 @@ static void
 place_uiobj(struct uiplace *up, struct uiobj *u)
 {
   struct file *f;
-  if (u) {
-    if (is_cycled(up, u))
-      return;
-    if (u->place)
-      u->place->obj = 0;
-    u->place = up;
-    for (f = uiobj_children(u); f; f = f->next)
-      ((struct uiplace *)f)->parent = up;
-  }
+  if (!(u && up))
+    return;
+  if (is_cycled(up, u))
+    return;
+  if (u->place)
+    u->place->obj = 0;
+  u->place = up;
   up->obj = u;
+  for (f = uiobj_children(u); f; f = f->next)
+    ((struct uiplace *)f)->parent = up;
 }
 
 static void
 unplace_uiobj(struct uiplace *up)
 {
-  if (!up->obj)
+  struct file *f;
+  if (!(up && up->obj))
     return;
-  /* Not touching up->obj's childrens' parent here. Anyway it is not used
-     when object is detached and it's updated when it is attached. */
   up->obj->place = 0;
+  for (f = uiobj_children(up->obj); f; f = f->next)
+    ((struct uiplace *)f)->parent = 0;
   up->obj = 0;
 }
+
+static void
+rm_place_data(struct file *f)
+{
+  struct uiplace *up = (struct uiplace *)f;
+
+  if (!up)
+    return;
+  if (up->obj) {
+    unplace_uiobj(up);
+    ui_enqueue_update(ui_desktop->obj);
+  }
+  if (up->sticky.buf)
+    free(up->sticky.buf);
+}
+
+static void
+rm_place(struct file *f)
+{
+  rm_place_data(f);
+  free(f);
+}
+
 
 void
 uiplace_prop_update_default(struct prop *p)
@@ -201,7 +209,7 @@ ui_init_place(struct uiplace *up, int setup)
 
   up->f.mode = 0500 | P9_DMDIR;
   up->f.qpath = new_qid(FS_UIPLACE);
-  up->f.rm = rm_place;
+  up->f.rm = rm_place_data;
   return 0;
 }
 
@@ -229,6 +237,7 @@ ui_create_place(struct p9_connection *c)
     free(up);
     return;
   }
+  up->f.rm = rm_place;
   add_file(&((struct uiobj_container *)u->data)->f_items, &up->f);
   up->parent = u->place;
 }

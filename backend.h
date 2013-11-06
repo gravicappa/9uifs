@@ -6,7 +6,6 @@ extern int screen_h;
 extern UImage screen_image;
 
 void set_cliprect(int x, int y, int w, int h);
-void fill_rect(UImage dst, int x, int y, int w, int h, unsigned int c);
 void draw_rect(UImage dst, int x, int y, int w, int h, unsigned int fg,
                unsigned int bg);
 void draw_line(UImage dst, int x1, int y1, int x2, int y2, unsigned int c);

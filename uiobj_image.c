@@ -47,6 +47,7 @@ attach(struct uiobj_image *img, struct surface *s)
     return -1;
   link->rm = link_rm;
   link->update = link_update;
+  img->s = s;
   return 0;
 }
 
@@ -154,6 +155,7 @@ rm_image(struct file *f)
   struct uiobj *u = (struct uiobj *)f;
   struct uiobj_image *img = u->data;
   unlink_surface(img->s, img);
+  free(u->data);
   ui_rm_uiobj(f);
 }
 

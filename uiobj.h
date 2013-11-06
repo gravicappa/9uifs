@@ -23,6 +23,7 @@ struct input_event;
 
 struct uiobj_ops {
   int allocated;
+  void (*place_changed)(struct uiobj *u);
   void (*draw)(struct uiobj *u, struct uicontext *uc);
   void (*draw_over)(struct uiobj *u, struct uicontext *uc);
   void (*update)(struct uiobj *u);

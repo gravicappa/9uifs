@@ -127,12 +127,12 @@ mk_fonts_fs(const char *name)
     f[0].name = (char *)name;
     f[0].mode = 0700 | P9_DMDIR;
     f[0].qpath = new_qid(FS_FONTS);
+    f[0].rm = rm_fonts;
 
     f[1].name = "list";
     f[1].mode = 0400;
     f[1].qpath = new_qid(FS_FNT_LIST);
     f[1].fs = &list_fs;
-    f[1].rm = rm_fonts;
     add_file(&f[0], &f[1]);
   }
   return f;

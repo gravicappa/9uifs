@@ -24,3 +24,19 @@
 	fun:main_loop
 	fun:main
 }
+
+{
+  <imlib font err>
+  Memcheck:Addr4
+  fun:imlib_font_load_joined
+  fun:imlib_load_font
+  fun:font_from_str
+  fun:update_font
+  fun:prop_clunk
+  fun:fs_clunk
+  fun:p9_process_treq
+  fun:process_client_io
+  fun:uifs_process_io
+  fun:main_loop
+  fun:main
+}

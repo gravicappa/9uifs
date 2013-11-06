@@ -282,6 +282,13 @@ rm_uigrid(struct file *f)
 {
   struct uiobj *u = (struct uiobj *)f;
   if (u->data) {
+    struct uiobj_grid *g = u->data;
+    if (g->cols_opts)
+      free(g->cols_opts);
+    if (g->rows_opts)
+      free(g->rows_opts);
+    if (g->grid)
+      free(g->grid);
     free(u->data);
     u->data = 0;
   }

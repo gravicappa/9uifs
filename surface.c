@@ -227,8 +227,8 @@ static struct p9_fs surface_png_fs = {
   .clunk = png_clunk
 };
 
-void
-rm_surface(struct file *f)
+static void
+rm_surface_data(struct file *f)
 {
   struct surface *s = (struct surface *)f;
   struct surface_link *link, *link_next;
@@ -242,6 +242,13 @@ rm_surface(struct file *f)
     free_image(s->img);
     s->img = 0;
   }
+}
+
+static void
+rm_surface(struct file *f)
+{
+  rm_surface_data(f);
+  free(f);
 }
 
 int
@@ -258,7 +265,7 @@ init_surface(struct surface *s, int w, int h, struct file *imglib)
 
   s->f.mode = 0500 | P9_DMDIR;
   s->f.qpath = new_qid(FS_SURFACE);
-  s->f.rm = rm_surface;
+  s->f.rm = rm_surface_data;
 
   s->f_ctl.f.name = "ctl";
   s->f_ctl.f.mode = 0200 | P9_DMAPPEND;
@@ -298,6 +305,7 @@ mk_surface(int w, int h, struct file *imglib)
     free(s);
     return 0;
   }
+  s->f.rm = rm_surface;
   return s;
 }
 
@@ -488,8 +496,10 @@ cmd_text(struct file *f, char *cmd)
   if (!(arg = next_arg(&cmd)))
     return;
   font = font_from_str(arg);
-  if (!(arg = next_arg(&cmd)))
+  if (!(arg = next_arg(&cmd))) {
+    free_font(font);
     return;
+  }
   fg = colour_from_str(arg);
   for (i = 0; i < 2; ++i)
     if (!(arg = next_arg(&cmd)) || sscanf(arg, "%d", &pt[i]) != 1)
@@ -500,6 +510,7 @@ cmd_text(struct file *f, char *cmd)
   get_utf8_size(font, n, cmd, &r[2], &r[3]);
   draw_utf8(s->img, pt[0], pt[1], fg, font, n, cmd);
   update_rect(s, r);
+  free_font(font);
 }
 
 struct surface_link *
@@ -509,7 +520,6 @@ link_surface(struct surface *s, void *ptr)
 
   if (!s)
     return 0;
-
   unlink_surface(s, ptr);
   link = calloc(1, sizeof(struct surface_link));
   if (link) {

@@ -313,7 +313,6 @@ get_utf8_size(UFont font, int len, char *str, int *w, int *h)
     *w = *h = 0;
     return 0;
   }
-
   imlib_context_set_font((font) ? font : default_font);
 
   /* FIXME: use patched imlib2 */
@@ -466,6 +465,14 @@ draw_grid(Imlib_Image dst)
     draw_line(dst, 0, i, w, i, 0x7f7f7f7f);
 }
 
+static void
+draw_dirty_rects(Imlib_Image dst)
+{
+  int *r, i;
+  for (i = 0, r = dirty_rects; i < ndirty_rects; ++i, r += 4)
+    draw_rect(dst, r[0], r[1], r[2], r[3], RGBA(255, 0, 0, 128), 0);
+}
+
 static int
 draw(int redraw_all)
 {
@@ -478,6 +485,7 @@ draw(int redraw_all)
   screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
   draw_grid(screen_image);
   if (uifs_redraw(redraw_all)) {
+    draw_dirty_rects(screen_image);
     if (backbuffer)
       for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4) {
         blitrect.x = rect[0];

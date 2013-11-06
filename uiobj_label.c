@@ -33,6 +33,11 @@ struct uiobj_label {
 static void
 rm_uilabel(struct file *f)
 {
+  struct uiobj *u = (struct uiobj *)f;
+  struct uiobj_label *x = u->data;
+  if (x->font)
+    free_font(x->font);
+  free(u->data);
   ui_rm_uiobj(f);
 }
 
@@ -136,7 +141,6 @@ update_btn(struct uiobj *u)
     }
   }
   u->flags |= UI_DIRTY_VISUAL;
-  add_dirty_rect(u->g.r);
 }
 
 static void

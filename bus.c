@@ -315,6 +315,12 @@ init_static_channel(const char *name, struct bus_channel *chan, struct bus *b)
   add_file(&b->f, &chan->f);
 }
 
+static void
+rm_bus(struct file *f)
+{
+  free(f);
+}
+
 struct file *
 mk_bus(const char *name, struct client *c)
 {
@@ -325,6 +331,7 @@ mk_bus(const char *name, struct client *c)
     bus->f.mode = 0700 | P9_DMDIR;
     bus->f.qpath = new_qid(FS_BUS);
     bus->f.fs = &fs_bus;
+    bus->f.rm = rm_bus;
     bus->client = c;
     bus->min_time_ms = DEF_EVENT_MIN_TIME_MS;
 

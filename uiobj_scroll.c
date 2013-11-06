@@ -272,6 +272,13 @@ pos_upd(struct prop *p)
   scroll(u, us->pos[0], us->pos[1]);
 }
 
+static void
+rm_scroll(struct file *f)
+{
+  free(((struct uiobj *)f)->data);
+  ui_rm_uiobj(f);
+}
+
 static struct uiobj_ops scroll_ops = {
   .draw = draw,
   .draw_over = draw_over,
@@ -309,6 +316,7 @@ init_uiscroll(struct uiobj *u)
       = x->place.padding.r[3] = 0;
   add_file(&x->c.f_items, &x->place.f);
   u->ops = &scroll_ops;
+  u->f.rm = rm_scroll;
   u->data = x;
   x->c.u = u;
   add_file(&u->f, &x->c.f_items);
