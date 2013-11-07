@@ -288,6 +288,14 @@ show_info(const SDL_VideoInfo *info)
     log_printf(LOG_FRONT, ";;       blit_sw_A: %d\n", info->blit_sw_A);
     log_printf(LOG_FRONT, ";;       blit_fill: %d\n", info->blit_fill);
     log_printf(LOG_FRONT, ";;       mem: %d\n", info->video_mem);
+    if (info->vfmt) {
+      log_printf(LOG_FRONT, ";;      depth: %d bytes/pixel\n",
+                 info->vfmt->BytesPerPixel);
+      log_printf(LOG_FRONT, ";;      rmask: %08x\n", info->vfmt->Rmask);
+      log_printf(LOG_FRONT, ";;      gmask: %08x\n", info->vfmt->Gmask);
+      log_printf(LOG_FRONT, ";;      bmask: %08x\n", info->vfmt->Bmask);
+      log_printf(LOG_FRONT, ";;      amask: %08x\n", info->vfmt->Amask);
+    }
   }
 }
 
@@ -311,9 +319,15 @@ show_surface_info(SDL_Surface *s, const char *name)
 }
 
 static int
+imlib_compatible_fmt(SDL_PixelFormat *fmt)
+{
+  return fmt && (fmt->BitsPerPixel == 32 && fmt->Rmask == 0x00ff0000
+                 && fmt->Gmask == 0x0000ff00 && fmt->Bmask == 0x000000ff);
+}
+
+static int
 init_screen()
 {
-  SDL_PixelFormat *fmt;
   const SDL_VideoInfo *info;
 
   info = SDL_GetVideoInfo();
@@ -322,15 +336,15 @@ init_screen()
   show_info(info);
   log_printf(LOG_FRONT, "sdl-mode res: %dx%d flags: %08x\n", screen_w,
              screen_h, sdl_flags);
+  if (!imlib_compatible_fmt(info->vfmt))
+    sdl_flags &= ~SDL_DOUBLEBUF;
   screen = SDL_SetVideoMode(screen_w, screen_h, 0, sdl_flags);
   show_surface_info(screen, "screen");
   if (!screen) {
     log_printf(LOG_ERR, "Cannot change video mode.\n");
     return -1;
   }
-  fmt = screen->format;
-  if (1 || !(fmt->BitsPerPixel == 32 && fmt->Rmask == 0x00ff0000
-        && fmt->Gmask == 0x0000ff00 && fmt->Bmask == 0x000000ff)) {
+  if (!imlib_compatible_fmt(screen->format)) {
     backbuffer = SDL_CreateRGBSurface(0, screen->w, screen->h, 32,
                                       0x00ff0000, 0x0000ff00, 0x000000ff,
                                       0x00000000);
