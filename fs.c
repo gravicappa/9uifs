@@ -524,9 +524,12 @@ fs_clunk(struct p9_connection *con)
   struct client *cl = (struct client *)con;
   struct file *f;
   struct p9_fid *fid;
-
-  if (get_req_fid(con) || !(fid = con->t.pfid))
+  fid = con->t.pfid;
+  if (get_req_fid(con) && !con->t.pfid)
     return;
+  fid = con->t.pfid;
+  con->r.ename = 0;
+  con->r.ename_len = 0;
   if (fid->open_mode) {
     f = (struct file *)fid->file;
     if (f && f->fs && f->fs->clunk)
