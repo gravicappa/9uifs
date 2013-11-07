@@ -309,7 +309,7 @@ init_uiscroll(struct uiobj *u)
     free(x);
     return -1;
   }
-  x->pos_fs.p.update = x->expand_fs.p.update = ui_prop_update_default;
+  x->pos_fs.p.update = x->expand_fs.p.update = ui_prop_upd;
   x->pos_fs.p.update = pos_upd;
   x->place.f.name = "0";
   x->place.padding.r[0] = x->place.padding.r[1] = x->place.padding.r[2]

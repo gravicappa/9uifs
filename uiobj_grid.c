@@ -414,7 +414,7 @@ get_children(struct uiobj *u)
 static struct uiobj_ops grid_ops = {
   .resize = resize_grid,
   .update_size = update_grid_size,
-  .draw = default_draw_uiobj,
+  .draw = ui_draw_uiobj_default,
   .get_children = get_children,
 };
 

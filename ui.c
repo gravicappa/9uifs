@@ -215,7 +215,7 @@ static struct p9_fs parent_fs = {
 };
 
 void
-default_draw_uiobj(struct uiobj *u, struct uicontext *uc)
+ui_draw_uiobj_default(struct uiobj *u, struct uicontext *uc)
 {
   int *r = u->g.r;
 
@@ -349,7 +349,8 @@ mk_uiobj(char *name, struct client *client)
     free(u);
     u = 0;
   }
-  u->bg.p.update = u->restraint.p.update = ui_prop_update_default;
+  u->bg.p.update = ui_prop_updvis;
+  u->restraint.p.update = ui_prop_upd;
 
   u->type.p.f.fs = &prop_type_fs;
   u->g.p.f.mode = 0400;
@@ -559,12 +560,17 @@ ui_propagate_dirty(struct uiplace *up)
 }
 
 void
-ui_prop_update_default(struct prop *p)
+ui_prop_updvis(struct prop *p)
 {
   struct uiobj *u = (struct uiobj *)p->aux;
+  u->flags |= UI_DIRTY_VISUAL;
+  ui_enqueue_update(u);
+}
 
-  if (FSTYPE(*((struct file *)p->aux)) != FS_UIOBJ)
-    die("Type error");
+void
+ui_prop_upd(struct prop *p)
+{
+  struct uiobj *u = (struct uiobj *)p->aux;
   u->flags |= UI_DIRTY;
   if (u->place)
     ui_propagate_dirty(u->place);

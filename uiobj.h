@@ -92,11 +92,12 @@ void ui_place_with_padding(struct uiplace *up, int rect[4]);
 
 void ui_propagate_dirty(struct uiplace *up);
 struct view *ui_get_uiobj_view(struct uiobj *u);
-void ui_prop_update_default(struct prop *p);
 void uiplace_prop_update_default(struct prop *p);
 int ui_init_place(struct uiplace *up, int setup);
 
-void default_draw_uiobj(struct uiobj *u, struct uicontext *uc);
+void ui_prop_upd(struct prop *p);
+void ui_prop_updvis(struct prop *p);
+void ui_draw_uiobj_default(struct uiobj *u, struct uicontext *uc);
 
 void walk_ui_tree(struct uiplace *up,
                   int (*before_fn)(struct uiplace *, void *),

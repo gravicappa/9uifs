@@ -53,7 +53,7 @@ update_font(struct prop *font_prop)
     return;
   free_font(x->font);
   x->font = fn;
-  ui_prop_update_default(font_prop);
+  ui_prop_upd(font_prop);
 }
 
 static void
@@ -90,10 +90,10 @@ update_text(struct prop *p)
 {
   struct uiobj *u = p->aux;
   update_size(u);
-  u->flags |= UI_DIRTY;
+  u->flags |= UI_DIRTY_VISUAL;
   if (u->reqsize[0] > u->g.r[2] || u->reqsize[1] > u->g.r[3])
-    if (u->place)
-      ui_propagate_dirty(u->place);
+    u->flags |= UI_DIRTY;
+  ui_enqueue_update(u);
 }
 
 static struct uiobj_ops label_ops = {
@@ -117,7 +117,7 @@ init_uilabel(struct uiobj *u)
     free(x);
     return -1;
   }
-  x->fg.p.update = ui_prop_update_default;
+  x->fg.p.update = ui_prop_updvis;
   x->text.p.update = update_text;
   x->font_str.p.update = update_font;
   u->ops = &label_ops;

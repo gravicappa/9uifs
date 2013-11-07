@@ -19,6 +19,12 @@
 #include "ui.h"
 #include "client.h"
 
+struct input_context {
+  struct input_event *ev;
+  struct uiobj *u;
+  struct uiobj *over;
+};
+
 static int
 kbd_ev(struct uiobj *u, struct input_event *ev)
 {
@@ -53,12 +59,6 @@ inside_uiobj(int x, int y, struct uiobj *u)
   int *r = u->viewport.r;
   return (x >= r[0] && y >= r[1] && x <= (r[0] + r[2]) && y <= (r[1] + r[3]));
 }
-
-struct input_context {
-  struct input_event *ev;
-  struct uiobj *u;
-  struct uiobj *over;
-};
 
 static int
 uiobj_input(struct uiobj *u, struct input_event *ev)
@@ -226,8 +226,11 @@ ptr_ev(struct uiobj *u, struct input_event *ev)
       }
     process_ptr_enter(ctx.over, t, ev->x, ev->y);
   }
+  if (ctx.over && FSTYPE(ctx.over->f) != FS_UIOBJ)
+    log_printf(LOG_ERR, "ctx.over is not uiobj!\n");
+  if (ctx.u && FSTYPE(ctx.u->f) != FS_UIOBJ)
+    log_printf(LOG_ERR, "ctx.u is not uiobj!\n");
   ui_pointed = ctx.over;
-
   if (ctx.u)
     ui_focused = ctx.u;
   return 0;
