@@ -1,19 +1,28 @@
 # FS
 
 * Static directory structure probably can be defined as static data.
+
   - Qid can be stored in separate set.
+
 * Access to somehow sandboxed local FS.
 
 # UI
 
-* Optimize label, button text change redraws.
 * Think about default keybindings
+
   - Autoassign keys to buttons?
+
 * Timed update?
+
 * New widgets:
-    - entry,
+
+    - text entry,
     - check button?,
     - radio button?,
     - slider?,
-    - progress bar??,
-    - vector canvas (like tk's canvas(n)).
+    - progress bar??.
+
+* Access to exported widgets from another clients.
+
+* Assign id to images and manipulate them by it in surface's `ctl` commands
+  for performance.

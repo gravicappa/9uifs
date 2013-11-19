@@ -2,6 +2,7 @@
 #include <SDL/SDL_thread.h>
 #include <Imlib2.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "net.h"
 #include "util.h"
@@ -31,8 +32,9 @@ int screen_h = 200;
 Imlib_Image screen_image = 0;
 
 enum flags {
-  FORCE_REDRAW = 1,
-  FORCE_UPDATE = 2,
+  REDRAW = 1,
+  FORCE_REDRAW = 2,
+  FORCE_UPDATE = 4 | FORCE_REDRAW,
 };
 
 void
@@ -299,6 +301,18 @@ show_info(const SDL_VideoInfo *info)
   }
 }
 
+static const char *
+str_from_flags(unsigned int flags)
+{
+  static char buf[1024];
+#define IS(x) ((flags & x) == x)
+  snprintf(buf, sizeof(buf), "[dbuf: %d hw: %d glblit: %d hwacc:%d]",
+           IS(SDL_DOUBLEBUF), IS(SDL_HWSURFACE), IS(SDL_OPENGLBLIT),
+           IS(SDL_HWACCEL));
+  return buf;
+#undef IS
+}
+
 static void
 show_surface_info(SDL_Surface *s, const char *name)
 {
@@ -307,9 +321,12 @@ show_surface_info(SDL_Surface *s, const char *name)
     log_printf(LOG_FRONT, ";;         w: %d\n", s->w);
     log_printf(LOG_FRONT, ";;         h: %d\n", s->h);
     log_printf(LOG_FRONT, ";;         pitch: %d\n", s->pitch);
+    log_printf(LOG_FRONT, ";;         flags: %s\n", str_from_flags(s->flags));
     if (s->format) {
       log_printf(LOG_FRONT, ";;         depth: %d bytes/pixel\n",
                  s->format->BytesPerPixel);
+      log_printf(LOG_FRONT, ";;         depth: %d bits/pixel\n",
+                 s->format->BitsPerPixel);
       log_printf(LOG_FRONT, ";;         rmask: %08x\n", s->format->Rmask);
       log_printf(LOG_FRONT, ";;         gmask: %08x\n", s->format->Gmask);
       log_printf(LOG_FRONT, ";;         bmask: %08x\n", s->format->Bmask);
@@ -334,10 +351,13 @@ init_screen()
   screen_w = (screen_w > 0) ? screen_w : info->current_w;
   screen_h = (screen_h > 0) ? screen_h : info->current_h;
   show_info(info);
-  log_printf(LOG_FRONT, "sdl-mode res: %dx%d flags: %08x\n", screen_w,
-             screen_h, sdl_flags);
+  log_printf(LOG_FRONT,
+             "sdl-mode res: %dx%d flags: %08x (%s) compatible: %d\n",
+             screen_w, screen_h, sdl_flags, str_from_flags(sdl_flags),
+             imlib_compatible_fmt(info->vfmt));
   if (!imlib_compatible_fmt(info->vfmt))
     sdl_flags &= ~SDL_DOUBLEBUF;
+  log_printf(LOG_FRONT, "  flags: %s\n", str_from_flags(sdl_flags));
   screen = SDL_SetVideoMode(screen_w, screen_h, 0, sdl_flags);
   show_surface_info(screen, "screen");
   if (!screen) {
@@ -499,6 +519,7 @@ draw(int redraw_all)
   SDL_Rect blitrect;
   int i, *rect, redrawn;
 
+  profile_start(PROF_DRAW);
   if (SDL_MUSTLOCK(s) && SDL_LockSurface(s) < 0)
     return -1;
   screen_image = imlib_create_image_using_data(s->w, s->h, s->pixels);
@@ -510,7 +531,9 @@ draw(int redraw_all)
   screen_image = 0;
   if (SDL_MUSTLOCK(s))
     SDL_UnlockSurface(s);
+  profile_end(PROF_DRAW);
   if (redrawn) {
+    profile_start(PROF_DRAW_BLIT);
     if (backbuffer)
       for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4) {
         blitrect.x = rect[0];
@@ -519,10 +542,11 @@ draw(int redraw_all)
         blitrect.h = rect[3];
         SDL_BlitSurface(backbuffer, &blitrect, screen, &blitrect);
       }
-    if (screen->flags & SDL_DOUBLEBUF)
+    if (sdl_flags & SDL_DOUBLEBUF)
       SDL_Flip(screen);
     else for (i = 0, rect = dirty_rects; i < ndirty_rects; ++i, rect += 4)
       SDL_UpdateRect(screen, rect[0], rect[1], rect[2], rect[3]);
+    profile_end(PROF_DRAW_BLIT);
   }
   return 0;
 }
@@ -532,8 +556,8 @@ main_loop(int server_fd)
 {
   SDL_Thread *event_thread;
   SDL_Event quit_event = {0};
-  unsigned int prev_draw_ms = 0, time_ms;
-  int running, flags = FORCE_UPDATE, redraw;
+  unsigned int prev_ms = 0, time_ms, ms;
+  int running, flags = FORCE_UPDATE;
 
   if (pipe(event_pipe) < 0)
     die("Cannot create event pipe");
@@ -556,6 +580,7 @@ main_loop(int server_fd)
     profile_start(PROF_IO);
     if (uifs_process_io(server_fd, event_pipe[0], frame_ms))
       running = 0;
+    profile_end(PROF_IO);
     profile_start(PROF_EVENTS);
     if (SDL_mutexP(event_mutex) < 0)
       die("unable to lock mutex");
@@ -572,15 +597,17 @@ main_loop(int server_fd)
     if (SDL_mutexV(event_mutex) < 0)
       die("unable to unlock mutex");
     profile_end(PROF_EVENTS);
-    profile_end(PROF_IO);
-    profile_start(PROF_DRAW);
-    redraw = uifs_update(flags & FORCE_UPDATE);
-    if ((flags || redraw) && (time_ms - prev_draw_ms > frame_ms)) {
-      draw(flags & FORCE_REDRAW);
-      redraw = flags = 0;
-      prev_draw_ms = time_ms;
+    ms = SDL_GetTicks();
+    if (ms - prev_ms >= frame_ms) {
+      int t;
+      profile_start(PROF_UPDATE);
+      t = uifs_update(flags & FORCE_UPDATE);
+      profile_end(PROF_UPDATE);
+      if (t)
+        draw(flags & FORCE_REDRAW);
+      flags = 0;
+      prev_ms = ms;
     }
-    profile_end(PROF_DRAW);
     profile_end(PROF_LOOP);
   }
   quit_event.type = SDL_QUIT;
@@ -600,6 +627,7 @@ sdl_init()
     log_printf(LOG_ERR, "SDL_Init failed.\n");
     return -1;
   }
+  atexit(SDL_Quit);
   SDL_ShowCursor(show_cursor);
   if (init_screen())
     return -1;
@@ -666,6 +694,5 @@ main(int argc, char **argv)
   close(fd);
   free_screen();
   free_network();
-  SDL_Quit();
   return 0;
 }

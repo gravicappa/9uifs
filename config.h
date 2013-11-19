@@ -1,4 +1,4 @@
-#define MSIZE 1024
+#define MSIZE 65536
 
 #define DEF_EVENT_MIN_TIME_MS 20
 

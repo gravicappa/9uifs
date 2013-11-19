@@ -12,13 +12,14 @@
 #include "9pdbg.h"
 #include "fs.h"
 #include "fstypes.h"
-#include "bus.h"
 #include "client.h"
 #include "ctl.h"
 #include "ui.h"
 #include "config.h"
+#include "bus.h"
 #include "font.h"
 #include "images.h"
+#include "profile.h"
 
 struct client *clients = 0;
 unsigned int cur_time_ms;
@@ -120,11 +121,22 @@ client_send_resp(struct client *c)
 {
   unsigned int outsize;
 
+  profile_start(PROF_IO_PACK);
   if (p9_pack_msg(c->con.msize, (char *)c->outbuf, &c->con.r))
     return -1;
+  /*p9_print_msg(&c->con.r, "OUT");*/
+  profile_end(PROF_IO_PACK);
   outsize = unpack_uint4((unsigned char *)c->outbuf);
-  if (send(c->fd, c->outbuf, outsize, 0) <= 0)
+  profile_end2(PROF_IO_CLIENT);
+  profile_start(PROF_IO_SEND);
+  /* TODO: handle EAGAIN and EWOULDBLOCK */
+  if (send(c->fd, c->outbuf, outsize, 0) <= 0) {
+    profile_end(PROF_IO_SEND);
+    profile_start(PROF_IO_CLIENT);
     return -1;
+  }
+  profile_end(PROF_IO_SEND);
+  profile_start(PROF_IO_CLIENT);
   return 0;
 }
 
@@ -135,57 +147,79 @@ process_client_io(struct client *c)
   unsigned int size, off;
   unsigned char *buf = c->inbuf;
 
+  profile_start(PROF_IO_CLIENT);
   if (c->read >= c->con.msize - (c->con.msize >> 4)) {
+    profile_start(PROF_IO_MEMMOVE);
     if (c->read > c->off)
       memmove(buf, buf + c->off, c->read - c->off);
     c->read -= c->off;
     c->off = 0;
+    profile_end(PROF_IO_MEMMOVE);
   }
+  profile_start(PROF_IO_READ);
   r = recv(c->fd, buf + c->read, c->con.msize - c->read, 0);
-  if (r == 0)
+  profile_end(PROF_IO_READ);
+  if (r == 0) {
+    profile_end(PROF_IO_CLIENT);
     return 1;
-  if (r <= 0)
-    return (net_wouldblock())? 0 : -1;
+  }
+  if (r <= 0) {
+    profile_end(PROF_IO_CLIENT);
+    return (net_wouldblock()) ? 0 : -1;
+  }
   c->read += r;
-  if (c->read < 4)
+  if (c->read < 7) {
+    profile_end(PROF_IO_CLIENT);
     return 0;
+  }
   off = c->off;
-  while (c->read - off >= 4) {
+  while (c->read - off >= 7) {
     size = unpack_uint4((unsigned char *)buf + off);
     if (size < 7 || size > c->con.msize) {
       log_printf(LOG_DBG, "wrong message size size: %u msize: %u\n",
                  size, c->con.msize);
+      profile_end(PROF_IO_CLIENT);
       return -1;
     }
     if (off + size > c->read)
       break;
+    profile_start(PROF_IO_UNPACK);
     if (p9_unpack_msg(size, (char *)buf + off, &c->con.t)) {
+      profile_end(PROF_IO_UNPACK);
+      profile_end(PROF_IO_CLIENT);
       log_printf(LOG_DBG, "unpack message error\n");
       return -1;
     }
+    /*p9_print_msg(&c->con.t, "IN");*/
+    profile_end(PROF_IO_UNPACK);
     c->con.r.deferred = 0;
+    profile_start(PROF_IO_PROCESS);
     if (p9_process_treq(&c->con, &fs)) {
+      profile_end(PROF_IO_PROCESS);
+      profile_end(PROF_IO_CLIENT);
       log_printf(LOG_DBG, "process message error\n");
       return -1;
     }
+    profile_end(PROF_IO_PROCESS);
+    c->con.r.deferred = 0;
     if (!c->con.r.deferred && client_send_resp(c))
       return -1;
     off += size;
   }
   c->off = off;
+  profile_end(PROF_IO_CLIENT);
   return 0;
 }
 
-int
+static int
 update_sock_set(fd_set *fdset, int server_fd, int event_fd)
 {
-  struct client *c = clients;
+  struct client *c;
   int m;
 
   FD_ZERO(fdset);
   FD_SET(server_fd, fdset);
   FD_SET(event_fd, fdset);
-
   m = (server_fd > event_fd) ? server_fd : event_fd;
   for (c = clients; c; c = c->next) {
     FD_SET(c->fd, fdset);
@@ -219,14 +253,20 @@ uifs_process_io(int srvfd, int evfd, unsigned int frame_ms)
   struct client *c, *cnext;
   unsigned char evbuf[1];
 
+  profile_start(PROF_IO_DEFERRED);
   for (c = clients; c; c = c->next)
     send_events_deferred(c->bus);
+  profile_end(PROF_IO_DEFERRED);
+  profile_start(PROF_IO_UPD_FDSET);
   m = update_sock_set(&fdset, srvfd, evfd);
+  profile_end(PROF_IO_UPD_FDSET);
   if (ui_update_list) {
     tv.tv_sec = 0;
     tv.tv_usec = 1000 * frame_ms;
   }
+  profile_end2(PROF_IO);
   r = select(m + 1, &fdset, 0, 0, (ui_update_list) ? &tv : 0);
+  profile_start(PROF_IO);
   if (r < 0 && errno != EINTR && errno != 514)
     return -1;
   cur_time_ms = current_time_ms();

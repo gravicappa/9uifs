@@ -19,6 +19,7 @@
 #include "uiplace.h"
 #include "client.h"
 #include "dirty.h"
+#include "profile.h"
 
 #define UI_NAME_PREFIX '_'
 
@@ -64,7 +65,7 @@ static struct p9_fs container_fs = {
 void
 ui_enqueue_update(struct uiobj *u)
 {
-  if (!u || (u->flags & UI_UPD_QUEUED))
+  if (!u || (u->flags & UI_UPD_QUEUED) || !(u->flags & UI_ATTACHED))
     return;
   u->flags |= UI_UPD_QUEUED;
   u->next = ui_update_list;
@@ -231,6 +232,12 @@ ui_rm_uiobj(struct file *f)
 
   if (!u)
     return;
+  if (ui_focused == u)
+    ui_focused = 0;
+  if (ui_grabbed == u)
+    ui_grabbed = 0;
+  if (ui_pointed == u)
+    ui_pointed = 0;
   ui_dequeue_update(u);
   up = u->place;
   if (up) {
@@ -683,6 +690,7 @@ uifs_update(int force)
   if (prev_desk_obj != ui_desktop->obj) {
     force = 1;
     prev_desk_obj = ui_desktop->obj;
+    walk_ui_tree(ui_desktop, uiplace_set_attach_flag, 0, 0);
   }
   cur_time_ms = current_time_ms();
   clean_dirty_rects();
@@ -693,18 +701,20 @@ uifs_update(int force)
     v->flags &= ~UI_UPD_QUEUED;
     if (v->ops->update)
       v->ops->update(v);
-    flags |= (v->flags & UI_DIRTY);
-    if (v->flags & UI_DELETED) {
-      /* remove uiobj */
-    }
+    if (v->flags & UI_ATTACHED)
+      flags |= (v->flags & UI_DIRTY);
+    if (v->flags & UI_DELETED)
+      v->f.rm(&v->f);
   }
   if (force || ((flags & UI_DIRTY) == UI_DIRTY)) {
+    profile_start(PROF_UPDATE_POS);
     walk_ui_tree(ui_desktop, 0, update_place_size, 0);
     r[0] = r[1] = 0;
     r[2] = screen_w;
     r[3] = screen_h;
     ui_place_with_padding(ui_desktop, r);
     walk_ui_tree(ui_desktop, resize_place, 0, 0);
+    profile_end(PROF_UPDATE_POS);
   }
   return (force || flags != 0);
 }
@@ -715,10 +725,12 @@ uifs_redraw(int force)
   struct uicontext ctx = {0};
   static struct uiobj *prev_desk_obj = 0;
 
-  if (!ui_desktop->obj && prev_desk_obj) {
-    add_dirty_rect2(0, 0, screen_w, screen_h);
-    prepare_dirty_rects();
-    draw_rect(screen_image, 0, 0, screen_w, screen_h, DEF_BG, DEF_BG);
+  if (!ui_desktop->obj) {
+    if (prev_desk_obj) {
+      add_dirty_rect2(0, 0, screen_w, screen_h);
+      prepare_dirty_rects();
+      draw_rect(screen_image, 0, 0, screen_w, screen_h, DEF_BG, 0xffafa0bf);
+    }
     return 1;
   }
   prev_desk_obj = ui_desktop->obj;

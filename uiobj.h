@@ -12,6 +12,7 @@ enum uiflags {
   UI_UPD_QUEUED = (1 << 10),
   UI_DELETED = (1 << 11),
   UI_EXPORTED = (1 << 12),
+  UI_ATTACHED = (1 << 13),
 };
 
 struct uiplace;

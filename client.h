@@ -1,6 +1,3 @@
-struct arr;
-struct input_event;
-
 struct client {
   struct p9_connection con;
   struct client *next;

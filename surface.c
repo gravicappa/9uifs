@@ -16,6 +16,8 @@
 
 const int size_buf_len = 32;
 
+static struct arr *surfaces = 0;
+
 enum surface_flags {
   SURFACE_DIRTY = 1
 };

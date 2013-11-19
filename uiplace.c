@@ -50,10 +50,32 @@ is_cycled(struct uiplace *up, struct uiobj *u)
   return 0;
 }
 
+int
+uiplace_unset_attach_flag(struct uiplace *up, void *aux)
+{
+  if (up && up->obj) {
+    log_printf(LOG_UI, "%s <- detached\n", up->obj->f.name);
+    up->obj->flags &= ~UI_ATTACHED;
+  }
+  return 1;
+}
+
+int
+uiplace_set_attach_flag(struct uiplace *up, void *aux)
+{
+  if (up && up->obj) {
+    log_printf(LOG_UI, "%s <- attached\n", up->obj->f.name);
+    up->obj->flags |= UI_ATTACHED;
+  }
+  return 1;
+}
+
 static void
 place_uiobj(struct uiplace *up, struct uiobj *u)
 {
   struct file *f;
+  struct uiobj *parent;
+
   if (!(u && up))
     return;
   if (is_cycled(up, u))
@@ -66,6 +88,10 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
     ((struct uiplace *)f)->parent = up;
   if (u->ops->place_changed)
     u->ops->place_changed(u);
+  if (up == ui_desktop)
+    walk_ui_tree(up, uiplace_set_attach_flag, 0, 0);
+  else if ((parent = uiplace_container(up)) && (parent->flags & UI_ATTACHED))
+    walk_ui_tree(up, uiplace_set_attach_flag, 0, 0);
 }
 
 static void
@@ -74,6 +100,9 @@ unplace_uiobj(struct uiplace *up)
   struct file *f;
   if (!(up && up->obj))
     return;
+  log_printf(LOG_UI, "unplace_uiobj/ %s from %s\n", up->f.name,
+             up->obj->f.name);
+  walk_ui_tree(up, uiplace_unset_attach_flag, 0, 0);
   up->obj->place = 0;
   for (f = uiobj_children(up->obj); f; f = f->next)
     ((struct uiplace *)f)->parent = 0;
