@@ -208,7 +208,7 @@ p9_pack_msg(int bytes, char *buf, struct p9_msg *m)
       break;
 
     case P9_TATTACH:
-      if (s.off + 4 + 4 + 2 + m->uname_len + 2 + m->aname_len)
+      if (s.off + 4 + 4 + 2 + m->uname_len + 2 + m->aname_len >= s.size)
         return -1;
       write_uint4(&s, m->fid);
       write_uint4(&s, m->afid);
