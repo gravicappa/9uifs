@@ -5,7 +5,7 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "ctl.h"
-#include "backend.h"
+#include "frontend.h"
 #include "surface.h"
 
 #define IMG_NAME_PREFIX '_'
@@ -63,7 +63,7 @@ image_create(struct p9_connection *con)
     return;
   }
   if (name[0] == IMG_NAME_PREFIX)
-    f = (struct file *)mk_surface(0, 0, dir->libroot);
+    f = (struct file *)mk_surface(0, 0, dir->libroot, con);
   else
     f = image_mkdir(name, dir->libroot);
   if (!f) {

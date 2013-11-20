@@ -3,7 +3,7 @@
 
 #include "util.h"
 #include "api.h"
-#include "backend.h"
+#include "frontend.h"
 #include "text.h"
 #include "9p.h"
 #include "fs.h"

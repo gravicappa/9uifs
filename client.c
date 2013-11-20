@@ -7,7 +7,7 @@
 #include "util.h"
 #include "net.h"
 #include "api.h"
-#include "backend.h"
+#include "frontend.h"
 #include "9p.h"
 #include "9pdbg.h"
 #include "fs.h"

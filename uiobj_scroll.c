@@ -7,7 +7,7 @@
 #include "9p.h"
 #include "fs.h"
 #include "fstypes.h"
-#include "backend.h"
+#include "frontend.h"
 #include "prop.h"
 #include "uiobj.h"
 

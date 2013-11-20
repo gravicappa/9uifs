@@ -8,7 +8,7 @@
 #include "fsutil.h"
 #include "fstypes.h"
 #include "ctl.h"
-#include "backend.h"
+#include "frontend.h"
 #include "raster.h"
 #include "surface.h"
 #include "stb_image.h"
@@ -254,12 +254,13 @@ rm_surface(struct file *f)
 }
 
 int
-init_surface(struct surface *s, int w, int h, struct file *imglib)
+init_surface(struct surface *s, int w, int h, struct file *imglib, void *con)
 {
   memset(s, 0, sizeof(*s));
   s->w = w;
   s->h = h;
   s->imglib = imglib;
+  s->conn = con;
 
   s->img = create_image(w, h, 0);
   if (!s->img && w && h)
@@ -298,12 +299,12 @@ init_surface(struct surface *s, int w, int h, struct file *imglib)
 }
 
 struct surface *
-mk_surface(int w, int h, struct file *imglib)
+mk_surface(int w, int h, struct file *imglib, void *con)
 {
   struct surface *s;
 
   s = (struct surface *)malloc(sizeof(struct surface));
-  if (s && init_surface(s, w, h, imglib)) {
+  if (s && init_surface(s, w, h, imglib, con)) {
     free(s);
     return 0;
   }

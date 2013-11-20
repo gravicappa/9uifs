@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "util.h"
-#include "backend.h"
+#include "frontend.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"

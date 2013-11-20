@@ -11,6 +11,7 @@ struct surface {
   int flags;
   struct surface_link *links;
   struct file *imglib;
+  void *conn; /* for access control */
 };
 
 struct surface_link {
@@ -20,8 +21,9 @@ struct surface_link {
   void *ptr;
 };
 
-struct surface *mk_surface(int w, int h, struct file *imglib);
-int init_surface(struct surface *s, int w, int h, struct file *imglib);
+struct surface *mk_surface(int w, int h, struct file *imglib, void *con);
+int init_surface(struct surface *s, int w, int h, struct file *imglib,
+                 void *con);
 int resize_surface(struct surface *s, int w, int h);
 
 struct surface_link *link_surface(struct surface *s, void *aux);
