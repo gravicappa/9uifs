@@ -279,8 +279,10 @@ fs_attach(struct p9_connection *con)
     return;
   }
   fid = add_fid(con->t.fid, &cl->fids, con->msize);
+  set_client_name(con->t.uname_len, con->t.uname, cl);
+  fid->uid = strdup(cl->name);
   fid->owns_uid = 1;
-  fid->uid = strndup(con->t.uname, con->t.uname_len);
+  log_printf(LOG_CLIENT, "# Named client (fd: %d): '%s'\n", cl->fd, cl->name);
   attach_fid(fid, &cl->f);
   con->r.aqid.type = cl->f.mode >> 24;
   con->r.aqid.version = cl->f.version;
@@ -313,7 +315,6 @@ fs_walk(struct p9_connection *con)
     P9_SET_STR(con->r.ename, "fid already in use");
     return;
   }
-
   f = (struct file *)con->t.pfid->file;
   if (con->t.newfid == con->t.fid)
     detach_fid(con->t.pfid);

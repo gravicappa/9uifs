@@ -28,16 +28,12 @@ struct input_context {
 static int
 kbd_ev(struct uiobj *u, struct input_event *ev)
 {
-  static const char *tags_all[] = {bus_ch_kbd, bus_ch_all, 0};
-  static const char *tags_uiobj[] = {bus_ch_kbd, bus_ch_all, bus_ch_ui, 0};
-  static const char **tags[] = {tags_all, tags_uiobj};
-
   if (!u)
     return 0;
 
   if (u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
-  else {
+  else if (u->flags & UI_KBD_EV) {
     struct ev_arg evargs[] = {
       {ev_str, {.s = "key"}},
       {ev_str},
@@ -48,7 +44,7 @@ kbd_ev(struct uiobj *u, struct input_event *ev)
       {0}
     };
     evargs[1].x.s = (ev->type == IN_KEY_DOWN) ? "d" : "u";
-    put_event(u->client->bus, tags[(u->flags & UI_KBD_EV)], evargs);
+    put_event(u->client->bus, bus_ch_ev, evargs);
   }
   return 0;
 }
@@ -78,8 +74,7 @@ uiobj_input(struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      static const char *tags[] = {bus_ch_ptr, bus_ch_all, 0};
-      put_event(u->client->bus, tags, evargs);
+      put_event(u->client->bus, bus_ch_ev, evargs);
       return 1;
     }
     break;
@@ -96,8 +91,7 @@ uiobj_input(struct uiobj *u, struct input_event *ev)
         {ev_uiobj, {.o = u}},
         {0}
       };
-      static const char *tags[] = {bus_ch_ptr, bus_ch_all, 0};
-      put_event(u->client->bus, tags, evargs);
+      put_event(u->client->bus, bus_ch_ev, evargs);
       return 1;
     }
     break;
@@ -151,7 +145,6 @@ process_ptr_exit(struct uiobj *obj, int x, int y)
     {ev_uiobj},
     {0}
   };
-  static const char *tags[] = {bus_ch_ui, bus_ch_all, 0};
   while (obj) {
     last = obj;
     if (inside_uiobj(x, y, obj))
@@ -160,7 +153,7 @@ process_ptr_exit(struct uiobj *obj, int x, int y)
       obj->ops->on_ptr_intersect(obj, 0);
     if (obj->flags & UI_PTR_INTERSECT_EV) {
       evargs[2].x.o = obj;
-      put_event(obj->client->bus, tags, evargs);
+      put_event(obj->client->bus, bus_ch_ev, evargs);
     }
     if  (obj->place && obj->place->parent)
       obj = obj->place->parent->obj;
@@ -180,7 +173,6 @@ process_ptr_enter(struct uiobj *u, struct uiobj *prev, int x, int y)
     {ev_uiobj},
     {0}
   };
-  static const char *tags[] = {bus_ch_ui, bus_ch_all, 0};
 
   if (prev == u)
     return;
@@ -192,7 +184,7 @@ process_ptr_enter(struct uiobj *u, struct uiobj *prev, int x, int y)
       obj->ops->on_ptr_intersect(obj, 1);
     if (obj->flags & UI_PTR_INTERSECT_EV) {
       evargs[2].x.o = obj;
-      put_event(obj->client->bus, tags, evargs);
+      put_event(obj->client->bus, bus_ch_ev, evargs);
     }
     if  (obj->place && obj->place->parent)
       obj = obj->place->parent->obj;

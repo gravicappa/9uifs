@@ -471,15 +471,14 @@ resize_place(struct uiplace *up, void *aux)
   if (changed && (u->flags & UI_RESIZE_EV)) {
     struct ev_arg ev[] = {
       {ev_str, {.s = "resize"}},
-      {ev_uiobj, {.o = u}},
       {ev_int, {.i = u->g.r[0]}},
       {ev_int, {.i = u->g.r[1]}},
       {ev_int, {.i = u->g.r[2]}},
       {ev_int, {.i = u->g.r[3]}},
+      {ev_uiobj, {.o = u}},
       {0}
     };
-    const static char *tags[] = {bus_ch_ui, bus_ch_all, 0};
-    put_event(u->client->bus, tags, ev);
+    put_event(u->client->bus, bus_ch_ev, ev);
   }
   memcpy(u->viewport.r, u->g.r, sizeof(u->viewport.r));
   return 1;

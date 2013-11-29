@@ -1,3 +1,8 @@
+enum {
+  CLIENT_LOCAL = 1,
+  CLIENT_WM = 2,
+};
+
 struct client {
   struct p9_connection con;
   struct client *next;
@@ -14,6 +19,7 @@ struct client {
   unsigned char *inbuf;
   unsigned char *outbuf;
 
+  char *name;
   int flags;
   struct file f;
   struct file *fonts;
@@ -27,3 +33,4 @@ extern unsigned int cur_time_ms;
 
 struct client *add_client(int fd, int msize);
 int client_send_resp(struct client *c);
+void set_client_name(int len, char *buf, struct client *c);

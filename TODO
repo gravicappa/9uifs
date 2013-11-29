@@ -1,28 +1,29 @@
-# FS
+# General
+## Assign a name to application.
+## Add multiple attach support for one client.
 
-* Static directory structure probably can be defined as static data.
+## Static directory structure probably can be defined as static data.
 
-  - Qid can be stored in separate set.
+## Access to somehow sandboxed local FS.
 
-* Access to somehow sandboxed local FS.
+## Sound support.
 
-# UI
+## GL support.
 
-* Think about default keybindings
+Almost every modern computing platform has GPU. It's a waste not to use it.
 
-  - Autoassign keys to buttons?
+## Think about default keybindings
 
-* Timed update?
+Probably it is a good idea to autoassign keys to buttons.
 
-* New widgets:
+## Timed update(?)
 
-    - text entry,
-    - check button?,
-    - radio button?,
-    - slider?,
-    - progress bar??.
+## Text entry widget
+## Check button widget (?)
+## Radio button widget (?)
+## Slider widget (?)
 
-* Access to exported widgets from another clients.
+## Access to exported widgets from another clients.
 
-* Assign id to images and manipulate them by it in surface's `ctl` commands
-  for performance.
+## Assign id to images and manipulate them by it in surface's `ctl` commands.
+It's good for performance.

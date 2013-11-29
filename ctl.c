@@ -14,18 +14,19 @@ struct ctl_context {
 struct ctl_file {
   struct file f;
   struct ctl_cmd *cmd;
+  void *aux;
 };
 
 static void
-exec_cmd(struct ctl_file *f, int n, char *str)
+exec_cmd(int cmdlen, char *cmd, struct ctl_cmd *c, void *aux)
 {
-  char *p = str, *s;
+  char *p = cmd, *s;
   int i;
 
   s = next_arg(&p);
-  for (i = 0; f->cmd[i].name && strcmp(f->cmd[i].name, s); ++i) {}
-  if (f->cmd[i].fn)
-    f->cmd[i].fn(&f->f, p);
+  for (i = 0; c[i].name && c[i].name[0] && strcmp(c[i].name, s); ++i) {}
+  if (c[i].fn)
+    c[i].fn(p, aux);
 }
 
 static void
@@ -62,11 +63,10 @@ static void
 ctl_write(struct p9_connection *con)
 {
   struct ctl_context *ctx;
-  struct ctl_file *f;
   char *s, *cmd;
+  struct ctl_file *ctl = (struct ctl_file *)con->t.pfid->file;
   int n, i, cmdlen;
 
-  f = (struct ctl_file *)con->t.pfid->file;
   ctx = (struct ctl_context *)con->t.pfid->aux;
   if (!ctx)
     return;
@@ -91,7 +91,7 @@ ctl_write(struct p9_connection *con)
       break;
     *s++ = 0;
     i++;
-    exec_cmd(f, cmdlen, cmd);
+    exec_cmd(cmdlen, cmd, ctl->cmd, ctl->aux);
     if (ctx->buf)
       arr_delete(&ctx->buf, 0, i);
     cmd = s;
@@ -110,13 +110,12 @@ static void
 ctl_clunk(struct p9_connection *con)
 {
   struct ctl_context *ctx;
-  struct ctl_file *f;
+  struct ctl_file *ctl = (struct ctl_file *)con->t.pfid->file;
 
-  f = (struct ctl_file *)con->t.pfid->file;
   ctx = (struct ctl_context *)con->t.pfid->aux;
 
   if (ctx && ctx->buf && ctx->buf->used) {
-    exec_cmd(f, ctx->buf->used, ctx->buf->b);
+    exec_cmd(ctx->buf->used, ctx->buf->b, ctl->cmd, ctl->aux);
     ctx->buf->used = 0;
   }
 }
@@ -134,17 +133,17 @@ static struct p9_fs ctl_fs = {
 };
 
 struct file *
-mk_ctl(char *name, struct ctl_cmd *cmd)
+mk_ctl(char *name, struct ctl_cmd *cmd, void *aux)
 {
   struct ctl_file *f;
   f = calloc(1, sizeof(struct ctl_file));
   if (f) {
     f->f.name = name;
-    f->f.name = "ctl";
     f->f.mode = 0200 | P9_DMAPPEND;
     f->f.qpath = new_qid(FS_CTL);
     f->f.fs = &ctl_fs;
     f->cmd = cmd;
+    f->aux = aux;
     f->f.rm = rm_ctl;
   }
   return &f->f;

@@ -1,4 +1,5 @@
 #include <Imlib2.h>
+#include <stdio.h>
 #include "frontend.h"
 #include "raster.h"
 #include "dirty.h"

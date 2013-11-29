@@ -184,8 +184,7 @@ press_button(struct uiobj *u, int by_kbd)
       {ev_uiobj, {.o = u}},
       {0}
     };
-    const char *tags[] = {bus_ch_all, bus_ch_ui, 0};
-    put_event(u->client->bus, tags, ev);
+    put_event(u->client->bus, bus_ch_ev, ev);
   }
   if (by_kbd)
     b->pressed_ms = cur_time_ms;

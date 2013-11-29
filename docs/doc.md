@@ -1,108 +1,100 @@
 # Application FS structure
 
     root/
-      event -> [? create destroy]
-      views/
-        <viewname-1>/
-        <viewname-2>/
       images/
         <picname>/
           ctl
           rgba
           size
-          png
+          in.png
       fonts/
         list
         ...
       ui/
-      store/
-      comm/
+      bus/
+        +sys/in
+        +all/out
+        +kbd/out
+        +ui/out
+        +pointer/out
+      store/ ; local fs
 
-## event
+## Standard events
 
     ptr in Widget
     ptr out Widget
-    ptr u P X Y Btn Widget
-    ptr d P X Y Btn Widget
-    ptr m X Y Dx Dy Btns Widget
+    ptr u Id X Y Btn Widget
+    ptr d Id X Y Btn Widget
+    ptr m Id X Y Dx Dy Btns Widget
     key u Key State Unicode Widget
     key d Key State Unicode Widget
+    resize Rx Ry Rw Rh Widget
+
+    press_button Widget
+
+    exported application/Widget
+    unexported application/Widget
 
 *to be defined*
 
-## view
-    /
-      event
-      pointer
-      keyboard
-      joystick
-      g
-      visible
-      blit/
-      gles/
-      uiplace/
-        padding
-        path -> dir/_panel01
-        sticky -> 'tblr'
-      uisel -> dir/_button01
-      canvas/
-
-### view/event
-
-*to be defined*
-
-### view/pointer
+### Pointer events
 
 Move pointer
 
-    m P X Y Dx Dy Btn-bitmask
+    ptr m Id X Y Dx Dy Btn-bitmask Widget
 
-* _P_: pointer index (for multitouch interfaces)
+* _Id_: pointer index (for multitouch interfaces)
 * _X_, _Y_: pointer coordinates
 * _Dx_, _Dy_: delta from previous coordinates
 * _Btn-bitmask_: bit-mask of button press
+* _Widget_: event's widget
 
 > Maybe _Btn-bitmask_ should be a list of pressed buttons
 
 Press pointer
 
-    d P X Y Btn
+    ptr d Id X Y Btn Widget
 
-* _P_: pointer index (for multitouch interfaces)
+* _Id_: pointer index (for multitouch interfaces)
 * _X_, _Y_: pointer coordinates
 * _Btn_: number of pressed button
+* _Widget_: event's widget
 
 Release pointer
 
-    u P X Y Btn
+    ptr u Id X Y Btn
 
-* _P_: pointer index (for multitouch interfaces)
+* _Id_: pointer index (for multitouch interfaces)
 * _X_, _Y_: pointer coordinates
 * _Btn_: number of released button
+* _Widget_: event's widget
   
-### view/kbd
+### Keyboard events
 
-    d Keysym Mod-bitmask Unicode
-    u Keysym Mod-bitmask Unicode
+    key d Keysym Mod-bitmask Unicode Widget
+    key u Keysym Mod-bitmask Unicode Widget
 
-### view/geometry
+* _Keysym_: keysym
+* _Mod-bitmask_: state of modifier keys
+* _Unicode_: unicode number of pressed character, or -1 if not applicable
+* _Widget_: event's widget
 
-*to be defined*
 
-## blit
+## Image
 
     /
       ctl
       rgba
       size
-      png
+      in.png
 
 - *ctl*:
 - *size*: contains string `width height` which defines size in pixels.
 - *rgba*: contains `width × height × bytes-per-pixel` bytes of RGBA pixel
           data.
+- *in.png*: file for loading `png` files.
 
-### blit/ctl
+### image/ctl
 
 *Commands:*
 
@@ -114,10 +106,6 @@ Release pointer
     ...
 
 ### gl
-
-*to be defined*
-
-### canvas
 
 *to be defined*
 
@@ -143,17 +131,16 @@ Release pointer
 
 *to be defined*
 
-## ui
+## ui filesystem
 
       /
         dir/
           _new01/
-            evfilter
+            flags
             type ->
           _panel01/
-            evfilter
+            flags
             type -> grid
-            visible -> 0 | 1
             restraint -> Maxwidth Minwidth Maxheight Minheight
             container
             items/
@@ -169,34 +156,17 @@ Release pointer
                 padding ->
           buttons/
             _ok/
-              evfilter
+              flags
               type -> button
-              visible -> 0 | 1
               restraint -> Maxwidth Minwidth Maxheight Minheight
               text -> Ok
               font -> sans:10:Bold
               g -> X Y W H
               container
             _cancel/
-              evfilter
+              flags
               type -> button
-              visible -> 0 | 1
               restraint -> Maxwidth Minwidth Maxheight Minheight
               text -> Cancel
               container
 
-### ui/uievent
-
-*to be defined*
-
-### ui/type
-
-*to be defined*
-
-### ui/placement
-
-*to be defined*
-
-### ui/visible
-
-*to be defined*

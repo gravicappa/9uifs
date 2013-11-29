@@ -30,7 +30,7 @@ struct client *
 add_client(int fd, int msize)
 {
   struct client *c;
-  c = (struct client *)calloc(1, sizeof(struct client));
+  c = calloc(1, sizeof(struct client));
   if (!c)
     die("Cannot allocate memory");
   c->fd = fd;
@@ -48,7 +48,7 @@ add_client(int fd, int msize)
   c->f.mode = 0500 | P9_DMDIR;
   c->f.qpath = new_qid(FS_ROOT);
 
-  c->bus = mk_bus("ev", c);
+  c->bus = mk_bus("bus", c);
   if (!c->bus)
     goto error;
   add_file(&c->f, c->bus);
@@ -87,6 +87,8 @@ rm_client(struct client *c)
     return;
 
   log_printf(LOG_CLIENT, "# Removing client %p (fd: %d)\n", c, c->fd);
+  if (c->name)
+    free(c->name);
   if (c->fd >= 0)
     close(c->fd);
   if (c->inbuf)
@@ -110,6 +112,16 @@ rm_client(struct client *c)
   free(c);
 }
 
+void
+set_client_name(int len, char *buf, struct client *c)
+{
+  if (c->name)
+    free(c->name);
+  c->name = strndup(buf, len);
+  if ((c->flags & CLIENT_LOCAL) && !strcmp(c->name, "window_manager"))
+    c->flags |= CLIENT_WM;
+}
+
 static unsigned int
 unpack_uint4(unsigned char *buf)
 {
@@ -124,7 +136,9 @@ client_send_resp(struct client *c)
   profile_start(PROF_IO_PACK);
   if (p9_pack_msg(c->con.msize, (char *)c->outbuf, &c->con.r))
     return -1;
-  /*p9_print_msg(&c->con.r, "OUT");*/
+#if 1
+  p9_print_msg(&c->con.r, "OUT");
+#endif
   profile_end(PROF_IO_PACK);
   outsize = unpack_uint4((unsigned char *)c->outbuf);
   profile_end2(PROF_IO_CLIENT);
@@ -190,7 +204,9 @@ process_client_io(struct client *c)
       log_printf(LOG_DBG, "unpack message error\n");
       return -1;
     }
-    /*p9_print_msg(&c->con.t, "IN");*/
+#if 1
+    p9_print_msg(&c->con.t, "IN");
+#endif
     profile_end(PROF_IO_UNPACK);
     c->con.r.deferred = 0;
     profile_start(PROF_IO_PROCESS);
@@ -201,7 +217,6 @@ process_client_io(struct client *c)
       return -1;
     }
     profile_end(PROF_IO_PROCESS);
-    c->con.r.deferred = 0;
     if (!c->con.r.deferred && client_send_resp(c))
       return -1;
     off += size;
@@ -231,17 +246,20 @@ update_sock_set(fd_set *fdset, int server_fd, int event_fd)
 static struct client *
 accept_client(int server_fd)
 {
-  int fd, opt = 1;
+  int fd, x = 1;
   struct sockaddr_in addr;
-  socklen_t len;
+  socklen_t len = sizeof(addr);
+  struct client *c;
 
-  len = sizeof(addr);
   fd = accept(server_fd, (struct sockaddr *)&addr, &len);
   if (fd < 0 || nonblock_socket(fd))
     return 0;
-  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+  setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &x, sizeof(x));
   log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
-  return add_client(fd, MSIZE);
+  c = add_client(fd, MSIZE);
+  if (c && addr.sin_addr.s_addr == INADDR_LOOPBACK) 
+    c->flags |= CLIENT_LOCAL;
+  return c;
 }
 
 int

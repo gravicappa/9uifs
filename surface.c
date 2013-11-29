@@ -22,11 +22,11 @@ enum surface_flags {
   SURFACE_DIRTY = 1
 };
 
-static void cmd_blit(struct file *f, char *cmd);
-static void cmd_rect(struct file *f, char *cmd);
-static void cmd_line(struct file *f, char *cmd);
-static void cmd_poly(struct file *f, char *cmd);
-static void cmd_text(struct file *f, char *cmd);
+static void cmd_blit(char *cmd, void *aux);
+static void cmd_rect(char *cmd, void *aux);
+static void cmd_line(char *cmd, void *aux);
+static void cmd_poly(char *cmd, void *aux);
+static void cmd_text(char *cmd, void *aux);
 
 static struct ctl_cmd ctl_cmd[] = {
   {"blit", cmd_blit},
@@ -34,7 +34,7 @@ static struct ctl_cmd ctl_cmd[] = {
   {"line", cmd_line},
   {"poly", cmd_poly},
   {"text", cmd_text},
-  {0, 0}
+  {0}
 };
 
 static struct surface *
@@ -270,7 +270,7 @@ init_surface(struct surface *s, int w, int h, struct file *imglib, void *con)
   s->f.qpath = new_qid(FS_SURFACE);
   s->f.rm = rm_surface_data;
 
-  s->ctl = mk_ctl("ctl", ctl_cmd);
+  s->ctl = mk_ctl("ctl", ctl_cmd, &s->f);
   if (!s->ctl) {
     free_image(s->img);
     return -1;
@@ -330,12 +330,12 @@ resize_surface(struct surface *s, int w, int h)
 }
 
 static void
-cmd_blit(struct file *f, char *cmd)
+cmd_blit(char *cmd, void *aux)
 {
   int s_x = 0, s_y = 0, s_w, s_h, r[4] = {0, 0};
   static const char *fmt = "%d %d %d %d %d %d %d %d";
   char *name;
-  struct surface *src, *dst = containerof(f, struct surface, ctl);
+  struct surface *src, *dst = aux;
 
   name = next_quoted_arg(&cmd);
   if (!name)
@@ -365,11 +365,11 @@ colour_from_str(const char *s)
 }
 
 static void
-cmd_rect(struct file *f, char *cmd)
+cmd_rect(char *cmd, void *aux)
 {
   int r[4], i, bg = 0, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = containerof(f, struct surface, ctl);
+  struct surface *s = aux;
 
   if (!(arg = next_arg(&c)))
     return;
@@ -391,11 +391,11 @@ cmd_rect(struct file *f, char *cmd)
 }
 
 static void
-cmd_line(struct file *f, char *cmd)
+cmd_line(char *cmd, void *aux)
 {
   int r[4], i, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = containerof(f, struct surface, ctl);
+  struct surface *s = aux;
   if (!(arg = next_arg(&c)))
     return;
   fg = colour_from_str(arg);
@@ -445,9 +445,9 @@ draw_linestrip(struct surface *s, int fg, char *args)
 #define STATIC_NPTS 32
 
 static void
-cmd_poly(struct file *f, char *cmd)
+cmd_poly(char *cmd, void *aux)
 {
-  struct surface *s = containerof(f, struct surface, ctl);
+  struct surface *s = aux;
   char *arg, *c = cmd;
   int spts[STATIC_NPTS * 2];
   int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000, r[4] = {0};
@@ -489,9 +489,9 @@ cmd_poly(struct file *f, char *cmd)
 }
 
 static void
-cmd_text(struct file *f, char *cmd)
+cmd_text(char *cmd, void *aux)
 {
-  struct surface *s = containerof(f, struct surface, ctl);
+  struct surface *s = aux;
   char *arg;
   UFont font;
   int fg = 0, pt[2], i, r[4], n;
