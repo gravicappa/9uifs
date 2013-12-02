@@ -430,7 +430,6 @@ send_events_deferred(struct file *bus)
   unsigned int t;
 
   t = b->min_time_ms;
-  log_printf(LOG_DBG, "bus_send_deferred/ %d\n", n);
   for (chan = (struct bus_channel *)b->f.child;
        chan && n;
        chan = (struct bus_channel *)chan->f.next)
