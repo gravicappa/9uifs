@@ -24,9 +24,14 @@ exec_cmd(int cmdlen, char *cmd, struct ctl_cmd *c, void *aux)
   int i;
 
   s = next_arg(&p);
-  for (i = 0; c[i].name && c[i].name[0] && strcmp(c[i].name, s); ++i) {}
-  if (c[i].fn)
+  for (i = 0; c[i].name && strcmp(c[i].name, s); ++i) {}
+  if (c[i].fn) {
+    if (!c[i].name && p > cmd) {
+      p[-1] = ' ';
+      p = cmd;
+    }
     c[i].fn(p, aux);
+  }
 }
 
 static void
@@ -37,7 +42,6 @@ ctl_rm(struct p9_fid *fid)
   fid->rm = 0;
   ctx = (struct ctl_context *)fid->aux;
   if (ctx) {
-      return;
     if (ctx->buf)
       free(ctx->buf);
     free(ctx);
@@ -120,12 +124,6 @@ ctl_clunk(struct p9_connection *con)
   }
 }
 
-static void
-rm_ctl(struct file *f)
-{
-  free(f);
-}
-
 static struct p9_fs ctl_fs = {
   .open = ctl_open,
   .write = ctl_write,
@@ -144,7 +142,7 @@ mk_ctl(char *name, struct ctl_cmd *cmd, void *aux)
     f->f.fs = &ctl_fs;
     f->cmd = cmd;
     f->aux = aux;
-    f->f.rm = rm_ctl;
+    f->f.rm = free_file;
   }
   return &f->f;
 }

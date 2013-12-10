@@ -10,7 +10,7 @@ target = unix
 <| test -f $target.mk && cat $target.mk || echo
 
 obj = $obj config$O 9pmsg$O fs$O util$O net$O client$O \
-      fsutil$O fs$O 9pdbg$O surface.c bus$O ctl$O \
+      fsutil$O fs$O 9pdbg$O image$O bus$O ctl$O \
       ui$O uiplace$O uievent$O prop$O uiobj_grid$O uiobj_scroll$O \
       uiobj_label$O uiobj_image$O text$O font$O stb_image$O images$O \
       dirty_qtree$O raster$O

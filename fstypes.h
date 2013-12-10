@@ -11,7 +11,7 @@ enum {
   FS_PROP,
   FS_FONTS,
   FS_FNT_LIST,
-  FS_SURFACE,
+  FS_IMAGE,
   FS_IMGDIR,
   FS_BUS,
   FS_BUS_CHAN,

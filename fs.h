@@ -33,6 +33,7 @@ unsigned long long new_qid(unsigned char type);
 
 void add_file(struct file *root, struct file *f);
 void rm_file(struct file *f);
+void free_file(struct file *f);
 struct file *get_file(struct file *root, int size, char *name);
 
 void reset_fids(struct fid_pool *pool);

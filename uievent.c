@@ -13,7 +13,7 @@
 #include "fstypes.h"
 #include "bus.h"
 #include "frontend.h"
-#include "surface.h"
+#include "image.h"
 #include "prop.h"
 #include "uiobj.h"
 #include "ui.h"

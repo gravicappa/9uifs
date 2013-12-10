@@ -6,7 +6,7 @@
 #include "fstypes.h"
 #include "ctl.h"
 #include "frontend.h"
-#include "surface.h"
+#include "image.h"
 
 #define IMG_NAME_PREFIX '_'
 
@@ -21,13 +21,6 @@ static struct p9_fs imagedir_fs = {
   .create = image_create
 };
 
-static void
-rm_dir(struct file *dir)
-{
-  if (dir)
-    free(dir);
-}
-
 static struct file *
 image_mkdir(char *name, struct file *libroot)
 {
@@ -38,7 +31,7 @@ image_mkdir(char *name, struct file *libroot)
     dir->f.name = name;
     dir->f.mode = 0700 | P9_DMDIR;
     dir->f.qpath = new_qid(FS_IMGDIR);
-    dir->f.rm = rm_dir;
+    dir->f.rm = free_file;
     dir->f.fs = &imagedir_fs;
     dir->libroot = libroot;
   }
@@ -63,7 +56,7 @@ image_create(struct p9_connection *con)
     return;
   }
   if (name[0] == IMG_NAME_PREFIX)
-    f = (struct file *)mk_surface(0, 0, dir->libroot, con);
+    f = (struct file *)mk_image(0, 0, dir->libroot, con);
   else
     f = image_mkdir(name, dir->libroot);
   if (!f) {

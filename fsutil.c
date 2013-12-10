@@ -87,10 +87,12 @@ write_bool_fn(struct p9_connection *c, int oldval)
 }
 
 struct file *
-find_file(struct file *root, int size, char *name)
+find_file(struct file *root, char *name)
 {
   struct file *t = root;
   char *p, *q;
+  int size;
+  size = strlen(name);
 
   p = name;
   while (t && p[0] && size > 0) {

@@ -12,28 +12,55 @@
         ...
       ui/
       bus/
-        +sys/in
-        +all/out
-        +kbd/out
-        +ui/out
-        +pointer/out
       store/ ; local fs
+
+# Images filesystem
+
+      images/
+        pic0/
+          ctl
+          rgba
+          size
+          in.png
+        pic1/
+          ctl
+          rgba
+          size
+          in.png
+        ...
+
+# Bus filesystem
+
+      bus/
+        sys/
+          ev/
+            out
+          kbd/
+            out
+          pointer/
+            out
+          wm/
+            in
+        user1/
+          in
+          out
+        ...
 
 ## Standard events
 
-    ptr in Widget
-    ptr out Widget
-    ptr u Id X Y Btn Widget
-    ptr d Id X Y Btn Widget
-    ptr m Id X Y Dx Dy Btns Widget
-    key u Key State Unicode Widget
-    key d Key State Unicode Widget
-    resize Rx Ry Rw Rh Widget
+    :ptr in Widget
+    :ptr out Widget
+    :ptr u Id X Y Btn Widget
+    :ptr d Id X Y Btn Widget
+    :ptr m Id X Y Dx Dy Btns Widget
+    :key u Key State Unicode Widget
+    :key d Key State Unicode Widget
+    :resize Rx Ry Rw Rh Widget
 
-    press_button Widget
+    :press_button Widget
 
-    exported application/Widget
-    unexported application/Widget
+    :exported App-id Widget
+    :unexported App-id Widget
 
 *to be defined*
 
@@ -79,6 +106,9 @@ Release pointer
 * _Unicode_: unicode number of pressed character, or -1 if not applicable
 * _Widget_: event's widget
 
+## Commands
+
+    set_desktop App-id Widget
 
 ## Image
 

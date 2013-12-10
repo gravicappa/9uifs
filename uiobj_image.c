@@ -7,13 +7,13 @@
 #include "fsutil.h"
 #include "prop.h"
 #include "bus.h"
-#include "surface.h"
+#include "image.h"
 #include "uiobj.h"
 #include "client.h"
 #include "config.h"
 
 struct uiobj_image {
-  struct surface *s;
+  struct image *s;
   struct file f_path;
   struct uiobj *obj;
   struct uiobj_image *next;
@@ -37,11 +37,11 @@ link_update(void *ptr, int *r)
 }
 
 static int
-attach(struct uiobj_image *img, struct surface *s)
+attach(struct uiobj_image *img, struct image *s)
 {
-  struct surface_link *link;
+  struct image_link *link;
 
-  link = link_surface(s, img);
+  link = link_image(s, img);
   if (!link)
     return -1;
   link->rm = link_rm;
@@ -92,8 +92,9 @@ path_clunk(struct p9_connection *con)
   struct uiobj_image *img;
   struct arr *buf;
   int prevw = 0, prevh = 0;
-  struct surface *s, *prevs = 0;
+  struct image *s, *prevs = 0;
   struct client *client;
+  char zero[1] = {0};
 
   if (!P9_WRITE_MODE(fid->open_mode))
     return;
@@ -108,7 +109,8 @@ path_clunk(struct p9_connection *con)
       prevh = prevs->h;
     }
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    s = (struct surface *)find_file(client->images, buf->used, buf->b);
+    arr_add(&buf, 16, sizeof(zero), zero);
+    s = (struct image *)find_file(client->images, buf->b);
     attach(img, s);
   }
   if (img->s != prevs) {
@@ -140,7 +142,7 @@ static void
 draw(struct uiobj *u, struct uicontext *ctx)
 {
   struct uiobj_image *img = u->data;
-  struct surface *s = img->s;
+  struct image *s = img->s;
   int *r = u->g.r;
 
   if (s && s->img)
@@ -153,7 +155,7 @@ rm_image(struct file *f)
 {
   struct uiobj *u = (struct uiobj *)f;
   struct uiobj_image *img = u->data;
-  unlink_surface(img->s, img);
+  unlink_image(img->s, img);
   free(u->data);
   ui_rm_uiobj(f);
 }

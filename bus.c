@@ -25,8 +25,6 @@ struct bus_listener;
 
 struct bus_channel {
   struct file f;
-  struct file out;
-  struct file *in;
   struct bus *bus;
   struct bus_listener *listeners;
 };
@@ -34,7 +32,6 @@ struct bus_channel {
 struct bus {
   struct file f;
   struct file dir;
-  struct bus_channel *channels;
   struct client *client;
   unsigned int min_time_ms;
   unsigned int nlisteners;
@@ -69,8 +66,16 @@ int
 ev_uint(char *buf, struct ev_arg *ev)
 {
   if (!buf)
-    return (abs(ev->x.i) <= 99999) ? 5 : 10;
+    return (abs(ev->x.u) <= 99999) ? 5 : 10;
   return sprintf(buf, "%u", ev->x.u);
+}
+
+int
+ev_ull(char *buf, struct ev_arg *ev)
+{
+  if (!buf)
+    return (abs(ev->x.ull) <= 99999) ? 5 : 20;
+  return sprintf(buf, "%llu", ev->x.ull);
 }
 
 int
@@ -102,7 +107,7 @@ send_event(struct client *c, struct bus_listener *lsr)
       e -= sizeof(lsr->buf);
       n = sizeof(lsr->buf) - lsr->off;
       memcpy(c->con.buf, buf + lsr->off, n);
-      memcpy(c->con.buf + n, buf, e);
+      memcpy((char *)c->con.buf + n, buf, e);
       lsr->off = e;
       lsr->size -= bytes;
       c->con.r.count = e + n;
@@ -124,7 +129,7 @@ send_event(struct client *c, struct bus_listener *lsr)
 struct bus_channel *
 find_channel(struct bus *b, const char *channel)
 {
-  struct bus_channel *chan;
+  struct file *f;
 
   if (channel == bus_ch_ev)
     return &b->ev;
@@ -132,9 +137,9 @@ find_channel(struct bus *b, const char *channel)
     return &b->ptr;
   if (channel == bus_ch_kbd)
     return &b->kbd;
-  for (chan = b->channels; chan; chan = (struct bus_channel *)chan->f.next)
-    if (!strcmp(chan->f.name, channel))
-      return chan;
+  for (f = b->f.child; f; f = f->next)
+    if (FSTYPE(*f) == FS_BUS_CHAN_OUT && !strcmp(f->name, channel))
+      return (struct bus_channel *)f;
   return 0;
 }
 
@@ -190,6 +195,8 @@ put_event(struct file *bus, const char *channel, struct ev_arg *ev)
   char buf[256], *b = buf;
   int n, i, j;
 
+  log_printf(LOG_DBG, "put_event/ nlisteners: %d\n",
+             ((struct bus *)bus)->nlisteners);
   if (!(bus && ((struct bus *)bus)->nlisteners))
     return;
   for (n = i = 0; ev[i].pack; ++i) {
@@ -240,7 +247,7 @@ out_open(struct p9_connection *con)
 {
   struct bus_listener *lsr;
   struct p9_fid *fid = con->t.pfid;
-  struct bus_channel *chan = containerof(fid->file, struct bus_channel, out);
+  struct bus_channel *chan = (struct bus_channel *)fid->file;
 
   lsr = (struct bus_listener *)calloc(1, sizeof(struct bus_listener));
   if (!lsr) {
@@ -262,7 +269,7 @@ out_read(struct p9_connection *con)
 {
   struct bus_listener *lsr = (struct bus_listener *)con->t.pfid->aux;
   struct p9_fid *fid = con->t.pfid;
-  struct bus_channel *chan = containerof(fid->file, struct bus_channel, out);
+  struct bus_channel *chan = (struct bus_channel *)fid->file;
 
   if (lsr->tag != P9_NOTAG) {
     P9_SET_STR(con->r.ename, "fid is already blocked on event");
@@ -288,7 +295,7 @@ out_flush(struct p9_connection *con)
 }
 
 static void
-channel_rm(struct file *f)
+rm_channel(struct file *f)
 {
   struct bus_channel *chan = (struct bus_channel *)f;
   struct bus_listener *lsr;
@@ -299,95 +306,70 @@ channel_rm(struct file *f)
   }
 }
 
-static void
-generic_cmd_fn(char *cmd, void *aux)
-{
-  ;
-}
-
-static void
-sys_cmd_fn(char *cmd, void *aux)
-{
-  ;
-}
-
 static struct p9_fs fs_out = {
   .open = out_open,
   .read = out_read,
   .flush = out_flush
 };
 
-static struct ctl_cmd generic_cmd[] = {
-  {"", generic_cmd_fn},
-  {0}
-};
-
-static struct ctl_cmd sys_cmd[] = {
-  {"", sys_cmd_fn},
-  {0}
-};
+static void
+init_out(const char *name, struct bus_channel *chan, struct bus *b)
+{
+  chan->f.name = (char *)name;
+  chan->f.mode = 0400;
+  chan->f.qpath = new_qid(FS_BUS_CHAN_OUT);
+  chan->f.fs = &fs_out;
+  chan->bus = b;
+  add_file(&b->f, &chan->f);
+}
 
 static void
 channel_create(struct p9_connection *con)
 {
   struct bus *bus = (struct bus *)con->t.pfid->file;
   struct bus_channel *chan;
-  char *name;
+  struct file *dir = 0;
+  char *name = 0;
+
+  P9_SET_STR(con->r.ename, "Not implemented");
+  return;
   if (!(con->t.perm & P9_DMDIR)) {
-    P9_SET_STR(con->r.ename, "Wrong image create permissions");
+    P9_SET_STR(con->r.ename, "Wrong channel create permissions");
     return;
   }
   name = strndup(con->t.name, con->t.name_len);
-  if (!name) {
-    P9_SET_STR(con->r.ename, "Cannot allocate memory");
-    return;
-  }
+  if (!name)
+    goto err;
+  dir = calloc(1, sizeof(struct file));
+  if (!dir)
+    goto err;
+  dir->name = (char *)name;
+  dir->owns_name = 1;
+  dir->mode = 0500 | P9_DMDIR;
+  dir->qpath = new_qid(FS_BUS_CHAN);
+
   chan = calloc(1, sizeof(struct bus_channel));
-  if (!chan) {
+  if (!chan)
+    goto err;
+  init_out("out", chan, bus);
+  chan->f.rm = rm_channel;
+  /*
+  f = mk_chan_in(chan);
+  if (!f)
+    goto err;
+    */
+  return;
+err:
+  P9_SET_STR(con->r.ename, "Cannot create channel");
+  if (name)
     free(name);
-    P9_SET_STR(con->r.ename, "Cannot allocate memory");
-    return;
-  }
-  chan->bus = bus;
-  chan->f.rm = channel_rm;
-  chan->f.name = name;
-  chan->f.owns_name = 1;
-  chan->f.mode = 0700 | P9_DMDIR;
-  chan->f.qpath = new_qid(FS_BUS_CHAN);
-  chan->in = mk_ctl("in", generic_cmd, 0);
-  chan->out.name = "out";
-  chan->out.mode = 0400;
-  chan->out.qpath = new_qid(FS_BUS_CHAN_OUT);
-  chan->out.fs = &fs_out;
-  add_file(&chan->f, chan->in);
-  add_file(&chan->f, &chan->out);
-  add_file(&bus->f, &chan->f);
+  if (dir)
+    rm_file(dir);
 }
 
 static struct p9_fs fs_bus = {
   .create = channel_create
 };
-
-static void
-init_static_channel(const char *name, struct bus_channel *chan, struct bus *b)
-{
-  chan->f.name = (char *)name;
-  chan->f.mode = 0500 | P9_DMDIR;
-  chan->f.qpath = new_qid(FS_BUS_CHAN);
-  chan->out.name = "out";
-  chan->out.mode = 0600;
-  chan->out.qpath = new_qid(FS_BUS_CHAN_OUT);
-  chan->out.fs = &fs_out;
-  chan->bus = b;
-  add_file(&chan->f, &chan->out);
-  add_file(&b->dir, &chan->f);
-}
-
-static void
-rm_bus(struct file *f)
-{
-  free(f);
-}
 
 struct file *
 mk_bus(const char *name, struct client *c)
@@ -399,23 +381,14 @@ mk_bus(const char *name, struct client *c)
     bus->f.mode = 0700 | P9_DMDIR;
     bus->f.qpath = new_qid(FS_BUS);
     bus->f.fs = &fs_bus;
-    bus->f.rm = rm_bus;
-
-    bus->dir.name = "sys";
-    bus->dir.mode = 0500 | P9_DMDIR;
-    bus->dir.qpath = new_qid(FS_BUS);
-    add_file(&bus->f, &bus->dir);
+    bus->f.rm = free_file;
 
     bus->client = c;
     bus->min_time_ms = DEF_EVENT_MIN_TIME_MS;
 
-    init_static_channel(bus_ch_ev, &bus->ev, bus);
-    init_static_channel(bus_ch_ptr, &bus->ptr, bus);
-    init_static_channel(bus_ch_kbd, &bus->kbd, bus);
-
-    bus->ev.in = mk_ctl("in", sys_cmd, 0);
-    if (bus->ev.in)
-      add_file(&bus->ev.f, bus->ev.in);
+    init_out(bus_ch_ev, &bus->ev, bus);
+    init_out(bus_ch_ptr, &bus->ptr, bus);
+    init_out(bus_ch_kbd, &bus->kbd, bus);
   }
   return &bus->f;
 }
@@ -426,14 +399,16 @@ send_events_deferred(struct file *bus)
   struct bus *b = (struct bus *)bus;
   struct bus_channel *chan;
   struct bus_listener *lsr;
+  struct file *f;
   int n = b->ndeferred;
   unsigned int t;
 
   t = b->min_time_ms;
-  for (chan = (struct bus_channel *)b->f.child;
-       chan && n;
-       chan = (struct bus_channel *)chan->f.next)
-    for (lsr = chan->listeners; lsr && n; lsr = lsr->next, --n)
-      if (cur_time_ms - lsr->time_ms > t)
-        send_event(b->client, lsr);
+  for (f = b->f.child; f && n; f = f->next)
+    if (FSTYPE(*f) == FS_BUS_CHAN_OUT) {
+      chan = (struct bus_channel *)f;
+      for (lsr = chan->listeners; lsr && n; lsr = lsr->next, --n)
+        if (cur_time_ms - lsr->time_ms > t)
+          send_event(b->client, lsr);
+    }
 }

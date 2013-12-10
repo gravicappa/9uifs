@@ -155,10 +155,11 @@ path_open(struct p9_connection *con)
   fid->rm = rm_fid_aux;
 
   if (up->obj && !(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
-    n = file_path_len((struct file *)up->obj, up->obj->client->ui);
-    if (arr_memcpy(&buf, n, 0, n, 0))
+    n = file_path_len((struct file *)up->obj, up->obj->client->ui) + 3;
+    if (arr_memcpy(&buf, n, 0, n, 0) < 0)
       die("Cannot allocate memory");
-    file_path(n, buf->b, (struct file *)up->obj, up->obj->client->ui);
+    memcpy(buf->b, "ui/", 3);
+    file_path(n - 3, buf->b + 3, (struct file *)up->obj, up->obj->client->ui);
     fid->aux = buf;
   }
 }
@@ -185,6 +186,7 @@ path_clunk(struct p9_connection *con)
   struct uiobj *prevu;
   struct client *client;
   struct arr *buf;
+  char zero[1] = {0};
 
   if (!P9_WRITE_MODE(fid->open_mode))
     return;
@@ -198,7 +200,8 @@ path_clunk(struct p9_connection *con)
   buf = fid->aux;
   if (client && buf && buf->used > 0) {
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    place_uiobj(up, (struct uiobj *)find_file(client->ui, buf->used, buf->b));
+    arr_add(&buf, 16, sizeof(zero), zero);
+    place_uiobj(up, (struct uiobj *)find_uiobj(buf->b, client));
   }
   if (up->obj != prevu)
     ui_enqueue_update(ui_desktop->obj);

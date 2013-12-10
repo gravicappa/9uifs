@@ -12,7 +12,7 @@
 #include "fstypes.h"
 #include "bus.h"
 #include "frontend.h"
-#include "surface.h"
+#include "image.h"
 #include "prop.h"
 #include "uiobj.h"
 #include "ui.h"
@@ -45,7 +45,7 @@ struct uiobj *ui_focused = 0;
 struct uiobj *ui_grabbed = 0;
 struct uiobj *ui_pointed = 0;
 
-static void ui_set_desktop(struct uiobj *u);
+static void export_uiobj(struct uiobj *u, int export);
 struct uiobj *mk_uiobj(char *name, struct client *c);
 
 struct uiobj_dir {
@@ -84,13 +84,6 @@ ui_dequeue_update(struct uiobj *u)
     *ppu = pu->next;
 }
 
-static void
-rm_dir(struct file *dir)
-{
-  if (dir)
-    free(dir);
-}
-
 static struct file *
 items_mkdir(const char *name)
 {
@@ -102,7 +95,7 @@ items_mkdir(const char *name)
   d->f.mode = 0700 | P9_DMDIR;
   d->f.qpath = new_qid(FS_UIDIR);
   d->f.fs = &items_fs;
-  d->f.rm = rm_dir;
+  d->f.rm = free_file;
   return (struct file *)d;
 }
 
@@ -232,6 +225,8 @@ ui_rm_uiobj(struct file *f)
 
   if (!u)
     return;
+  if (u->flags & UI_EXPORTED)
+    export_uiobj(u, 0);
   if (ui_focused == u)
     ui_focused = 0;
   if (ui_grabbed == u)
@@ -291,6 +286,29 @@ flags_write(struct p9_connection *con)
 }
 
 static void
+export_uiobj(struct uiobj *u, int export)
+{
+  if (wm_client) {
+    struct ev_arg evargs[] = {
+      {ev_str},
+      {ev_ull, {.ull = u->client->f.qpath}},
+      {ev_uiobj, {.o = u}},
+      {0}
+    };
+    evargs[0].x.s = (export) ? "exported" : "unexported";
+    log_printf(LOG_DBG, "export_uiobj/ emit ev to %p\n", wm_client);
+    put_event(wm_client->bus, bus_ch_ev, evargs);
+  }
+  if (export) {
+    if (!ui_desktop->obj)
+      ui_set_desktop(u);
+  } else {
+    if (ui_desktop->obj == u)
+      ui_set_desktop(0);
+  }
+}
+
+static void
 flags_clunk(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
@@ -308,8 +326,8 @@ flags_clunk(struct p9_connection *con)
     for (i = 0; uiobj_flags[i].s; ++i)
       if (!strcmp(uiobj_flags[i].s, arg))
         flags |= uiobj_flags[i].mask;
-  if (!(u->flags & UI_EXPORTED) && (flags & UI_EXPORTED) && !ui_desktop->obj)
-    ui_set_desktop(u);
+  if ((u->flags & UI_EXPORTED) != (flags & UI_EXPORTED))
+    export_uiobj(u, !(u->flags & UI_EXPORTED) && (flags & UI_EXPORTED));
   u->flags = flags;
 }
 
@@ -664,7 +682,7 @@ ui_free(void)
 {
 }
 
-static void
+void
 ui_set_desktop(struct uiobj *u)
 {
   struct file *f;
@@ -741,4 +759,21 @@ uifs_redraw(int force)
   walk_ui_tree(ui_desktop, draw_obj, draw_over_obj, &ctx);
   prepare_dirty_rects();
   return ctx.dirty;
+}
+
+struct uiobj *
+find_uiobj(char *filename, struct client *c)
+{
+  unsigned long long id;
+  for (; *filename == '/'; ++filename) {}
+  if (c && (c->flags & CLIENT_WM) && sscanf(filename, "%llu/", &id) == 1) {
+    log_printf(LOG_DBG, "find_uiobj/ by client id: %llu\n", id);
+    c = client_by_id(id);
+    for (; *filename && *filename != '/'; ++filename) {}
+    for (; *filename == '/'; ++filename) {}
+  }
+  log_printf(LOG_DBG, "find_uiobj/ '%s'\n", filename);
+  if (!c || strncmp(filename, "ui/", 3))
+    return 0;
+  return (struct uiobj *)find_file(c->ui, filename + 3);
 }

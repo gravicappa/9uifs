@@ -11,6 +11,7 @@ struct ev_arg {
     struct uiobj *o;
     int i;
     unsigned int u;
+    unsigned long long ull;
     char *s;
   } x;
   int len;
@@ -18,6 +19,7 @@ struct ev_arg {
 
 int ev_int(char *buf, struct ev_arg *ev);
 int ev_uint(char *buf, struct ev_arg *ev);
+int ev_ull(char *buf, struct ev_arg *ev);
 int ev_str(char *buf, struct ev_arg *ev);
 
 void put_event(struct file *bus, const char *channel, struct ev_arg *ev);

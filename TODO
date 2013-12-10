@@ -1,12 +1,16 @@
 # General
-## Assign a name to application.
-## Add multiple attach support for one client.
+
+## Unified keyboard constants
+## Window manager
+### Grabbing keys mechanism
+
+## Add separate attach root support for one client(?).
 
 ## Static directory structure probably can be defined as static data.
 
-## Access to somehow sandboxed local FS.
-
-## Sound support.
+## Access to somehow sandboxed local FS (?).
+## Sound support (??).
+## Channel for piping data to/from subprocess.
 
 ## GL support.
 
@@ -23,7 +27,5 @@ Probably it is a good idea to autoassign keys to buttons.
 ## Radio button widget (?)
 ## Slider widget (?)
 
-## Access to exported widgets from another clients.
-
-## Assign id to images and manipulate them by it in surface's `ctl` commands.
-It's good for performance.
+## Assign id to images and manipulate them by it by `ctl` commands.
+Good for performance.

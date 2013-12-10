@@ -10,16 +10,16 @@
 #include "ctl.h"
 #include "frontend.h"
 #include "raster.h"
-#include "surface.h"
+#include "image.h"
 #include "stb_image.h"
 #include "font.h"
 
 const int size_buf_len = 32;
 
-static struct arr *surfaces = 0;
+static struct arr *images = 0;
 
-enum surface_flags {
-  SURFACE_DIRTY = 1
+enum image_flags {
+  IMAGE_DIRTY = 1
 };
 
 static void cmd_blit(char *cmd, void *aux);
@@ -37,27 +37,44 @@ static struct ctl_cmd ctl_cmd[] = {
   {0}
 };
 
-static struct surface *
-get_surface(struct p9_connection *con)
+static struct image *
+get_image(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
-  return (struct surface *)((struct file *)fid->file)->parent;
+  return (struct image *)((struct file *)fid->file)->parent;
 }
 
 static void
-update_rect(struct surface *s, int *r)
+update_rect(struct image *s, int *r)
 {
-  struct surface_link *link;
+  struct image_link *link;
   for (link = s->links; link; link = link->next)
     if (link->update)
       link->update(link->ptr, r);
+}
+
+static int
+resize(struct image *s, int w, int h)
+{
+  UImage newimg;
+
+  if (w == s->w && h == s->h)
+    return 0;
+  newimg = resize_image(s->img, w, h, 0);
+  if (!newimg && w && h)
+    return -1;
+  s->img = newimg;
+  s->w = w;
+  s->h = h;
+  s->f_pixels.length = w * h * 4;
+  return 0;
 }
 
 static void
 size_open(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
-  struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
+  struct image *s = (struct image *)((struct file *)fid->file)->parent;
 
   fid->aux = calloc(1, size_buf_len);
   if (!fid->aux) {
@@ -86,7 +103,7 @@ static void
 size_clunk(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
-  struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
+  struct image *s = (struct image *)((struct file *)fid->file)->parent;
   unsigned int w, h;
 
   if (!(fid->aux && s->img && P9_WRITE_MODE(fid->open_mode)))
@@ -97,8 +114,8 @@ size_clunk(struct p9_connection *con)
     return;
   }
   if (s->w != w || s->h != h) {
-    if (resize_surface(s, w, h)) {
-      P9_SET_STR(con->r.ename, "Cannot resize blit surface");
+    if (resize(s, w, h)) {
+      P9_SET_STR(con->r.ename, "Cannot resize blit image");
       return;
     }
     update_rect(s, 0);
@@ -109,19 +126,19 @@ static void
 pixels_open(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
-  struct surface *s = (struct surface *)((struct file *)fid->file)->parent;
+  struct image *s = (struct image *)((struct file *)fid->file)->parent;
 
   if (!s->img) {
     P9_SET_STR(con->r.ename, "no image");
     return;
   }
-  s->flags &= ~SURFACE_DIRTY;
+  s->flags &= ~IMAGE_DIRTY;
 }
 
 static void
 pixels_read(struct p9_connection *con)
 {
-  struct surface *s = get_surface(con);
+  struct image *s = get_image(con);
   unsigned int size;
 
   if (!s->img)
@@ -140,7 +157,7 @@ pixels_read(struct p9_connection *con)
 static void
 pixels_write(struct p9_connection *con)
 {
-  struct surface *s = get_surface(con);
+  struct image *s = get_image(con);
   unsigned int size;
 
   if (!s->img)
@@ -153,17 +170,17 @@ pixels_write(struct p9_connection *con)
     con->r.count = size - con->t.offset;
   image_write_rgba(s->img, con->t.offset, con->r.count, con->t.data);
   if (con->r.count)
-    s->flags |= SURFACE_DIRTY;
+    s->flags |= IMAGE_DIRTY;
 }
 
 static void
 pixels_clunk(struct p9_connection *con)
 {
-  struct surface *s = get_surface(con);
+  struct image *s = get_image(con);
   /* TODO: calculate smallest rectangle */
-  if (s->flags & SURFACE_DIRTY)
+  if (s->flags & IMAGE_DIRTY)
     update_rect(s, 0);
-  s->flags &= ~SURFACE_DIRTY;
+  s->flags &= ~IMAGE_DIRTY;
 }
 
 static void
@@ -184,7 +201,7 @@ png_write(struct p9_connection *con)
 static void
 png_clunk(struct p9_connection *con)
 {
-  struct surface *s = get_surface(con);
+  struct image *s = get_image(con);
   struct arr *buf = con->t.pfid->aux;
   unsigned char *pixels;
   int w, h, n;
@@ -208,7 +225,7 @@ png_clunk(struct p9_connection *con)
   update_rect(s, 0);
 }
 
-static struct p9_fs surface_size_fs = {
+static struct p9_fs image_size_fs = {
   .open = size_open,
   .read = size_read,
   .write = size_write,
@@ -216,24 +233,24 @@ static struct p9_fs surface_size_fs = {
   .remove = size_clunk
 };
 
-static struct p9_fs surface_pixels_fs = {
+static struct p9_fs image_pixels_fs = {
   .open = pixels_open,
   .read = pixels_read,
   .write = pixels_write,
   .clunk = pixels_clunk,
 };
 
-static struct p9_fs surface_png_fs = {
+static struct p9_fs image_png_fs = {
   .open = png_open,
   .write = png_write,
   .clunk = png_clunk
 };
 
 static void
-rm_surface_data(struct file *f)
+rm_image_data(struct file *f)
 {
-  struct surface *s = (struct surface *)f;
-  struct surface_link *link, *link_next;
+  struct image *s = (struct image *)f;
+  struct image_link *link, *link_next;
   for (link = s->links; link; link = link_next) {
     link_next = link->next;
     if (link->rm)
@@ -247,14 +264,14 @@ rm_surface_data(struct file *f)
 }
 
 static void
-rm_surface(struct file *f)
+rm_image(struct file *f)
 {
-  rm_surface_data(f);
+  rm_image_data(f);
   free(f);
 }
 
 int
-init_surface(struct surface *s, int w, int h, struct file *imglib, void *con)
+init_image(struct image *s, int w, int h, struct file *imglib, void *con)
 {
   memset(s, 0, sizeof(*s));
   s->w = w;
@@ -267,8 +284,8 @@ init_surface(struct surface *s, int w, int h, struct file *imglib, void *con)
     return -1;
 
   s->f.mode = 0500 | P9_DMDIR;
-  s->f.qpath = new_qid(FS_SURFACE);
-  s->f.rm = rm_surface_data;
+  s->f.qpath = new_qid(FS_IMAGE);
+  s->f.rm = rm_image_data;
 
   s->ctl = mk_ctl("ctl", ctl_cmd, &s->f);
   if (!s->ctl) {
@@ -280,53 +297,36 @@ init_surface(struct surface *s, int w, int h, struct file *imglib, void *con)
   s->f_size.name = "size";
   s->f_size.mode = 0600;
   s->f_size.qpath = new_qid(0);
-  s->f_size.fs = &surface_size_fs;
+  s->f_size.fs = &image_size_fs;
   add_file(&s->f, &s->f_size);
 
   s->f_pixels.name = "rgba";
   s->f_pixels.mode = 0600;
   s->f_pixels.qpath = new_qid(0);
-  s->f_pixels.fs = &surface_pixels_fs;
+  s->f_pixels.fs = &image_pixels_fs;
   s->f_pixels.length = w * h * 4;
   add_file(&s->f, &s->f_pixels);
 
   s->f_in_png.name = "in.png";
   s->f_in_png.mode = 0200;
   s->f_in_png.qpath = new_qid(0);
-  s->f_in_png.fs = &surface_png_fs;
+  s->f_in_png.fs = &image_png_fs;
   add_file(&s->f, &s->f_in_png);
   return 0;
 }
 
-struct surface *
-mk_surface(int w, int h, struct file *imglib, void *con)
+struct image *
+mk_image(int w, int h, struct file *imglib, void *con)
 {
-  struct surface *s;
+  struct image *s;
 
-  s = (struct surface *)malloc(sizeof(struct surface));
-  if (s && init_surface(s, w, h, imglib, con)) {
+  s = (struct image *)malloc(sizeof(struct image));
+  if (s && init_image(s, w, h, imglib, con)) {
     free(s);
     return 0;
   }
-  s->f.rm = rm_surface;
+  s->f.rm = rm_image;
   return s;
-}
-
-int
-resize_surface(struct surface *s, int w, int h)
-{
-  UImage newimg;
-
-  if (w == s->w && h == s->h)
-    return 0;
-  newimg = resize_image(s->img, w, h, 0);
-  if (!newimg && w && h)
-    return -1;
-  s->img = newimg;
-  s->w = w;
-  s->h = h;
-  s->f_pixels.length = w * h * 4;
-  return 0;
 }
 
 static void
@@ -335,12 +335,12 @@ cmd_blit(char *cmd, void *aux)
   int s_x = 0, s_y = 0, s_w, s_h, r[4] = {0, 0};
   static const char *fmt = "%d %d %d %d %d %d %d %d";
   char *name;
-  struct surface *src, *dst = aux;
+  struct image *src, *dst = aux;
 
   name = next_quoted_arg(&cmd);
   if (!name)
     return;
-  src = (struct surface *)find_file(dst->imglib, strlen(name), name);
+  src = (struct image *)find_file(dst->imglib, name);
   if (!src)
     return;
   s_w = r[2] = src->w;
@@ -369,7 +369,7 @@ cmd_rect(char *cmd, void *aux)
 {
   int r[4], i, bg = 0, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = aux;
+  struct image *s = aux;
 
   if (!(arg = next_arg(&c)))
     return;
@@ -395,7 +395,7 @@ cmd_line(char *cmd, void *aux)
 {
   int r[4], i, fg = 0xff000000;
   char *arg, *c = cmd;
-  struct surface *s = aux;
+  struct image *s = aux;
   if (!(arg = next_arg(&c)))
     return;
   fg = colour_from_str(arg);
@@ -413,7 +413,7 @@ cmd_line(char *cmd, void *aux)
 }
 
 static void
-draw_linestrip(struct surface *s, int fg, char *args)
+draw_linestrip(struct image *s, int fg, char *args)
 {
   char *arg;
   int i, pt[2], prevpt[2], r[4] = {0};
@@ -447,7 +447,7 @@ draw_linestrip(struct surface *s, int fg, char *args)
 static void
 cmd_poly(char *cmd, void *aux)
 {
-  struct surface *s = aux;
+  struct image *s = aux;
   char *arg, *c = cmd;
   int spts[STATIC_NPTS * 2];
   int i, n, npts, *pts = spts, *p, bg = 0, fg = 0xff000000, r[4] = {0};
@@ -491,7 +491,7 @@ cmd_poly(char *cmd, void *aux)
 static void
 cmd_text(char *cmd, void *aux)
 {
-  struct surface *s = aux;
+  struct image *s = aux;
   char *arg;
   UFont font;
   int fg = 0, pt[2], i, r[4], n;
@@ -516,15 +516,15 @@ cmd_text(char *cmd, void *aux)
   free_font(font);
 }
 
-struct surface_link *
-link_surface(struct surface *s, void *ptr)
+struct image_link *
+link_image(struct image *s, void *ptr)
 {
-  struct surface_link *link;
+  struct image_link *link;
 
   if (!s)
     return 0;
-  unlink_surface(s, ptr);
-  link = calloc(1, sizeof(struct surface_link));
+  unlink_image(s, ptr);
+  link = calloc(1, sizeof(struct image_link));
   if (link) {
     link->next = s->links;
     s->links = link;
@@ -534,9 +534,9 @@ link_surface(struct surface *s, void *ptr)
 }
 
 void
-unlink_surface(struct surface *s, void *ptr)
+unlink_image(struct image *s, void *ptr)
 {
-  struct surface_link **pp, *link;
+  struct image_link **pp, *link;
   if (!s)
     return;
   pp = &s->links;

@@ -10,6 +10,8 @@ unsigned long long qid_cnt = 0;
 void
 add_file(struct file *root, struct file *f)
 {
+  if (!f)
+    return;
   f->parent = root;
   if (root) {
     f->next = root->child;
@@ -18,35 +20,35 @@ add_file(struct file *root, struct file *f)
 }
 
 void
+free_file(struct file *f)
+{
+  free(f);
+}
+
+void
 rm_file(struct file *f)
 {
-  struct file *t, *c;
+  struct file *c, *cnext, **pp;
+  char *name = 0;
 
   if (!f)
     return;
-
   detach_file_fids(f);
-  if (f->owns_name && f->name) {
-    free(f->name);
-    f->name = 0;
-  }
-  if (f->parent) {
-    if (f->parent->child == f)
-      f->parent->child = f->next;
-    else {
-      for (t = f->parent->child; t && t->next != f; t = t->next) {}
-      if (t)
-        t->next = f->next;
-    }
-  }
-  for (t = 0, c = f->child; c; c = t) {
-    t = c->next;
-    c->next = 0;
+  for (c = f->child; c; c = cnext) {
+    cnext = c->next;
     rm_file(c);
   }
   f->child = 0;
+  if (f->parent) {
+    pp = &f->parent->child;
+    for (; *pp && *pp != f; pp = &(*pp)->next) {}
+    *pp = (*pp)->next;
+  }
+  name = f->owns_name ? f->name : 0;
   if (f->rm)
     f->rm(f);
+  if (name)
+    free(name);
 }
 
 struct file *
@@ -63,10 +65,9 @@ get_file(struct file *root, int size, char *name)
 void
 free_fid(struct p9_fid *fid)
 {
-  if (fid->owns_uid && fid->uid)
+  if (fid->uid)
     free(fid->uid);
   fid->fid = P9_NOFID;
-  fid->owns_uid = 0;
   fid->uid = 0;
   if (fid->rm)
     fid->rm(fid);
@@ -135,7 +136,7 @@ add_fid(unsigned int fid, struct fid_pool *pool, int msize)
     f = pool->free;
     pool->free = pool->free->next;
   } else {
-    f = (struct fid *)malloc(sizeof(struct fid));
+    f = malloc(sizeof(struct fid));
     if (!f)
       die("Cannot allocate memory");
   }
@@ -279,10 +280,7 @@ fs_attach(struct p9_connection *con)
     return;
   }
   fid = add_fid(con->t.fid, &cl->fids, con->msize);
-  set_client_name(con->t.uname_len, con->t.uname, cl);
-  fid->uid = strdup(cl->name);
-  fid->owns_uid = 1;
-  log_printf(LOG_CLIENT, "# Named client (fd: %d): '%s'\n", cl->fd, cl->name);
+  fid->uid = strndup(con->t.uname, con->t.uname_len);
   attach_fid(fid, &cl->f);
   con->r.aqid.type = cl->f.mode >> 24;
   con->r.aqid.version = cl->f.version;
@@ -324,7 +322,7 @@ fs_walk(struct p9_connection *con)
       newfid = con->t.pfid;
     else
       newfid = add_fid(con->t.newfid, &cl->fids, con->msize);
-    newfid->uid = con->t.pfid->uid;
+    newfid->uid = strdup(con->t.pfid->uid);
     attach_fid(newfid, f);
     return;
   }
@@ -351,7 +349,7 @@ fs_walk(struct p9_connection *con)
       newfid = con->t.pfid;
     else
       newfid = add_fid(con->t.newfid, &cl->fids, con->msize);
-    newfid->uid = con->t.pfid->uid;
+    newfid->uid = strdup(con->t.pfid->uid);
     attach_fid(newfid, t);
   }
 }
@@ -468,7 +466,7 @@ fs_readdir(struct p9_fid *fid, struct file *dir, struct p9_connection *con)
   off = 0;
   for (; f; f = f->next) {
     file_stat(f, &stat, fid->uid);
-    if (p9_pack_stat(count, con->buf + off, &stat))
+    if (p9_pack_stat(count, (char *)con->buf + off, &stat))
       break;
     s = stat.size + 2;
     off += s;

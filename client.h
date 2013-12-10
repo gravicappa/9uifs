@@ -19,7 +19,6 @@ struct client {
   unsigned char *inbuf;
   unsigned char *outbuf;
 
-  char *name;
   int flags;
   struct file f;
   struct file *fonts;
@@ -30,7 +29,9 @@ struct client {
 
 extern struct client *clients;
 extern unsigned int cur_time_ms;
+extern struct client *wm_client;
 
 struct client *add_client(int fd, int msize);
 int client_send_resp(struct client *c);
 void set_client_name(int len, char *buf, struct client *c);
+struct client *client_by_id(unsigned long long id);

@@ -12,6 +12,7 @@
 #include "9pdbg.h"
 #include "fs.h"
 #include "fstypes.h"
+#include "fsutil.h"
 #include "client.h"
 #include "ctl.h"
 #include "ui.h"
@@ -21,10 +22,23 @@
 #include "images.h"
 #include "profile.h"
 
+struct client *wm_client = 0;
 struct client *clients = 0;
 unsigned int cur_time_ms;
 
 static void rm_client(struct client *c);
+static void sysctl_set_desktop(char *cmd, void *aux);
+static void sysctl_set_wm(char *cmd, void *aux);
+static void sysctl_msg(char *cmd, void *aux);
+static void sysctl_msg_bcast(char *cmd, void *aux);
+
+static struct ctl_cmd sys_ctl[] = {
+  {"msg", sysctl_msg},
+  {"bcast", sysctl_msg_bcast},
+  {"set_desktop", sysctl_set_desktop},
+  {"set_wm", sysctl_set_wm},
+  {0}
+};
 
 struct client *
 add_client(int fd, int msize)
@@ -52,6 +66,7 @@ add_client(int fd, int msize)
   if (!c->bus)
     goto error;
   add_file(&c->f, c->bus);
+  add_file(c->bus, mk_ctl("sys", sys_ctl, c));
 
   c->images = mk_image_dir("images");
   if (!c->images)
@@ -80,6 +95,16 @@ error:
   return 0;
 }
 
+static struct client *
+find_other_wm(struct client *c)
+{
+  struct client *t;
+  for (t = clients; t; t = t->next)
+    if (t != c && t->flags & CLIENT_WM)
+      return t;
+  return 0;
+}
+
 static void
 rm_client(struct client *c)
 {
@@ -87,8 +112,8 @@ rm_client(struct client *c)
     return;
 
   log_printf(LOG_CLIENT, "# Removing client %p (fd: %d)\n", c, c->fd);
-  if (c->name)
-    free(c->name);
+  if ((c->flags & CLIENT_WM) && wm_client == c)
+    wm_client = find_other_wm(c);
   if (c->fd >= 0)
     close(c->fd);
   if (c->inbuf)
@@ -112,16 +137,6 @@ rm_client(struct client *c)
   free(c);
 }
 
-void
-set_client_name(int len, char *buf, struct client *c)
-{
-  if (c->name)
-    free(c->name);
-  c->name = strndup(buf, len);
-  if ((c->flags & CLIENT_LOCAL) && !strcmp(c->name, "window_manager"))
-    c->flags |= CLIENT_WM;
-}
-
 static unsigned int
 unpack_uint4(unsigned char *buf)
 {
@@ -136,7 +151,7 @@ client_send_resp(struct client *c)
   profile_start(PROF_IO_PACK);
   if (p9_pack_msg(c->con.msize, (char *)c->outbuf, &c->con.r))
     return -1;
-#if 1
+#if 0
   p9_print_msg(&c->con.r, "OUT");
 #endif
   profile_end(PROF_IO_PACK);
@@ -204,7 +219,7 @@ process_client_io(struct client *c)
       log_printf(LOG_DBG, "unpack message error\n");
       return -1;
     }
-#if 1
+#if 0
     p9_print_msg(&c->con.t, "IN");
 #endif
     profile_end(PROF_IO_UNPACK);
@@ -257,7 +272,7 @@ accept_client(int server_fd)
   setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &x, sizeof(x));
   log_printf(LOG_CLIENT, "# Incoming connection (fd: %d)\n", fd);
   c = add_client(fd, MSIZE);
-  if (c && addr.sin_addr.s_addr == INADDR_LOOPBACK) 
+  if (c && addr.sin_addr.s_addr == htonl(INADDR_LOOPBACK))
     c->flags |= CLIENT_LOCAL;
   return c;
 }
@@ -301,4 +316,69 @@ uifs_process_io(int srvfd, int evfd, unsigned int frame_ms)
     }
   }
   return 0;
+}
+
+struct client *
+client_by_id(unsigned long long id)
+{
+  struct client *c;
+  for (c = clients; c && c->f.qpath != id; c = c->next) {}
+  return c;
+}
+
+void
+sysctl_set_wm(char *cmd, void *aux)
+{
+  struct client *c = aux;
+  log_printf(LOG_DBG, "set_wm '%s' \n", cmd);
+  if (!(c->flags & CLIENT_LOCAL))
+    return;
+  if (!strcmp(cmd, "1")) {
+    c->flags |= CLIENT_WM;
+    wm_client = (wm_client) ? wm_client : c;
+  } else if (c->flags & CLIENT_WM) {
+    c->flags &= ~CLIENT_WM;
+    if (wm_client == c)
+      wm_client = find_other_wm(c);
+  }
+}
+
+void
+sysctl_set_desktop(char *cmd, void *aux)
+{
+  struct uiobj *u;
+  struct client *c = aux;
+
+  if (!(c->flags & CLIENT_WM))
+    return;
+  u = find_uiobj(cmd, c);
+  log_printf(LOG_DBG, "set_desktop '%s' /  %p\n", cmd, u);
+  if (!u)
+    return;
+  ui_set_desktop(u);
+}
+
+void
+sysctl_msg(char *cmd, void *aux)
+{
+  struct client *to;
+  unsigned long long id;
+  char *sid;
+
+  sid = next_arg(&cmd);
+  if (!(sid && cmd && sscanf(sid, "%llu", &id) == 1))
+    return;
+  to = client_by_id(id);
+  if (to)
+    put_event_str(to->bus, bus_ch_ev, strlen(cmd), cmd);
+}
+
+void
+sysctl_msg_bcast(char *cmd, void *aux)
+{
+  struct client *to;
+  log_printf(LOG_DBG, "bcast '%s'\n", cmd);
+  for (to = clients; to; to = to->next)
+    if (to != aux)
+      put_event_str(to->bus, bus_ch_ev, strlen(cmd), cmd);
 }

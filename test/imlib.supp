@@ -3,6 +3,7 @@
 	Memcheck:Addr4
 	fun:imlib_font_load_joined
 	fun:imlib_load_font
+	fun:create_font
 	fun:init_fonts
 	fun:init_screen
 	fun:sdl_init
@@ -14,15 +15,7 @@
 	Memcheck:Addr4
 	fun:imlib_font_load_joined
 	fun:imlib_load_font
-	fun:font_from_str
-	fun:update_font
-	fun:prop_clunk
-	fun:fs_clunk
-	fun:p9_process_treq
-	fun:process_client_io
-	fun:process_clients
-	fun:main_loop
-	fun:main
+	fun:create_font
 }
 
 {

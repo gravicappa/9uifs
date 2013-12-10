@@ -166,7 +166,6 @@ struct p9_fid {
   unsigned int fid;
   struct p9_qid qid;
   char open_mode;
-  char owns_uid;
   char *uid;
   unsigned int iounit;
   void (*rm)(struct p9_fid *);
