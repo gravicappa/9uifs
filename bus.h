@@ -6,7 +6,7 @@ extern const char bus_ch_ptr[];
 extern const char bus_ch_kbd[];
 
 struct ev_arg {
-  int (*pack)(char *buf, struct ev_arg *arg);
+  int (*pack)(char *buf, struct ev_arg *arg, struct client *c);
   union {
     struct uiobj *o;
     int i;
@@ -17,10 +17,10 @@ struct ev_arg {
   int len;
 };
 
-int ev_int(char *buf, struct ev_arg *ev);
-int ev_uint(char *buf, struct ev_arg *ev);
-int ev_ull(char *buf, struct ev_arg *ev);
-int ev_str(char *buf, struct ev_arg *ev);
+int ev_int(char *buf, struct ev_arg *ev, struct client *c);
+int ev_uint(char *buf, struct ev_arg *ev, struct client *c);
+int ev_ull(char *buf, struct ev_arg *ev, struct client *c);
+int ev_str(char *buf, struct ev_arg *ev, struct client *c);
 
 void put_event(struct file *bus, const char *channel, struct ev_arg *ev);
 void put_event_str(struct file *bus, const char *channel, int len, char *ev);

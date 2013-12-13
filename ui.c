@@ -174,40 +174,6 @@ struct p9_fs prop_type_fs = {
   .clunk = prop_type_clunk
 };
 
-static void
-parent_open(struct p9_connection *c)
-{
-  struct uiobj *u;
-  struct client *cl;
-  struct p9_fid *fid = c->t.pfid;
-  struct arr *buf = 0;
-  int n;
-
-  u = containerof(fid->file, struct uiobj, f_place);
-  if (!u->place)
-    return;
-  cl = (struct client *)u->client;
-  n = file_path_len(&u->place->f, cl->ui);
-  if (arr_memcpy(&buf, n, 0, n, 0))
-    die("Cannot allocate memory [1]");
-  file_path(n, buf->b, &u->place->f, cl->ui);
-  fid->aux = buf;
-  c->t.pfid->rm = rm_fid_aux;
-}
-
-static void
-parent_read(struct p9_connection *c)
-{
-  struct arr *buf = (struct arr *)c->t.pfid->aux;
-  if (buf)
-    read_data_fn(c, buf->used, buf->b);
-}
-
-static struct p9_fs parent_fs = {
-  .open = parent_open,
-  .read = parent_read
-};
-
 void
 ui_draw_uiobj_default(struct uiobj *u, struct uicontext *uc)
 {
@@ -242,7 +208,7 @@ ui_rm_uiobj(struct file *f)
   free(u);
 }
 
-static struct uiobj_ops empty_obj_ops = {};
+static struct uiobj_ops empty_obj_ops = {0};
 
 static void
 flags_open(struct p9_connection *con)
@@ -382,12 +348,6 @@ mk_uiobj(char *name, struct client *client)
 
   uiobj_init_flags(&u->f_flags);
   add_file(&u->f, &u->f_flags);
-
-  u->f_place.name = "container";
-  u->f_place.mode = 0400;
-  u->f_place.qpath = new_qid(0);
-  u->f_place.fs = &parent_fs;
-  add_file(&u->f, &u->f_place);
   return u;
 }
 
@@ -658,12 +618,11 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
 }
 
 int
-ev_uiobj(char *buf, struct ev_arg *ev)
+ev_uiobj(char *buf, struct ev_arg *ev, struct client *c)
 {
-  struct uiobj *u = ev->x.o;
   if (!buf)
-    return file_path_len((struct file *)u, u->client->ui) - 1;
-  return file_path(ev->len + 1, buf, (struct file *)u, u->client->ui) - 1;
+    return uiobj_path(ev->x.o, 0, 0, c) - 1;
+  return uiobj_path(ev->x.o, ev->len + 1, buf, c) - 1;
 }
 
 struct file *
@@ -764,16 +723,28 @@ uifs_redraw(int force)
 struct uiobj *
 find_uiobj(char *filename, struct client *c)
 {
-  unsigned long long id;
-  for (; *filename == '/'; ++filename) {}
-  if (c && (c->flags & CLIENT_WM) && sscanf(filename, "%llu/", &id) == 1) {
-    log_printf(LOG_DBG, "find_uiobj/ by client id: %llu\n", id);
-    c = client_by_id(id);
-    for (; *filename && *filename != '/'; ++filename) {}
-    for (; *filename == '/'; ++filename) {}
-  }
-  log_printf(LOG_DBG, "find_uiobj/ '%s'\n", filename);
-  if (!c || strncmp(filename, "ui/", 3))
+  struct file *f;
+  int x;
+  f = find_file_global(filename, c, &x);
+  if (f && FSTYPE(*f) == FS_UIOBJ
+      && (!x || (((struct uiobj *)f)->flags & UI_EXPORTED)))
+    return (struct uiobj *)f;
+  return 0;
+}
+
+int
+uiobj_path(struct uiobj *u, int size, char *buf, struct client *c)
+{
+  int n;
+  if (!u)
     return 0;
-  return (struct uiobj *)find_file(c->ui, filename + 3);
+  if (!buf)
+    return (c && c != u->client)
+           ? 21 + file_path_len(&u->f, &c->f)
+           : file_path_len(&u->f, &u->client->f);
+  if (c && c != u->client) {
+    n = snprintf(buf, size, "%llu/", c->f.qpath);
+    return file_path(size - n, buf + n, &u->f, &u->client->f);
+  } else
+    return file_path(size, buf, &u->f, &u->client->f);
 }

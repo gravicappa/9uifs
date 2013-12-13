@@ -1,4 +1,5 @@
 struct input_event;
+struct client;
 
 extern struct uiplace *ui_desktop;
 extern struct uiobj *ui_focused;
@@ -12,6 +13,7 @@ void ui_set_desktop(struct uiobj *u);
 
 void ui_intersect_clip(int *r, int *c1, int *c2);
 struct uiobj *find_uiobj(char *filename, struct client *c);
+int uiobj_path(struct uiobj *u, int size, char *buf, struct client *c);
 
 struct uiobj_maker {
   char *type;

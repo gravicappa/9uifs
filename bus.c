@@ -55,7 +55,7 @@ struct bus_listener {
 };
 
 int
-ev_int(char *buf, struct ev_arg *ev)
+ev_int(char *buf, struct ev_arg *ev, struct client *c)
 {
   if (!buf)
     return (abs(ev->x.i) <= 99999) ? 6 : 11;
@@ -63,7 +63,7 @@ ev_int(char *buf, struct ev_arg *ev)
 }
 
 int
-ev_uint(char *buf, struct ev_arg *ev)
+ev_uint(char *buf, struct ev_arg *ev, struct client *c)
 {
   if (!buf)
     return (abs(ev->x.u) <= 99999) ? 5 : 10;
@@ -71,7 +71,7 @@ ev_uint(char *buf, struct ev_arg *ev)
 }
 
 int
-ev_ull(char *buf, struct ev_arg *ev)
+ev_ull(char *buf, struct ev_arg *ev, struct client *c)
 {
   if (!buf)
     return (abs(ev->x.ull) <= 99999) ? 5 : 20;
@@ -79,7 +79,7 @@ ev_ull(char *buf, struct ev_arg *ev)
 }
 
 int
-ev_str(char *buf, struct ev_arg *ev)
+ev_str(char *buf, struct ev_arg *ev, struct client *c)
 {
   if (!buf)
     return strlen(ev->x.s);
@@ -193,6 +193,7 @@ void
 put_event(struct file *bus, const char *channel, struct ev_arg *ev)
 {
   char buf[256], *b = buf;
+  struct client *c = ((struct bus *)bus)->client;
   int n, i, j;
 
   log_printf(LOG_DBG, "put_event/ nlisteners: %d\n",
@@ -200,7 +201,7 @@ put_event(struct file *bus, const char *channel, struct ev_arg *ev)
   if (!(bus && ((struct bus *)bus)->nlisteners))
     return;
   for (n = i = 0; ev[i].pack; ++i) {
-    ev[i].len = ev[i].pack(0, &ev[i]);
+    ev[i].len = ev[i].pack(0, &ev[i], c);
     n += ev[i].len + 1;
   }
   if (n >= sizeof(buf)) {
@@ -209,7 +210,7 @@ put_event(struct file *bus, const char *channel, struct ev_arg *ev)
       return;
   }
   for (j = i = 0; ev[i].pack; ++i) {
-    j += ev[i].pack(b + j, &ev[i]);
+    j += ev[i].pack(b + j, &ev[i], c);
     b[j++] = '\t';
   }
   b[j - 1] = '\n';

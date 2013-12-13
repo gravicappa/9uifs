@@ -56,7 +56,7 @@ image_create(struct p9_connection *con)
     return;
   }
   if (name[0] == IMG_NAME_PREFIX)
-    f = (struct file *)mk_image(0, 0, dir->libroot, con);
+    f = (struct file *)mk_image(0, 0, (struct client *)con);
   else
     f = image_mkdir(name, dir->libroot);
   if (!f) {

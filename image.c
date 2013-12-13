@@ -16,11 +16,8 @@
 
 const int size_buf_len = 32;
 
-static struct arr *images = 0;
-
-enum image_flags {
-  IMAGE_DIRTY = 1
-};
+static int nimages = 0;
+static struct image **images = 0;
 
 static void cmd_blit(char *cmd, void *aux);
 static void cmd_rect(char *cmd, void *aux);
@@ -71,6 +68,28 @@ resize(struct image *s, int w, int h)
 }
 
 static void
+id_open(struct p9_connection *con)
+{
+  struct p9_fid *fid = con->t.pfid;
+  struct image *img = (struct image *)((struct file *)fid->file)->parent;
+
+  fid->aux = calloc(1, size_buf_len);
+  if (!fid->aux) {
+    P9_SET_STR(con->r.ename, "out of memory");
+    return;
+  }
+  snprintf((char *)fid->aux, size_buf_len, "%u", img->id);
+  fid->rm = rm_fid_aux;
+}
+
+static void
+str_read(struct p9_connection *con)
+{
+  char *s = (char *)con->t.pfid->aux;
+  read_data_fn(con, strlen(s), s);
+}
+
+static void
 size_open(struct p9_connection *con)
 {
   struct p9_fid *fid = con->t.pfid;
@@ -84,13 +103,6 @@ size_open(struct p9_connection *con)
   if (!(con->t.mode & P9_OTRUNC) || P9_READ_MODE(con->t.mode))
     snprintf((char *)fid->aux, size_buf_len, "%u %u", s->w, s->h);
   fid->rm = rm_fid_aux;
-}
-
-static void
-size_read(struct p9_connection *con)
-{
-  char *s = (char *)con->t.pfid->aux;
-  read_data_fn(con, strlen(s), s);
 }
 
 static void
@@ -225,9 +237,14 @@ png_clunk(struct p9_connection *con)
   update_rect(s, 0);
 }
 
+static struct p9_fs image_id_fs = {
+  .open = id_open,
+  .read = str_read
+};
+
 static struct p9_fs image_size_fs = {
   .open = size_open,
-  .read = size_read,
+  .read = str_read,
   .write = size_write,
   .clunk = size_clunk,
   .remove = size_clunk
@@ -266,18 +283,21 @@ rm_image_data(struct file *f)
 static void
 rm_image(struct file *f)
 {
+  struct image *img = (struct image *)f;
+  if (!img)
+    return;
+  images[img->id] = 0;
   rm_image_data(f);
   free(f);
 }
 
 int
-init_image(struct image *s, int w, int h, struct file *imglib, void *con)
+init_image(struct image *s, int w, int h, struct client *c)
 {
   memset(s, 0, sizeof(*s));
   s->w = w;
   s->h = h;
-  s->imglib = imglib;
-  s->conn = con;
+  s->client = c;
 
   s->img = create_image(w, h, 0);
   if (!s->img && w && h)
@@ -293,6 +313,12 @@ init_image(struct image *s, int w, int h, struct file *imglib, void *con)
     return -1;
   }
   add_file(&s->f, s->ctl);
+
+  s->f_id.name = "id";
+  s->f_id.mode = 0400;
+  s->f_id.qpath = new_qid(0);
+  s->f_id.fs = &image_id_fs;
+  add_file(&s->f, &s->f_id);
 
   s->f_size.name = "size";
   s->f_size.mode = 0600;
@@ -316,37 +342,51 @@ init_image(struct image *s, int w, int h, struct file *imglib, void *con)
 }
 
 struct image *
-mk_image(int w, int h, struct file *imglib, void *con)
+mk_image(int w, int h, struct client *c)
 {
-  struct image *s;
-
-  s = (struct image *)malloc(sizeof(struct image));
-  if (s && init_image(s, w, h, imglib, con)) {
-    free(s);
+  struct image *img;
+  int i, delta = 8;
+  for (i = 0; i < nimages && images[i]; ++i) {}
+  if (i >= nimages) {
+    images = realloc(images, (nimages + delta) * sizeof(struct image *));
+    if (!images)
+      return 0;
+    memset(images + nimages, 0, delta * sizeof(struct image *));
+    nimages += delta;
+  }
+  img = malloc(sizeof(struct image));
+  if (img && init_image(img, w, h, c)) {
+    free(img);
     return 0;
   }
-  s->f.rm = rm_image;
-  return s;
+  img->f.rm = rm_image;
+  images[i] = img;
+  img->id = i;
+  return img;
 }
 
 static void
 cmd_blit(char *cmd, void *aux)
 {
-  int s_x = 0, s_y = 0, s_w, s_h, r[4] = {0, 0};
-  static const char *fmt = "%d %d %d %d %d %d %d %d";
-  char *name;
+  int sx = 0, sy = 0, sw, sh, r[4] = {0}, id, n;
+  static const char *fmt = "%d %d %d %d %d %d %d %d %d";
   struct image *src, *dst = aux;
 
-  name = next_quoted_arg(&cmd);
-  if (!name)
-    return;
-  src = (struct image *)find_file(dst->imglib, name);
+  n = sscanf(cmd, fmt, &id, &r[0], &r[1], &r[2], &r[3], &sx, &sy, &sw, &sh);
+  src = (id >= 0 && id < nimages) ? images[id] : 0;
   if (!src)
     return;
-  s_w = r[2] = src->w;
-  s_h = r[3] = src->h;
-  sscanf(cmd, fmt, &r[0], &r[1], &r[2], &r[3], &s_x, &s_y, &s_w, &s_h);
-  blit_image(dst->img, r[0], r[1], r[2], r[3], src->img, s_x, s_y, s_w, s_h);
+  switch (n) {
+    case 3: r[2] = src->w;
+    case 4: r[3] = src->h;
+    case 5: sx = 0;
+    case 6: sy = 0;
+    case 7: sw = src->w;
+    case 8: sh = src->h;
+    case 9: break;
+    default: return;
+  }
+  blit_image(dst->img, r[0], r[1], r[2], r[3], src->img, sx, sy, sw, sh);
   update_rect(dst, r);
 }
 

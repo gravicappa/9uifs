@@ -113,5 +113,5 @@ void uiobj_init_flags(struct file *f);
 struct file *uiobj_children(struct uiobj *u);
 struct uiobj *uiplace_container(struct uiplace *up);
 
-int ev_uiobj(char *buf, struct ev_arg *ev);
+int ev_uiobj(char *buf, struct ev_arg *ev, struct client *c);
 

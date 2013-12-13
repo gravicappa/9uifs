@@ -155,11 +155,10 @@ path_open(struct p9_connection *con)
   fid->rm = rm_fid_aux;
 
   if (up->obj && !(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
-    n = file_path_len((struct file *)up->obj, up->obj->client->ui) + 3;
+    n = uiobj_path(up->obj, 0, 0, (struct client *)con);
     if (arr_memcpy(&buf, n, 0, n, 0) < 0)
       die("Cannot allocate memory");
-    memcpy(buf->b, "ui/", 3);
-    file_path(n - 3, buf->b + 3, (struct file *)up->obj, up->obj->client->ui);
+    uiobj_path(up->obj, n, buf->b, (struct client *)con);
     fid->aux = buf;
   }
 }

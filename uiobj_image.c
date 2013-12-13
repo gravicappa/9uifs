@@ -1,10 +1,12 @@
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "util.h"
 #include "frontend.h"
 #include "9p.h"
 #include "fs.h"
 #include "fsutil.h"
+#include "fstypes.h"
 #include "prop.h"
 #include "bus.h"
 #include "image.h"
@@ -55,7 +57,7 @@ path_open(struct p9_connection *con)
 {
   struct uiobj_image *img;
   struct p9_fid *fid = con->t.pfid;
-  int n;
+  int n, m;
   struct arr *buf = 0;
 
   img = containerof(fid->file, struct uiobj_image, f_path);
@@ -63,10 +65,17 @@ path_open(struct p9_connection *con)
   fid->rm = rm_fid_aux;
 
   if (img->s && !(con->t.mode & P9_OTRUNC) && P9_READ_MODE(con->t.mode)) {
-    n = file_path_len((struct file *)img->s, img->obj->client->images);
+    n = file_path_len(&img->s->f, &img->obj->client->f);
+    if ((struct client *)con != img->obj->client)
+      n += 21;
     if (arr_memcpy(&buf, n, 0, n, 0))
       die("Cannot allocate memory");
-    file_path(n, buf->b, (struct file *)img->s, img->obj->client->images);
+    if ((struct client *)con == img->obj->client)
+      file_path(n, buf->b, &img->s->f, &img->obj->client->f);
+    else {
+      m = snprintf(buf->b, n, "%llu/", img->obj->client->f.qpath);
+      file_path(n - m, buf->b + m, &img->s->f, &((struct client *)con)->f);
+    }
     fid->aux = buf;
   }
 }
@@ -91,9 +100,10 @@ path_clunk(struct p9_connection *con)
   struct p9_fid *fid = con->t.pfid;
   struct uiobj_image *img;
   struct arr *buf;
-  int prevw = 0, prevh = 0;
-  struct image *s, *prevs = 0;
+  int prevw = 0, prevh = 0, a;
+  struct image *prevs = 0;
   struct client *client;
+  struct file *f;
   char zero[1] = {0};
 
   if (!P9_WRITE_MODE(fid->open_mode))
@@ -110,8 +120,10 @@ path_clunk(struct p9_connection *con)
     }
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
     arr_add(&buf, 16, sizeof(zero), zero);
-    s = (struct image *)find_file(client->images, buf->b);
-    attach(img, s);
+    f = find_file_global(buf->b, (struct client *)con, &a);
+    if (f && FSTYPE(*f) == FS_IMAGE
+        && (!a || (((struct image *)f)->flags & IMAGE_EXPORTED)))
+      attach(img, (struct image *)f);
   }
   if (img->s != prevs) {
     if (!img->s || img->s->w != prevw || img->s->h != prevh)

@@ -114,6 +114,8 @@ rm_client(struct client *c)
   log_printf(LOG_CLIENT, "# Removing client %p (fd: %d)\n", c, c->fd);
   if ((c->flags & CLIENT_WM) && wm_client == c)
     wm_client = find_other_wm(c);
+  free_fids(&c->fids);
+  rm_file(&c->f);
   if (c->fd >= 0)
     close(c->fd);
   if (c->inbuf)
@@ -122,8 +124,6 @@ rm_client(struct client *c)
     free(c->outbuf);
   if (c->con.buf)
     free(c->con.buf);
-  free_fids(&c->fids);
-  rm_file(&c->f);
   if (!clients) {
     free(c);
     return;

@@ -157,7 +157,7 @@ iterate_qtree(struct qleaf *q, void (*fn)(int r[4], void *aux), void *aux)
 
   if (q->mask == 0)
     fn(q->r, aux);
-  else 
+  else
     for (i = 0, m = 1; i < 4; ++i, m <<= 1)
       if ((q->mask & m) && q->leaves[i])
         iterate_qtree(q->leaves[i], fn, aux);

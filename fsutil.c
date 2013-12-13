@@ -1,8 +1,10 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "util.h"
 #include "9p.h"
 #include "fs.h"
+#include "client.h"
 
 void
 rm_fid_aux(struct p9_fid *fid)
@@ -87,7 +89,7 @@ write_bool_fn(struct p9_connection *c, int oldval)
 }
 
 struct file *
-find_file(struct file *root, char *name)
+find_file(char *name, struct file *root)
 {
   struct file *t = root;
   char *p, *q;
@@ -106,6 +108,20 @@ find_file(struct file *root, char *name)
       return get_file(t, size, p);
   }
   return 0;
+}
+
+struct file *
+find_file_global(char *name, struct client *c, int *global)
+{
+  unsigned long long id;
+  for (; *name == '/'; ++name) {}
+  *global = (sscanf(name, "%llu/", &id) == 1);
+  if (*global) {
+    c = client_by_id(id);
+    for (; *name && *name != '/'; ++name) {}
+    for (; *name == '/'; ++name) {}
+  }
+  return (c) ? find_file(name, &c->f) : 0;
 }
 
 void
