@@ -1,0 +1,44 @@
+#!/bin/sh
+cl=../client
+test -z "$P9SOCKET" && exec $cl -a 127.0.0.1 "$0" "$@"
+$cl ls
+echo 'set_wm 1' | $cl write bus/sys >/dev/null
+
+stack=''
+cur_desk=''
+
+widget_path() {
+  echo "$1" | awk 'BEGIN{FS="\t"} {print $2}'
+}
+
+cons() {
+  printf "%s\n%s\n" "$1" "$2"
+}
+
+first() {
+  echo "$1" | awk 'NR == 1 {print $0; exit}'
+}
+
+remove() {
+  echo "$2" | awk -v "item=$1" '$0 != item {print}'
+}
+
+while line="$($cl read bus/ev)"; do
+  #echo "<< $line"
+  case "$line" in
+  exported*)
+    p="$(widget_path "$line")"
+    echo "set_desktop $p" | $cl write bus/sys >/dev/null
+    cur_desk="$p"
+    stack="$(cons "$cur_desk" "$stack")"
+    ;;
+  unexported*)
+    p="$(widget_path "$line")"
+    stack="$(remove "$p" "$stack")"
+    if test "$p" = "$cur_desk"; then
+      cur_desk="$(first "$stack")"
+      echo "set_desktop $cur_desk" | $cl write bus/sys >/dev/null
+    fi
+    ;;
+  esac
+done
