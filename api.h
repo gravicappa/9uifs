@@ -7,14 +7,15 @@ struct input_event {
     IN_KEY_DOWN
   } type;
   unsigned int id;
+  unsigned int ms;
   unsigned int x;
   unsigned int y;
   int dx;
   int dy;
   unsigned int state;
-  unsigned long unicode;
+  unsigned int mod;
   unsigned int key;
-  unsigned int ms;
+  unsigned long unicode;
 };
 
 /*

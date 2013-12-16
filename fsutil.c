@@ -138,7 +138,6 @@ int
 file_path_len(struct file *f, struct file *root)
 {
   int n = 0;
-
   for (; f && f != root; f = f->parent)
     n += strlen(f->name) + 1;
   return n;

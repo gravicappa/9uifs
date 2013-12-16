@@ -31,12 +31,16 @@ static void sysctl_set_desktop(char *cmd, void *aux);
 static void sysctl_set_wm(char *cmd, void *aux);
 static void sysctl_msg(char *cmd, void *aux);
 static void sysctl_msg_bcast(char *cmd, void *aux);
+static void sysctl_grab_key(char *cmd, void *aux);
+static void sysctl_ungrab_key(char *cmd, void *aux);
 
 static struct ctl_cmd sys_ctl[] = {
   {"msg", sysctl_msg},
   {"bcast", sysctl_msg_bcast},
   {"set_desktop", sysctl_set_desktop},
   {"set_wm", sysctl_set_wm},
+  {"grab_key", sysctl_grab_key},
+  {"ungrab_key", sysctl_ungrab_key},
   {0}
 };
 
@@ -112,8 +116,10 @@ rm_client(struct client *c)
     return;
 
   log_printf(LOG_CLIENT, "# Removing client %p (fd: %d)\n", c, c->fd);
-  if ((c->flags & CLIENT_WM) && wm_client == c)
+  if ((c->flags & CLIENT_WM) && wm_client == c) {
     wm_client = find_other_wm(c);
+    wm_ungrab_keys();
+  }
   free_fids(&c->fids);
   rm_file(&c->f);
   if (c->fd >= 0)
@@ -381,4 +387,24 @@ sysctl_msg_bcast(char *cmd, void *aux)
   for (to = clients; to; to = to->next)
     if (to != aux)
       put_event_str(to->bus, bus_ch_ev, strlen(cmd), cmd);
+}
+
+void
+sysctl_grab_key(char *cmd, void *aux)
+{
+  unsigned int key, mod;
+  if ((struct client *)aux != wm_client
+      || sscanf(cmd, "%u %u", &key, &mod) != 2)
+    return;
+  wm_grab_key(key, mod);
+}
+
+void
+sysctl_ungrab_key(char *cmd, void *aux)
+{
+  unsigned int key, mod;
+  if ((struct client *)aux != wm_client
+      || sscanf(cmd, "%u %u", &key, &mod) != 2)
+    return;
+  wm_ungrab_key(key, mod);
 }

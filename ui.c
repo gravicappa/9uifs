@@ -257,7 +257,6 @@ export_uiobj(struct uiobj *u, int export)
   if (wm_client) {
     struct ev_arg evargs[] = {
       {ev_str},
-      {ev_ull, {.ull = u->client->f.qpath}},
       {ev_uiobj, {.o = u}},
       {0}
     };
@@ -739,12 +738,10 @@ uiobj_path(struct uiobj *u, int size, char *buf, struct client *c)
   if (!u)
     return 0;
   if (!buf)
-    return (c && c != u->client)
-           ? 21 + file_path_len(&u->f, &c->f)
-           : file_path_len(&u->f, &u->client->f);
-  if (c && c != u->client) {
-    n = snprintf(buf, size, "%llu/", c->f.qpath);
-    return file_path(size - n, buf + n, &u->f, &u->client->f);
+    return file_path_len(&u->f, &u->client->f) + ((c != u->client) ? 21 : 0);
+  if (c != u->client) {
+    n = snprintf(buf, size, "%llu/", u->client->f.qpath);
+    return file_path(size - n, buf + n, &u->f, &u->client->f) + n;
   } else
     return file_path(size, buf, &u->f, &u->client->f);
 }

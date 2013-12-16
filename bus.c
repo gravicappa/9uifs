@@ -320,57 +320,10 @@ init_out(const char *name, struct bus_channel *chan, struct bus *b)
   chan->f.mode = 0400;
   chan->f.qpath = new_qid(FS_BUS_CHAN_OUT);
   chan->f.fs = &fs_out;
+  chan->f.rm = rm_channel;
   chan->bus = b;
   add_file(&b->f, &chan->f);
 }
-
-static void
-channel_create(struct p9_connection *con)
-{
-  struct bus *bus = (struct bus *)con->t.pfid->file;
-  struct bus_channel *chan;
-  struct file *dir = 0;
-  char *name = 0;
-
-  P9_SET_STR(con->r.ename, "Not implemented");
-  return;
-  if (!(con->t.perm & P9_DMDIR)) {
-    P9_SET_STR(con->r.ename, "Wrong channel create permissions");
-    return;
-  }
-  name = strndup(con->t.name, con->t.name_len);
-  if (!name)
-    goto err;
-  dir = calloc(1, sizeof(struct file));
-  if (!dir)
-    goto err;
-  dir->name = (char *)name;
-  dir->owns_name = 1;
-  dir->mode = 0500 | P9_DMDIR;
-  dir->qpath = new_qid(FS_BUS_CHAN);
-
-  chan = calloc(1, sizeof(struct bus_channel));
-  if (!chan)
-    goto err;
-  init_out("out", chan, bus);
-  chan->f.rm = rm_channel;
-  /*
-  f = mk_chan_in(chan);
-  if (!f)
-    goto err;
-    */
-  return;
-err:
-  P9_SET_STR(con->r.ename, "Cannot create channel");
-  if (name)
-    free(name);
-  if (dir)
-    rm_file(dir);
-}
-
-static struct p9_fs fs_bus = {
-  .create = channel_create
-};
 
 struct file *
 mk_bus(const char *name, struct client *c)
@@ -379,9 +332,8 @@ mk_bus(const char *name, struct client *c)
   bus = calloc(1, sizeof(struct bus));
   if (bus) {
     bus->f.name = (char *)name;
-    bus->f.mode = 0700 | P9_DMDIR;
+    bus->f.mode = 0500 | P9_DMDIR;
     bus->f.qpath = new_qid(FS_BUS);
-    bus->f.fs = &fs_bus;
     bus->f.rm = free_file;
 
     bus->client = c;

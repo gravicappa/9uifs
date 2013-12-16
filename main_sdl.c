@@ -263,7 +263,7 @@ process_event(SDL_Event *ev, unsigned int time_ms, int *flags)
     in_ev.type = (ev->type == SDL_KEYUP) ? IN_KEY_UP : IN_KEY_DOWN;
     in_ev.ms = time_ms;
     in_ev.key = ev->key.keysym.sym;
-    in_ev.state = ev->key.keysym.mod;
+    in_ev.mod = ev->key.keysym.mod;
     in_ev.unicode = ev->key.keysym.unicode;
     uifs_input_event(&in_ev);
     break;

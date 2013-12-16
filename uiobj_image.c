@@ -74,7 +74,7 @@ path_open(struct p9_connection *con)
       file_path(n, buf->b, &img->s->f, &img->obj->client->f);
     else {
       m = snprintf(buf->b, n, "%llu/", img->obj->client->f.qpath);
-      file_path(n - m, buf->b + m, &img->s->f, &((struct client *)con)->f);
+      file_path(n - m, buf->b + m, &img->s->f, &img->obj->client->f);
     }
     fid->aux = buf;
   }

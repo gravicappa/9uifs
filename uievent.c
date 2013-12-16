@@ -25,27 +25,52 @@ struct input_context {
   struct uiobj *over;
 };
 
+struct wm_grabbed_key {
+  unsigned int key;
+  unsigned int mod;
+  struct wm_grabbed_key *next;
+};
+
+static struct wm_grabbed_key *wm_grabbed_keys[256] = {0};
+
+static int
+is_key_wm_grabbed(unsigned int key, unsigned int mod)
+{
+  struct wm_grabbed_key *k;
+  k = wm_grabbed_keys[key & 0xff];
+  for (; k; k = k->next)
+    if (k->key == key && k->mod == mod)
+      return 1;
+  return 0;
+}
+
+static void
+send_kbd_ev(struct uiobj *u, struct input_event *ev, struct file *bus)
+{
+  struct ev_arg evargs[] = {
+    {ev_str, {.s = "key"}},
+    {ev_str},
+    {ev_uint, {.u = ev->key}},
+    {ev_uint, {.u = ev->mod}},
+    {ev_uint, {.u = ev->unicode}},
+    {ev_uiobj, {.o = u}},
+    {0}
+  };
+  evargs[1].x.s = (ev->type == IN_KEY_DOWN) ? "d" : "u";
+  put_event(bus, bus_ch_ev, evargs);
+}
+
 static int
 kbd_ev(struct uiobj *u, struct input_event *ev)
 {
+  if (wm_client && is_key_wm_grabbed(ev->key, ev->state))
+    send_kbd_ev(u, ev, wm_client->bus);
   if (!u)
     return 0;
-
   if (u->ops->on_input && u->ops->on_input(u, ev))
     return 1;
-  else if (u->flags & UI_KBD_EV) {
-    struct ev_arg evargs[] = {
-      {ev_str, {.s = "key"}},
-      {ev_str},
-      {ev_uint, {.u = ev->key}},
-      {ev_uint, {.u = ev->state}},
-      {ev_uint, {.u = ev->unicode}},
-      {ev_uiobj, {.o = u}},
-      {0}
-    };
-    evargs[1].x.s = (ev->type == IN_KEY_DOWN) ? "d" : "u";
-    put_event(u->client->bus, bus_ch_ev, evargs);
-  }
+  else if (u->flags & UI_KBD_EV)
+    send_kbd_ev(u, ev, u->client->bus);
   return 0;
 }
 
@@ -243,5 +268,46 @@ uifs_input_event(struct input_event *ev)
   case IN_KEY_DOWN:
     return kbd_ev(u, ev);
   default: return 0;
+  }
+}
+
+void
+wm_grab_key(unsigned int key, unsigned int mod)
+{
+  struct wm_grabbed_key *k;
+  if (is_key_wm_grabbed(key, mod))
+    return;
+  k = malloc(sizeof(struct wm_grabbed_key));
+  if (!k)
+    return;
+  k->next = wm_grabbed_keys[key & 0xff];
+  wm_grabbed_keys[key & 0xff] = k;
+}
+
+void
+wm_ungrab_key(unsigned int key, unsigned int mod)
+{
+  struct wm_grabbed_key **pp, *k;
+  for (pp = &wm_grabbed_keys[key & 0xff]; *pp; pp = &(*pp)->next)
+    if ((*pp)->key == key && (*pp)->mod == mod) {
+      k = *pp;
+      *pp = (*pp)->next;
+      free(k);
+      break;
+    }
+}
+
+void
+wm_ungrab_keys(void)
+{
+  struct wm_grabbed_key *k, *knext;
+  int i;
+
+  for (i = 0; i < NITEMS(wm_grabbed_keys); ++i) {
+    for (k = wm_grabbed_keys[i]; k; k = knext) {
+      knext = k->next;
+      free(k);
+    }
+    wm_grabbed_keys[i] = 0;
   }
 }
