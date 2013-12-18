@@ -1,26 +1,27 @@
 # General
 
 ## Unified keyboard constants
+Currently SDL constants are used without translation. Maybe stick to them.
+
 ## Window manager
-### Grabbing keys mechanism
+Probably should add free-placement control manager in addition to uiobj_grid.
 
 ## Add separate attach root support for one client(?).
+The only reason for this is to tunnel separate application through one
+connection.
 
 ## Static directory structure probably can be defined as static data.
 
-## Access to somehow sandboxed local FS (?).
-## Sound support (??).
-## Channel for piping data to/from subprocess.
-
 ## GL support.
-
 Almost every modern computing platform has GPU. It's a waste not to use it.
 
 ## Think about default keybindings
-
-Probably it is a good idea to autoassign keys to buttons.
+Probably it is a good idea to autoassign keys to controls (like in vimperator
+or similar).
 
 ## Timed update(?)
+For single-threaded synchronous client (e.g. written in sh) it maybe useful to
+trigger an alarm event after given amount of time.
 
 ## Text entry widget
 ## Check button widget (?)

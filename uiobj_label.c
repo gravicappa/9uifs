@@ -18,13 +18,15 @@
 
 enum button_state {
   BTN_NORMAL,
-  BTN_PRESSED
+  BTN_PRESSED,
+  BTN_ACTIVE
 };
 
 struct uiobj_label {
   struct prop_buf text;
   struct prop_buf font_str;
   struct prop_int fg;
+  struct prop_int cursor;
   UFont font;
   int state;
   unsigned int pressed_ms;
@@ -37,7 +39,6 @@ rm_uilabel(struct file *f)
   struct uiobj_label *x = u->data;
   if (x->font)
     free_font(x->font);
-  free(u->data);
   ui_rm_uiobj(f);
 }
 
@@ -61,7 +62,7 @@ draw(struct uiobj *u, struct uicontext *uc)
 {
   unsigned int fg, bg;
   struct uiobj_label *x = (struct uiobj_label *)u->data;
-  int *r = u->g.r;
+  int *r = u->g.r, sel[4];
 
   bg = u->bg.i;
   fg = x->fg.i;
@@ -71,6 +72,8 @@ draw(struct uiobj *u, struct uicontext *uc)
   if ((fg & 0xff000000) && x->text.buf)
     multi_draw_utf8(screen_image, r[0], r[1], fg, x->font,
                     x->text.buf->used - 1, x->text.buf->b);
+  if (x->cursor.i >= 0) {
+  }
 }
 
 static void

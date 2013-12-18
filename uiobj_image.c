@@ -168,7 +168,6 @@ rm_image(struct file *f)
   struct uiobj *u = (struct uiobj *)f;
   struct uiobj_image *img = u->data;
   unlink_image(img->s, img);
-  free(u->data);
   ui_rm_uiobj(f);
 }
 

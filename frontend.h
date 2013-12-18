@@ -23,11 +23,15 @@ UImage resize_image(UImage img, int w, int h, int flags);
 void blit_image(UImage dst, int dx, int dy, int dw, int dh,
                 UImage src, int sx, int sy, int sw, int sh);
 
-void draw_utf8(UImage dst, int x, int y, int c, UFont fnt, int len, char *s);
-int get_utf8_size(UFont font, int len, char *str, int *w, int *h);
-
 UFont create_font(const char *name, int size, const char *style);
 void free_font(UFont font);
 const char **font_list(int *n);
+void draw_utf8(UImage dst, int x, int y, int c, UFont fnt, int len, char *s);
+int get_utf8_size(UFont font, int len, char *str, int *w, int *h);
+int get_utf8_info_at_point(UFont font, int len, char *str, int x, int y,
+                           int *cx, int *cy, int *cw, int *ch);
+void get_utf8_info_at_index(UFont font, int len, char *str, int index,
+                            int *cx, int *cy, int *cw, int *ch);
+
 
 unsigned int current_time_ms(void);

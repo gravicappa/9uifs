@@ -205,6 +205,8 @@ ui_rm_uiobj(struct file *f)
     up->obj = 0;
     ui_propagate_dirty(up);
   }
+  if (u->data)
+    free(u->data);
   free(u);
 }
 

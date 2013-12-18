@@ -175,11 +175,12 @@ draw_utf8(UImage dst, int x, int y, int c, UFont font, int len, char *str)
   imlib_context_set_image(dst);
   imlib_context_set_color(RGBA_R(c), RGBA_G(c), RGBA_B(c), RGBA_A(c));
 
-  /* FIXME: use patched imlib2 */
   let = str[len];
-  str[len] = 0;
+  if (let)
+    str[len] = 0;
   imlib_text_draw(x, y, str);
-  str[len] = let;
+  if (let)
+    str[len] = let;
 }
 
 int
@@ -195,9 +196,11 @@ get_utf8_size(UFont font, int len, char *str, int *w, int *h)
 
   /* FIXME: use patched imlib2 */
   let = str[len];
-  str[len] = 0;
+  if (let)
+    str[len] = 0;
   imlib_get_text_advance(str, w, h);
-  str[len] = let;
+  if (let)
+    str[len] = let;
   return 0;
 }
 
@@ -223,4 +226,35 @@ const char **
 font_list(int *n)
 {
   return (const char **)imlib_list_fonts(n);
+}
+
+int
+get_utf8_info_at_point(UFont font, int len, char *str, int x, int y,
+                       int *cx, int *cy, int *cw, int *ch)
+{
+  int let, ret;
+
+  imlib_context_set_font((font) ? font : default_font);
+  let = str[len];
+  if (let)
+    str[len] = 0;
+  ret = imlib_text_get_index_and_location(str, x, y, cx, cy, cw, ch);
+  if (let)
+    str[len] = let;
+  return ret;
+}
+
+void
+get_utf8_info_at_index(UFont font, int len, char *str, int index,
+                       int *cx, int *cy, int *cw, int *ch)
+{
+  int let;
+
+  imlib_context_set_font((font) ? font : default_font);
+  let = str[len];
+  if (let)
+    str[len] = 0;
+  imlib_text_get_location_at_index(str, index, cx, cy, cw, ch);
+  if (let)
+    str[len] = let;
 }

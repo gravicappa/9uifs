@@ -289,8 +289,6 @@ rm_uigrid(struct file *f)
       free(g->rows_opts);
     if (g->grid)
       free(g->grid);
-    free(u->data);
-    u->data = 0;
   }
   ui_rm_uiobj(f);
 }
