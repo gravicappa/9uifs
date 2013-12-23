@@ -361,9 +361,9 @@ main_loop(int server_fd)
     if (uifs_process_io(server_fd, event_pipe[0], frame_ms))
       running = 0;
     profile_end(PROF_IO);
-    profile_start(PROF_EVENTS);
     if (SDL_mutexP(event_mutex) < 0)
       die("unable to lock mutex");
+    profile_start(PROF_EVENTS);
     if (event.type != SDL_NOEVENT) {
       if (process_event(&event, time_ms, &flags) < 0)
         running = 0;

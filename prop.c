@@ -44,7 +44,7 @@ prop_int_open(struct p9_connection *con, int size, const char *fmt)
   p = (struct prop_int *)fid->file;
   if (prop_alloc(con, size))
     die("Cannot allocate memory");
-  if (P9_WRITE_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
+  if (P9_READ_MODE(con->t.mode) && !(con->t.mode & P9_OTRUNC))
     snprintf((char *)fid->aux, size, fmt, p->i);
 }
 
@@ -138,6 +138,15 @@ prop_buf_write(struct p9_connection *con)
 {
   struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
   write_buf_fn(con, 16, &p->buf);
+}
+
+void
+prop_buf_clunk(struct p9_connection *con)
+{
+  struct prop_buf *p = (struct prop_buf *)con->t.pfid->file;
+  if (p->buf)
+    p->buf->b[p->buf->used] = 0;
+  prop_clunk(con);
 }
 
 void
@@ -362,7 +371,7 @@ struct p9_fs buf_fs = {
   .open = prop_buf_open,
   .read = prop_buf_read,
   .write = prop_buf_write,
-  .clunk = prop_clunk
+  .clunk = prop_buf_clunk
 };
 
 struct p9_fs colour_fs = {

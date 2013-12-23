@@ -3,6 +3,7 @@
 #include "frontend.h"
 #include "raster.h"
 #include "dirty.h"
+#include "util.h"
 
 UFont default_font = 0;
 
@@ -193,8 +194,25 @@ get_utf8_size(UFont font, int len, char *str, int *w, int *h)
     return 0;
   }
   imlib_context_set_font((font) ? font : default_font);
+  let = str[len];
+  if (let)
+    str[len] = 0;
+  imlib_get_text_size(str, w, h);
+  if (let)
+    str[len] = let;
+  return 0;
+}
 
-  /* FIXME: use patched imlib2 */
+int
+get_utf8_advance(UFont font, int len, char *str, int *w, int *h)
+{
+  char let;
+
+  if (!(len && str)) {
+    *w = *h = 0;
+    return 0;
+  }
+  imlib_context_set_font((font) ? font : default_font);
   let = str[len];
   if (let)
     str[len] = 0;
@@ -232,13 +250,16 @@ int
 get_utf8_info_at_point(UFont font, int len, char *str, int x, int y,
                        int *cx, int *cy, int *cw, int *ch)
 {
-  int let, ret;
+  int let, ret, desc;
 
   imlib_context_set_font((font) ? font : default_font);
   let = str[len];
   if (let)
     str[len] = 0;
-  ret = imlib_text_get_index_and_location(str, x, y, cx, cy, cw, ch);
+  desc = imlib_get_maximum_font_descent();
+  /* XXX: (desc - 1) — is imlib2 possible bug workaround */
+  ret = imlib_text_get_index_and_location(str, x, desc - 1, cx, cy, cw, ch);
+  *cy += imlib_get_maximum_font_ascent() - imlib_get_maximum_font_descent();
   if (let)
     str[len] = let;
   return ret;
@@ -255,6 +276,7 @@ get_utf8_info_at_index(UFont font, int len, char *str, int index,
   if (let)
     str[len] = 0;
   imlib_text_get_location_at_index(str, index, cx, cy, cw, ch);
+  *cy += imlib_get_maximum_font_ascent() - imlib_get_maximum_font_descent();
   if (let)
     str[len] = let;
 }

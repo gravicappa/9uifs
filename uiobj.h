@@ -108,6 +108,7 @@ void walk_ui_tree(struct uiplace *up,
 int put_ui_event(struct bus *bus, struct client *c, const char *fmt, ...);
 void ui_init_evfilter(struct file *f);
 void ui_enqueue_update(struct uiobj *u);
+void mark_uiobj_dirty(struct uiobj *u);
 void uiobj_init_flags(struct file *f);
 
 struct file *uiobj_children(struct uiobj *u);

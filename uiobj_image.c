@@ -26,7 +26,6 @@ link_rm(void *ptr)
 {
   struct uiobj_image *img = ptr;
   img->s = 0;
-  img->obj->flags |= UI_DIRTY;
   ui_propagate_dirty(img->obj->place);
 }
 
@@ -34,8 +33,8 @@ static void
 link_update(void *ptr, int *r)
 {
   struct uiobj_image *img = ptr;
-  img->obj->flags |= UI_DIRTY;
   ui_enqueue_update(img->obj);
+  mark_uiobj_dirty(img->obj);
 }
 
 static int
@@ -104,7 +103,6 @@ path_clunk(struct p9_connection *con)
   struct image *prevs = 0;
   struct client *client;
   struct file *f;
-  char zero[1] = {0};
 
   if (!P9_WRITE_MODE(fid->open_mode))
     return;
@@ -119,7 +117,7 @@ path_clunk(struct p9_connection *con)
       prevh = prevs->h;
     }
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    arr_add(&buf, 16, sizeof(zero), zero);
+    arr_add(&buf, 1, 1, "\0");
     f = find_file_global(buf->b, (struct client *)con, &a);
     if (f && FSTYPE(*f) == FS_IMAGE
         && (!a || (((struct image *)f)->flags & IMAGE_EXPORTED)))
@@ -129,6 +127,7 @@ path_clunk(struct p9_connection *con)
     if (!img->s || img->s->w != prevw || img->s->h != prevh)
       ui_propagate_dirty(img->obj->place);
     img->obj->flags |= UI_DIRTY;
+    mark_uiobj_dirty(img->obj);
     ui_enqueue_update(img->obj);
   }
 }

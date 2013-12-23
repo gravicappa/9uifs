@@ -88,9 +88,8 @@ place_uiobj(struct uiplace *up, struct uiobj *u)
     ((struct uiplace *)f)->parent = up;
   if (u->ops->place_changed)
     u->ops->place_changed(u);
-  if (up == ui_desktop)
-    walk_ui_tree(up, uiplace_set_attach_flag, 0, 0);
-  else if ((parent = uiplace_container(up)) && (parent->flags & UI_ATTACHED))
+  if (up == ui_desktop
+      || ((parent = uiplace_container(up)) && (parent->flags & UI_ATTACHED)))
     walk_ui_tree(up, uiplace_set_attach_flag, 0, 0);
 }
 
@@ -185,7 +184,6 @@ path_clunk(struct p9_connection *con)
   struct uiobj *prevu;
   struct client *client;
   struct arr *buf;
-  char zero[1] = {0};
 
   if (!P9_WRITE_MODE(fid->open_mode))
     return;
@@ -199,7 +197,7 @@ path_clunk(struct p9_connection *con)
   buf = fid->aux;
   if (client && buf && buf->used > 0) {
     for (; buf->b[buf->used - 1] <= ' '; --buf->used) {}
-    arr_add(&buf, 16, sizeof(zero), zero);
+    arr_add(&buf, 1, 1, "\0");
     place_uiobj(up, (struct uiobj *)find_uiobj(buf->b, client));
   }
   if (up->obj != prevu)

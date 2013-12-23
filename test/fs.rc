@@ -38,7 +38,7 @@ fn write_fields {
     while (test $#* -gt 0) {
       key=`{echo $1 | sed 's/^-//'} {
         if (test -n $2) {
-          echo $2 >$dir/$key
+          printf %s $2 >$dir/$key
           if (~ $key $asserted_fields)
             assert_file $dir/$key $2
         }

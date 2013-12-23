@@ -19,6 +19,7 @@
 #include "uiplace.h"
 #include "client.h"
 #include "dirty.h"
+#include "raster.h"
 #include "profile.h"
 
 #define UI_NAME_PREFIX '_'
@@ -479,10 +480,6 @@ ui_intersect_clip(int *r, int *c1, int *c2)
     if (r[i] + r[i + 2] > t)
       r[i + 2] = t - r[i];
   }
-  if (0)
-    log_printf(LOG_UI, "[%d %d %d %d] ^ [%d %d %d %d] = [%d %d %d %d]\n",
-               c1[0], c1[1], c1[2], c1[3],
-               c2[0], c2[1], c2[2], c2[3], r[0], r[1], r[2], r[3]);
 }
 
 static int
@@ -545,11 +542,24 @@ ui_propagate_dirty(struct uiplace *up)
 }
 
 void
+mark_uiobj_dirty(struct uiobj *u)
+{
+  struct uiplace *up = u->place;
+  for (; up; up = up->parent) {
+    if (up->obj) {
+      up->obj->flags |= UI_DIRTY_VISUAL;
+      if ((up->obj->bg.i & RGBA(0, 0, 0, 255)) == RGBA(0, 0, 0, 255))
+        break;
+    }
+  }
+}
+
+void
 ui_prop_updvis(struct prop *p)
 {
   struct uiobj *u = (struct uiobj *)p->aux;
-  u->flags |= UI_DIRTY_VISUAL;
   ui_enqueue_update(u);
+  mark_uiobj_dirty(u);
 }
 
 void
@@ -638,22 +648,21 @@ mk_ui(const char *name)
 }
 
 void
-ui_free(void)
-{
-}
-
-void
 ui_set_desktop(struct uiobj *u)
 {
   struct file *f;
 
-  if (u && u != ui_desktop->obj) {
+  if (u != ui_desktop->obj) {
+    walk_ui_tree(ui_desktop, uiplace_unset_attach_flag, 0, 0);
+    if (u) {
+      u->place = ui_desktop;
+      for (f = uiobj_children(u); f; f = f->next)
+        ((struct uiplace *)f)->parent = ui_desktop;
+      u->flags |= UI_DIRTY;
+    }
     ui_desktop->obj = u;
-    u->place = ui_desktop;
-    for (f = uiobj_children(u); f; f = f->next)
-      ((struct uiplace *)f)->parent = ui_desktop;
-    u->flags |= UI_DIRTY;
-    ui_enqueue_update(ui_desktop->obj);
+    walk_ui_tree(ui_desktop, uiplace_set_attach_flag, 0, 0);
+    ui_enqueue_update(u);
   }
 }
 

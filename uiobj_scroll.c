@@ -138,7 +138,7 @@ resize(struct uiobj *u)
   child = us->place.obj;
   if (us->prevobj != child) {
     us->pos[0] = us->pos[1] = us->prev_pos[0] = us->prev_pos[1] = 0;
-    u->flags |= UI_DIRTY_VISUAL;
+    mark_uiobj_dirty(u);
   }
   for (i = 0; i < 2; ++i) {
     r[i] = u->g.r[i];
@@ -232,9 +232,10 @@ on_ptr_intersect(struct uiobj *u, int inside)
   struct uiobj_scroll *us = (struct uiobj_scroll *)u->data;
   if (us && us->mode != NORMAL) {
     us->mode = NORMAL;
-    u->flags |= UI_DIRTY_VISUAL;
+    mark_uiobj_dirty(u);
+    ui_enqueue_update(u);
     if (us->place.obj)
-      us->place.obj->flags |= UI_DIRTY_VISUAL;
+      mark_uiobj_dirty(us->place.obj);
   }
   return 0;
 }
@@ -255,8 +256,9 @@ on_input(struct uiobj *u, struct input_event *ev)
   case IN_PTR_DOWN:
     if (us->mode != NORMAL) {
       us->mode = NORMAL;
-      u->flags |= UI_DIRTY_VISUAL;
-      us->place.obj->flags |= UI_DIRTY_VISUAL;
+      mark_uiobj_dirty(u);
+      mark_uiobj_dirty(us->place.obj);
+      ui_enqueue_update(u);
     }
     return 0;
 

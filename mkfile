@@ -36,7 +36,7 @@ $exe: $obj $frontend_obj
   $CC $CFLAGS -c -o $target $stem.c
 
 %: %.c
-  $CC $CFLAGS -o $target $prereq
+  $CC $CFLAGS $prereq $LDFLAGS -o $target 
 
 run:V: $exe
   ulimit -c unlimited
