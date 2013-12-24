@@ -63,7 +63,7 @@ update_font(struct prop *font_prop)
 static void
 draw(struct uiobj *u, struct uicontext *uc)
 {
-  unsigned int fg, bg, cursbg = 0x7faf00af, cursfg = 0xfff0000;
+  unsigned int fg, bg, cursbg = 0xff000000, cursfg = 0xff00000;
   struct uiobj_label *lb = u->data;
   int *r = u->g.r, *pad = lb->padding;
 
@@ -74,7 +74,7 @@ draw(struct uiobj *u, struct uicontext *uc)
     draw_rect(screen_image, r[0], r[1], r[2], r[3], 0, bg);
   if (lb->caret.i >= 0 && lb->caret_rect[2] && lb->caret_rect[3])
     draw_rect(screen_image, r[0] + pad[0] + lb->caret_rect[0],
-              r[1] + pad[1] + lb->caret_rect[1], lb->caret_rect[2],
+              r[1] + pad[1] + lb->caret_rect[1], 2,
               lb->caret_rect[3], cursfg, cursbg);
   if ((fg & 0xff000000) && lb->text.buf)
     multi_draw_utf8(screen_image, r[0] + pad[0], r[1] + pad[1], fg, lb->font,
@@ -172,13 +172,10 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
     break;
   }
   draw_rect(screen_image, r[0], r[1], r[2], r[3], frame, bg);
-  if (0) draw_rect(screen_image, r[0] + 2, r[1] + 2, r[2] - 4, r[3] - 4, frame, bg);
+  draw_rect(screen_image, r[0] + 2, r[1] + 2, r[2] - 4, r[3] - 4, frame, bg);
   if ((fg & 0xff000000) && b->text.buf) {
     x = r[0] + ((r[2] - u->reqsize[0]) >> 1) + b->padding[0];
     y = r[1] + ((r[3] - u->reqsize[1]) >> 1) + b->padding[1];
-    ux = x - b->padding[0];
-    uy = r[1] + r[3] - b->padding[1];
-    draw_line(screen_image, ux, uy, ux + u->reqsize[0], uy, frame);
     multi_draw_utf8(screen_image, x, y, fg, b->font, b->text.buf->used - 1,
                     b->text.buf->b);
   }
@@ -297,7 +294,7 @@ update_caret(struct prop *p)
   put_entry_caret(u, lb->caret.i);
 }
 
-static void
+static int
 on_entry_input(struct uiobj *u, struct input_event *ev)
 {
   struct uiobj_label *lb = u->data;
@@ -315,24 +312,31 @@ on_entry_input(struct uiobj *u, struct input_event *ev)
     break;
   case IN_KEY_UP:
     switch (ev->key) {
-    case 273: /* sdl_up */
+    case 273:  /* sdl_up */
+      if (lb->text.buf)
+        c = multi_index_vrel(lb->font, lb->text.buf->used - 1,
+                             lb->text.buf->b, lb->caret.i, -1);
       break;
-    case 274: /* sdl_down */
+    case 274:  /* sdl_down */
+      if (lb->text.buf)
+        c = multi_index_vrel(lb->font, lb->text.buf->used - 1,
+                             lb->text.buf->b, lb->caret.i, 1);
       break;
-    case 276: /* sdl_left */
+    case 276:  /* sdl_left */
       if (lb->caret.i > 0)
         c = lb->caret.i - 1;
       break;
-    case 275: /* sdl_right */
+    case 275:  /* sdl_right */
       if (lb->text.buf && lb->caret.i < lb->text.buf->used - 1)
-          c = lb->caret.i + 1;
+        c = lb->caret.i + 1;
       break;
     }
     break;
-  default:;
+  default: return 0;
   }
   if (c >= 0 && lb->caret.i != c)
     put_entry_caret(u, c);
+  return 1;
 }
 
 static struct uiobj_ops entry_ops = {
