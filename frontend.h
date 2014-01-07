@@ -29,10 +29,5 @@ const char **font_list(int *n);
 void draw_utf8(UImage dst, int x, int y, int c, UFont fnt, int len, char *s);
 int get_utf8_size(UFont font, int len, char *str, int *w, int *h);
 int get_utf8_advance(UFont font, int len, char *str, int *w, int *h);
-int get_utf8_info_at_point(UFont font, int len, char *str, int x, int y,
-                           int *cx, int *cy, int *cw, int *ch);
-void get_utf8_info_at_index(UFont font, int len, char *str, int index,
-                            int *cx, int *cy, int *cw, int *ch);
-
 
 unsigned int current_time_ms(void);

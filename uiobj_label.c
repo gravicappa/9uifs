@@ -72,10 +72,15 @@ draw(struct uiobj *u, struct uicontext *uc)
 
   if (bg & 0xff000000)
     draw_rect(screen_image, r[0], r[1], r[2], r[3], 0, bg);
-  if (lb->caret.i >= 0 && lb->caret_rect[2] && lb->caret_rect[3])
+  if (lb->caret.i >= 0 && lb->caret_rect[2] && lb->caret_rect[3]) {
     draw_rect(screen_image, r[0] + pad[0] + lb->caret_rect[0],
               r[1] + pad[1] + lb->caret_rect[1], 2,
               lb->caret_rect[3], cursfg, cursbg);
+    draw_rect(screen_image,
+              r[0] + pad[0] + lb->caret_rect[0],
+              r[1] + pad[1] + lb->caret_rect[1] + lb->caret_rect[3],
+              lb->caret_rect[2], 2, cursfg, cursbg);
+  }
   if ((fg & 0xff000000) && lb->text.buf)
     multi_draw_utf8(screen_image, r[0] + pad[0], r[1] + pad[1], fg, lb->font,
                     lb->text.buf->used - 1, lb->text.buf->b);
@@ -157,7 +162,7 @@ draw_btn(struct uiobj *u, struct uicontext *uc)
 {
   unsigned int fg, bg, frame;
   struct uiobj_label *b = u->data;
-  int x, y, ux, uy, *r = u->g.r;
+  int x, y, *r = u->g.r;
 
   switch (b->state) {
   case BTN_NORMAL:
@@ -266,11 +271,32 @@ init_uibutton(struct uiobj *u)
   return 0;
 }
 
+static int
+entry_text_insert(struct uiobj *u, const char *s)
+{
+  struct uiobj_label *lb = u->data;
+  int n;
+  if (lb->caret.i < 0)
+    return 0;
+  n = strlen(s);
+  if (arr_memcpy(&lb->text.buf, 16, lb->caret.i, n, s))
+    return -1;
+  lb->caret.i += n;
+  return 0;
+}
+
+static int
+entry_text_delete(struct uiobj *u, int mode)
+{
+  return 0;
+}
+
 static void
 put_entry_caret(struct uiobj *u, int caret)
 {
   struct uiobj_label *lb = u->data;
   int *r = lb->caret_rect;
+
   if (!lb->text.buf) {
     lb->caret.i = -1;
     r[2] = r[3] = 0;
@@ -280,8 +306,8 @@ put_entry_caret(struct uiobj *u, int caret)
                                   ? caret : lb->text.buf->used)
                  : -1);
   multi_get_utf8_info_at_index(lb->font, lb->text.buf->used - 1,
-                               lb->text.buf->b, lb->caret.i, r, r + 1,
-                               r + 2, r + 3);
+                               lb->text.buf->b, lb->caret.i, r, r + 1, r + 2,
+                               r + 3);
   mark_uiobj_dirty(u);
   ui_enqueue_update(u);
 }
@@ -305,10 +331,6 @@ on_entry_input(struct uiobj *u, struct input_event *ev)
                                      lb->text.buf->used - 1, lb->text.buf->b,
                                      ev->x - u->g.r[0], ev->y - u->g.r[1],
                                      r + 0, r + 1, r + 2, r + 3);
-    if (c >= 0)
-      lb->caret.i = c;
-    mark_uiobj_dirty(u);
-    ui_enqueue_update(u);
     break;
   case IN_KEY_UP:
     switch (ev->key) {
@@ -332,7 +354,8 @@ on_entry_input(struct uiobj *u, struct input_event *ev)
       break;
     }
     break;
-  default: return 0;
+  default:
+    return 0;
   }
   if (c >= 0 && lb->caret.i != c)
     put_entry_caret(u, c);

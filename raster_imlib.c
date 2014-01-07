@@ -245,38 +245,3 @@ font_list(int *n)
 {
   return (const char **)imlib_list_fonts(n);
 }
-
-int
-get_utf8_info_at_point(UFont font, int len, char *str, int x, int y,
-                       int *cx, int *cy, int *cw, int *ch)
-{
-  int let, ret, desc;
-
-  imlib_context_set_font((font) ? font : default_font);
-  let = str[len];
-  if (let)
-    str[len] = 0;
-  desc = imlib_get_maximum_font_descent();
-  /* XXX: (desc - 1) — is imlib2 possible bug workaround */
-  ret = imlib_text_get_index_and_location(str, x, desc - 1, cx, cy, cw, ch);
-  *cy += imlib_get_maximum_font_ascent() - imlib_get_maximum_font_descent();
-  if (let)
-    str[len] = let;
-  return ret;
-}
-
-void
-get_utf8_info_at_index(UFont font, int len, char *str, int index,
-                       int *cx, int *cy, int *cw, int *ch)
-{
-  int let;
-
-  imlib_context_set_font((font) ? font : default_font);
-  let = str[len];
-  if (let)
-    str[len] = 0;
-  imlib_text_get_location_at_index(str, index, cx, cy, cw, ch);
-  *cy += imlib_get_maximum_font_ascent() - imlib_get_maximum_font_descent();
-  if (let)
-    str[len] = let;
-}
