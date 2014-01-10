@@ -82,7 +82,7 @@ add_client(int fd, int msize)
     goto error;
   add_file(&c->f, c->fonts);
 
-  c->ui = mk_ui("ui");
+  c->ui = mk_ui("items");
   if (!c->ui)
     goto error;
   add_file(&c->f, c->ui);
