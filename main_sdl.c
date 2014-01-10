@@ -264,7 +264,7 @@ process_event(SDL_Event *ev, unsigned int time_ms, int *flags)
     in_ev.ms = time_ms;
     in_ev.key = ev->key.keysym.sym;
     in_ev.mod = ev->key.keysym.mod;
-    in_ev.unicode = ev->key.keysym.unicode;
+    in_ev.rune = ev->key.keysym.unicode != 13 ? ev->key.keysym.unicode : '\n';
     uifs_input_event(&in_ev);
     break;
   default:;
@@ -409,6 +409,7 @@ sdl_init()
   }
   atexit(SDL_Quit);
   SDL_ShowCursor(show_cursor);
+  SDL_EnableUNICODE(1);
   if (init_screen())
     return -1;
   return 0;

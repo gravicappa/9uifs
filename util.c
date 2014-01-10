@@ -96,6 +96,17 @@ arr_delete(struct arr **a, unsigned int off, unsigned int size)
   return 0;
 }
 
+int
+arr_shrink(struct arr **a)
+{
+  if (!(a && *a))
+    return -1;
+  *a = realloc(*a, sizeof(struct arr) - sizeof(int) + (*a)->used);
+  if (!*a)
+    return -1;
+  return ((*a)->size = (*a)->used);
+}
+
 char *
 strnchr(const char *s, unsigned int len, char c)
 {
@@ -167,4 +178,32 @@ trim_string_right(char *s, char *chars)
   if (i >= 0 && i < len)
     s[i + 1] = 0;
   return s;
+}
+
+char *
+utf8_from_rune(unsigned long rune, char buf[8])
+{
+  int i = 0, s = -6;
+  if (rune <= 0x7f)
+    buf[i++] = rune;
+  else if (rune <= 0x7ff) {
+    s = 0;
+    buf[i++] = 0xc0 | (rune >> 6);
+  } else if (rune <= 0xffff) {
+    s = 6;
+    buf[i++] = 0xe0 | (rune >> 12);
+  } else if (rune <= 0x1fffff) {
+    s = 12;
+    buf[i++] = 0xf0 | (rune >> 18);
+  } else if (rune <= 0x3ffffff) {
+    s = 18;
+    buf[i++] = 0xf8 | (rune >> 24);
+  } else if (rune <= 0x7fffffff) {
+    s = 24;
+    buf[i++] = 0xfc | (rune >> 30);
+  }
+  for (; s >= 0; s -= 6)
+    buf[i++] = 0x80 | ((rune >> s) & 0x3f);
+  buf[i] = 0;
+  return buf;
 }

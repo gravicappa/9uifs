@@ -52,7 +52,7 @@ send_kbd_ev(struct uiobj *u, struct input_event *ev, struct file *bus)
     {ev_str},
     {ev_uint, {.u = ev->key}},
     {ev_uint, {.u = ev->mod}},
-    {ev_uint, {.u = ev->unicode}},
+    {ev_uint, {.u = ev->rune}},
     {ev_uiobj, {.o = u}},
     {0}
   };

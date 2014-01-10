@@ -1,3 +1,4 @@
+#include <string.h>
 #include "frontend.h"
 #include "text.h"
 #include "util.h"
@@ -169,4 +170,21 @@ multi_index_vrel(UFont font, int len, char *s, int idx, int dir)
   d = (dir > 0) ? r[1] + r[3] + 2 : r[1] - 2;
   return multi_get_utf8_info_at_point(font, len, s, r[0] + (r[2] >> 1), d,
                                       r, r + 1, r + 2, r + 3);
+}
+
+int
+text_insert(struct arr **buf, int i, int n, char *s)
+{
+  if (arr_add(buf, 16, n, 0) < 0)
+    return -1;
+  memmove((*buf)->b + i + n, (*buf)->b + i, (*buf)->used - i);
+  memcpy((*buf)->b + i, s, n);
+  return 0;
+}
+
+int
+text_delete(struct arr **buf, int i, int n)
+{
+  memmove((*buf)->b + i, (*buf)->b + i + n, (*buf)->used - i - n);
+  return (arr_shrink(buf) < 0);
 }

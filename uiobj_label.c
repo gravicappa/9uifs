@@ -271,26 +271,6 @@ init_uibutton(struct uiobj *u)
   return 0;
 }
 
-static int
-entry_text_insert(struct uiobj *u, const char *s)
-{
-  struct uiobj_label *lb = u->data;
-  int n;
-  if (lb->caret.i < 0)
-    return 0;
-  n = strlen(s);
-  if (arr_memcpy(&lb->text.buf, 16, lb->caret.i, n, s))
-    return -1;
-  lb->caret.i += n;
-  return 0;
-}
-
-static int
-entry_text_delete(struct uiobj *u, int mode)
-{
-  return 0;
-}
-
 static void
 put_entry_caret(struct uiobj *u, int caret)
 {
@@ -310,6 +290,41 @@ put_entry_caret(struct uiobj *u, int caret)
                                r + 3);
   mark_uiobj_dirty(u);
   ui_enqueue_update(u);
+}
+
+static int
+entry_insert_text(struct uiobj *u, char *s)
+{
+  struct uiobj_label *lb = u->data;
+  int n, off = 0;
+  if (lb->caret.i < 0)
+    return 0;
+  n = strlen(s);
+  if (lb->text.buf)
+    off = off_from_utf8_index(lb->caret.i, lb->text.buf->used - 1,
+                              lb->text.buf->b);
+  if (text_insert(&lb->text.buf, off, n, s) < 0)
+    return -1;
+  put_entry_caret(u, lb->caret.i + utf8_index_from_off(n, n, s));
+  mark_uiobj_dirty(u);
+  ui_enqueue_update(u);
+  return 1;
+}
+
+static int
+entry_insert_text_from_ev(struct uiobj *u, struct input_event *ev)
+{
+  char b[8];
+  if (!ev->rune)
+    return 0;
+  ev->str = (ev->str) ? ev->str : utf8_from_rune(ev->rune, b);
+  return entry_insert_text(u, ev->str);
+}
+
+static int
+entry_text_delete(struct uiobj *u, int mode)
+{
+  return 0;
 }
 
 static void
@@ -332,7 +347,7 @@ on_entry_input(struct uiobj *u, struct input_event *ev)
                                      ev->x - u->g.r[0], ev->y - u->g.r[1],
                                      r + 0, r + 1, r + 2, r + 3);
     break;
-  case IN_KEY_UP:
+  case IN_KEY_DOWN:
     switch (ev->key) {
     case 273:  /* sdl_up */
       if (lb->text.buf)
@@ -352,6 +367,7 @@ on_entry_input(struct uiobj *u, struct input_event *ev)
       if (lb->text.buf && lb->caret.i < lb->text.buf->used - 1)
         c = lb->caret.i + 1;
       break;
+    default: entry_insert_text_from_ev(u, ev);
     }
     break;
   default:

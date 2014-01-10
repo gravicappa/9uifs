@@ -30,9 +30,11 @@ int arr_memcpy(struct arr **a, int delta, int off, int size,
                const void *data);
 int arr_add(struct arr **a, int delta, int size, const void *data);
 int arr_delete(struct arr **a, unsigned int off, unsigned int size);
+int arr_shrink(struct arr **a);
 
 char *strnchr(const char *s, unsigned int len, char c);
 int nargs(char *s);
 char *next_arg(char **s);
 char *next_quoted_arg(char **s);
 char *trim_string_right(char *s, char *chars);
+char *utf8_from_rune(unsigned long rune, char buf[8]);

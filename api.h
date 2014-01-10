@@ -15,7 +15,8 @@ struct input_event {
   unsigned int state;
   unsigned int mod;
   unsigned int key;
-  unsigned long unicode;
+  unsigned long rune;
+  char *str;
 };
 
 /*

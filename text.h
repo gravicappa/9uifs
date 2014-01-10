@@ -11,3 +11,6 @@ void multi_get_utf8_info_at_index(UFont font, int len, char *s, int idx,
                                   int *cx, int *cy, int *cw, int *ch);
 int multi_index_vrel(UFont font, int len, char *s, int idx, int dir);
 
+struct arr;
+int text_insert(struct arr **buf, int i, int n, char *s);
+int text_delete(struct arr **buf, int i, int n);
