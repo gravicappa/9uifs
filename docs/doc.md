@@ -1,202 +1,201 @@
 # Application FS structure
 
-    root/
+    /
       images/
-        <picname>/
-          ctl
-          rgba
-          size
-          in.png
       fonts/
-        list
-        ...
-      ui/
+      items/
       bus/
-      store/ ; local fs
 
 # Images filesystem
 
-      images/
-        pic0/
+It represents images application can operate. Images can be created from png
+files or can be created from scratch. You can manipulate them on pixel level
+or using drawing commands.
+
+    images/
+      dir0/
+        _pic0/
           ctl
           rgba
           size
           in.png
-        pic1/
+        _pic1/
           ctl
           rgba
           size
           in.png
         ...
 
-# Bus filesystem
+Images can be organized in directories. The distinction among images and
+directories is currently stupid: when created directory name starts with `_`
+(underscore) it represents an image, otherwise it is just a directory.
 
-      bus/
-        sys/
-          ev/
-            out
-          kbd/
-            out
-          pointer/
-            out
-          wm/
-            in
-        user1/
-          in
-          out
-        ...
+## Image filesystem
 
-## Standard events
-
-    :ptr in Widget
-    :ptr out Widget
-    :ptr u Id X Y Btn Widget
-    :ptr d Id X Y Btn Widget
-    :ptr m Id X Y Dx Dy Btns Widget
-    :key u Key State Unicode Widget
-    :key d Key State Unicode Widget
-    :resize Rx Ry Rw Rh Widget
-
-    :press_button Widget
-
-    :exported App-id Widget
-    :unexported App-id Widget
-
-*to be defined*
-
-### Pointer events
-
-Move pointer
-
-    ptr m Id X Y Dx Dy Btn-bitmask Widget
-
-* _Id_: pointer index (for multitouch interfaces)
-* _X_, _Y_: pointer coordinates
-* _Dx_, _Dy_: delta from previous coordinates
-* _Btn-bitmask_: bit-mask of button press
-* _Widget_: event's widget
-
-> Maybe _Btn-bitmask_ should be a list of pressed buttons
-
-Press pointer
-
-    ptr d Id X Y Btn Widget
-
-* _Id_: pointer index (for multitouch interfaces)
-* _X_, _Y_: pointer coordinates
-* _Btn_: number of pressed button
-* _Widget_: event's widget
-
-Release pointer
-
-    ptr u Id X Y Btn
-
-* _Id_: pointer index (for multitouch interfaces)
-* _X_, _Y_: pointer coordinates
-* _Btn_: number of released button
-* _Widget_: event's widget
-  
-### Keyboard events
-
-    key d Keysym Mod-bitmask Unicode Widget
-    key u Keysym Mod-bitmask Unicode Widget
-
-* _Keysym_: keysym
-* _Mod-bitmask_: state of modifier keys
-* _Unicode_: unicode number of pressed character, or -1 if not applicable
-* _Widget_: event's widget
-
-## Commands
-
-    set_desktop App-id Widget
-
-## Image
-
-    /
+    Image/
       ctl
+      id
       rgba
       size
       in.png
 
-- *ctl*:
-- *size*: contains string `width height` which defines size in pixels.
-- *rgba*: contains `width × height × bytes-per-pixel` bytes of RGBA pixel
-          data.
-- *in.png*: file for loading `png` files.
+- *ctl*: for applying drawing commands on this image.
+- *id*: unique ID of image. Used in ctl-commands.
+- *size*: contains string `Width Height` which defines size in pixels. Writing
+          new values resizes the image.
+- *rgba*: contains `Width × Height × Bytes-per-pixel` bytes of RGBA pixel
+          data. It is writable.
+- *in.png*: for loading PNG images. Write PNG-encoded image to this file and 
+            the image will be loaded.
 
-### image/ctl
+### Commands of `images/Image/ctl` 
 
-*Commands:*
+#### blit
+  
+    blit Img_id [Src-x Src-y Src-w Src-h Dst-x Dst-y Dst-w Dst-h]
 
-    blit "Img" [Src-x Src-y Src-w Src-h Dst-x Dst-y Dst-w Dst-h]
+Draws other image addressed by its `id`. If `Src-w != Dst-w` or 
+`Dst-h != Dst-h` then image is scaled when drawn.
+
+#### rect
+
     rect RGBA_outline RGBA_fill X1 Y1 W1 H1 [... Xn Yn Wn Hn]
+
+Draws a rectangle or a series of rectangles.
+
+#### line
+
     line RGBA_outline Xs1 Ys1 Xe1 Ye1 [... Xsn Ysn Xen Yen]
+
+Draws a line or a set of lines.
+
+#### text
+
     text Font RGBA_fill X Y Text
+
+Draws a text with given font.
+
+#### poly
+
     poly RGBA_outline RGBA_fill X1 Y1 ... Xn Yn
-    ...
 
-### gl
+Draws a polyline.
 
-*to be defined*
+### Fonts filesystem
 
-### images
+Currently it can only list fonts available for application.
 
-    /
-      imagedir1/
-        _image1
-        _image2
-        imagedir2/
-          _image3
-      imagedir3/
-        _image4
-      _image5
-      ...
-
-*to be defined*
-
-### fonts
-
-    /
+    fonts/
       list
 
-*to be defined*
+`list` file contains a list of available fonts.
 
-## ui filesystem
+# Bus filesystem
 
-      /
-        dir/
-          _new01/
+This facility is used for getting events and basic communication with system.
+
+    bus/
+      sys
+      kbd
+      pointer
+      ev
+
+## Standard events on `bus/ev`
+
+### ptr
+
+    ptr in Id Control
+    ptr out Id Control
+    ptr d Id X Y Btn Control
+    ptr u Id X Y Btn Control
+    ptr m Id X Y Dx Dy Btns Control
+
+* `in`: pointer `Id` enters `Control`
+* `out`: pointer `Id` leaves `Control`
+* `d`: button `Btn` of pointer `Id` is pressed on `Control`
+* `u`: button `Btn` of pointer `Id` is released on `Control`
+* `m`: pointer `Id` is moved by `Dx`, `Dy` to `X`, `Y` over `Control` with
+       buttons `Btns` pressed.
+
+### key
+
+    key d Key State Unicode Control
+    key u Key State Unicode Control
+
+* `d`: key `Key` is pressed over `Control` with unicode symbol `Unicode` and
+       modifiers `State`.
+* `u`: key `Key` is released over `Control` with unicode symbol `Unicode` and
+       modifiers `State`.
+
+### resize
+
+    resize Rx Ry Rw Rh Control
+
+`Control` is resized to `{Rx, Ry, Rw, Rh}` rectangle.
+
+### press_button
+
+    press_button Control
+
+`Control` of type "button" is pressed.
+
+### (un)exported
+
+    exported App-id/Control
+    unexported App-id/Control
+
+Application `App-id` exported or unexported `Control`. Exported controls can
+be addressed by other applications and by window manager application.
+
+## Commands on `bus/sys`
+
+### set_wm
+
+    set_wm Enabled
+
+If `Enabled` is not `0` then application issued this command is promoted to
+window manager else it is demoted from window manager. Application must be
+local.
+
+### set_desktop
+
+    set_desktop App-id/Control
+
+`Control` of application `App-id` is set to "root" window of UI. Only window
+manager application can call this command.
+
+## items filesystem
+
+    items/
+      dir/
+        _new01/
+          flags
+          type ->
+        _panel01/
+          flags
+          type -> grid
+          restraint -> Maxwidth Minwidth Maxheight Minheight
+          items/
+            01/
+              path -> buttons/_ok
+              place -> Row Rowspan Col Colspan
+              sticky -> tblr
+              padding ->
+            02/
+              path ->
+              place -> Row Rowspan Col Colspan
+              sticky ->
+              padding ->
+        buttons/
+          _ok/
             flags
-            type ->
-          _panel01/
-            flags
-            type -> grid
+            type -> button
             restraint -> Maxwidth Minwidth Maxheight Minheight
-            container
-            items/
-              01/
-                path -> buttons/_ok
-                place -> Row Rowspan Col Colspan
-                sticky -> tblr
-                padding ->
-              02/
-                path ->
-                place -> Row Rowspan Col Colspan
-                sticky ->
-                padding ->
-          buttons/
-            _ok/
-              flags
-              type -> button
-              restraint -> Maxwidth Minwidth Maxheight Minheight
-              text -> Ok
-              font -> sans:10:Bold
-              g -> X Y W H
-              container
-            _cancel/
-              flags
-              type -> button
-              restraint -> Maxwidth Minwidth Maxheight Minheight
-              text -> Cancel
-              container
-
+            text -> Ok
+            font -> sans:10:Bold
+            g -> X Y W H
+          _cancel/
+            flags
+            type -> button
+            restraint -> Maxwidth Minwidth Maxheight Minheight
+            text -> Cancel

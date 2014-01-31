@@ -161,12 +161,13 @@ input_event_fn(struct uiplace *up, void *aux)
 }
 
 static struct uiobj *
-process_ptr_exit(struct uiobj *obj, int x, int y)
+process_ptr_exit(struct uiobj *obj, int x, int y, int id)
 {
   struct uiobj *last = 0;
   struct ev_arg evargs[] = {
     {ev_str, {.s = "ptr"}},
     {ev_str, {.s = "out"}},
+    {ev_uint, {.u = id}},
     {ev_uiobj},
     {0}
   };
@@ -189,12 +190,13 @@ process_ptr_exit(struct uiobj *obj, int x, int y)
 }
 
 static void
-process_ptr_enter(struct uiobj *u, struct uiobj *prev, int x, int y)
+process_ptr_enter(struct uiobj *u, struct uiobj *prev, int x, int y, int id)
 {
   struct uiobj *obj;
   struct ev_arg evargs[] = {
     {ev_str, {.s = "ptr"}},
     {ev_str, {.s = "in"}},
+    {ev_uint, {.u = id}},
     {ev_uiobj},
     {0}
   };
@@ -228,7 +230,7 @@ ptr_ev(struct uiobj *u, struct input_event *ev)
   if (ui_grabbed)
     return uiobj_input(ui_grabbed, ev);
 
-  t = process_ptr_exit(ui_pointed, ev->x, ev->y);
+  t = process_ptr_exit(ui_pointed, ev->x, ev->y, ev->id);
   if (!ui_desktop->obj)
     return 0;
   if ((ui_desktop->obj->flags & UI_DIRTY) || !t)
@@ -241,7 +243,7 @@ ptr_ev(struct uiobj *u, struct input_event *ev)
         if (uiobj_input(obj, ev))
           break;
       }
-    process_ptr_enter(ctx.over, t, ev->x, ev->y);
+    process_ptr_enter(ctx.over, t, ev->x, ev->y, ev->id);
   }
   if (ctx.over && FSTYPE(ctx.over->f) != FS_UIOBJ)
     log_printf(LOG_ERR, "ctx.over is not uiobj!\n");

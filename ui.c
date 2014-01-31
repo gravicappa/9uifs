@@ -422,14 +422,6 @@ update_place_size(struct uiplace *up, void *aux)
   return 1;
 }
 
-const char *
-str_from_rect(int r[4])
-{
-  static char s[16 * 4 + 5 + 1];
-  snprintf(s, sizeof(s), "[%d %d %d %d]", r[0], r[1], r[2], r[3]);
-  return s;
-}
-
 static int
 resize_place(struct uiplace *up, void *aux)
 {
