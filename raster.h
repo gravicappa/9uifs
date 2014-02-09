@@ -25,19 +25,20 @@
        0xff)
 
 #define RGBA_FROM_STR4(s) \
-  RGBA(RGBA_READ_HEX(s[0]) << 4, \
-       RGBA_READ_HEX(s[1]) << 4, \
-       RGBA_READ_HEX(s[2]) << 4, \
-       RGBA_READ_HEX(s[3]) << 4)
+  RGBA((RGBA_READ_HEX(s[0]) << 4) | 0xf, \
+       (RGBA_READ_HEX(s[1]) << 4) | 0xf, \
+       (RGBA_READ_HEX(s[2]) << 4) | 0xf, \
+       (RGBA_READ_HEX(s[3]) << 4) | 0xf)
 
 #define RGBA_FROM_STR3(s) \
-  RGBA(RGBA_READ_HEX(s[0]) << 4, \
-       RGBA_READ_HEX(s[1]) << 4, \
-       RGBA_READ_HEX(s[2]) << 4, \
+  RGBA((RGBA_READ_HEX(s[0]) << 4) | 0xf, \
+       (RGBA_READ_HEX(s[1]) << 4) | 0xf, \
+       (RGBA_READ_HEX(s[2]) << 4) | 0xf, \
        0xff)
 
 #define RGBA_FROM_STR2(s) RGBA(0xff, 0xff, 0xff, RGBA_READ_HEX(s[0]))
-#define RGBA_FROM_STR1(s) RGBA(0xff, 0xff, 0xff, RGBA_READ_HEX(s[0]) << 4)
+#define RGBA_FROM_STR1(s) \
+  RGBA(0xff, 0xff, 0xff, (RGBA_READ_HEX(s[0]) << 4) | 0xf)
 
 #define RGBA_VISIBLE(c) ((c) & 0xff000000)
 

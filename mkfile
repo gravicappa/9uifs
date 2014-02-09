@@ -64,7 +64,7 @@ callgrind:V: $exe
   callgrind_annotate '--auto='yes $out >callgrind.log
 
 %.html: %.md
-  sundown <$prereq >$target
+  ./docs/toc <$prereq | sundown >$target
 
 gprof:V: $exe gmon.out
   flags=()

@@ -300,7 +300,7 @@ init_uiscroll(struct uiobj *u)
   if (init_prop_intarr(&u->f, &x->pos_fs, "scrollpos", 2, x->pos, u)
       || init_prop_intarr(&u->f, &x->expand_fs, "expand", 2, x->expand, u)
       || ui_init_place(&x->place, 0)
-      || arr_memcpy(&x->place.sticky.buf, 5, 0, 5, "tblr") < 0) {
+      || arr_memcpy(&x->place.sticky.buf, 5, 0, 5, "nswe") < 0) {
     free(x);
     return -1;
   }

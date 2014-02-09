@@ -38,7 +38,7 @@ static struct uiobj_flags {
 };
 
 extern struct uiobj_maker uitypes[];
-static struct arr desktop_place_sticky = {4, 4, "tblr"};
+static struct arr desktop_place_sticky = {4, 4, "nswe"};
 static struct uiplace desktop_place;
 struct uiplace *ui_desktop = &desktop_place;
 struct uiobj *ui_update_list = 0;
@@ -616,8 +616,8 @@ ui_place_with_padding(struct uiplace *up, int rect[4])
   rect[1] += up->padding.r[1];
   rect[2] -= up->padding.r[0] + up->padding.r[2];
   rect[3] -= up->padding.r[1] + up->padding.r[3];
-  put_uiobj(u, up->sticky.buf, 0, rect, "lr");
-  put_uiobj(u, up->sticky.buf, 1, rect, "tb");
+  put_uiobj(u, up->sticky.buf, 0, rect, "we");
+  put_uiobj(u, up->sticky.buf, 1, rect, "ns");
 }
 
 int
