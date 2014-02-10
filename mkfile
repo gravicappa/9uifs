@@ -47,8 +47,8 @@ valgrind:V: $exe
   flags=($flags '--read-var-info=yes')
   flags=($flags '--track-origins=yes')
   #flags=($flags '--gen-suppressions=yes')
-  flags=($flags '--suppressions=test/xlib.supp')
-  flags=($flags '--suppressions=test/imlib.supp')
+  flags=($flags '--suppressions=xlib.supp')
+  flags=($flags '--suppressions=imlib.supp')
   flags=($flags '--leak-check=full')
   #flags=($flags '--show-reachable=yes')
   valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
@@ -56,8 +56,8 @@ valgrind:V: $exe
 callgrind:V: $exe
   flags=($flags '--read-var-info=yes')
   flags=($flags '--track-origins=yes')
-  flags=($flags '--suppressions=test/xlib.supp')
-  flags=($flags '--suppressions=test/imlib.supp')
+  flags=($flags '--suppressions=xlib.supp')
+  flags=($flags '--suppressions=imlib.supp')
   flags=('--tool=callgrind')
   valgrind $flags ./$exe $run_flags -d ugc >[2=1] | tee $exe.log
   out=`{mtime callgrind.out.* | sort -n | awk '{print $2; exit}'}

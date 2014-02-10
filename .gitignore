@@ -7,7 +7,7 @@ uifs.mini2440
 uifs_mini2440
 *.log
 mnt
-test
+samples
 gmon.out
 \#*
 .\#*
