@@ -1,5 +1,13 @@
 .Table-of-contents
 
+# General
+
+And application creates a tree of controls then marks those which with their
+descendants it want to show to user as `exported`. If a «window manager»
+application exists it receives notifications about exported controls and shows
+them on screen according to its internal logic. See `set_wm` description to
+learn more about window manager applications.
+
 # Application FS structure
 
     /
