@@ -27,5 +27,7 @@ Read `docs/doc.md`.
 
 ## Samples
 
-Window manager sample `test/wm` requires
+See `test/ui` for example. It uses 9pfuse.
+
+Window manager sample `test/wm` uses
 [command line 9p-client](https://github.com/gravicappa/9client).

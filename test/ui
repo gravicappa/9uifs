@@ -1,0 +1,53 @@
+#!/usr/bin/env rc
+
+. `{dirname $0}^/fs.rc
+
+start
+flag e +
+
+# Create main window which is a grid layout manager.
+mk_item items/_main -type grid -background 'ffffffff'
+
+mkdir items/a
+
+# Create a text label with green background.
+mk_item items/a/_label1 \
+        -type label \
+        -foreground '000000ff' \
+        -background '70ee70aa'
+
+# Set its text.
+printf 'Hello, %s\nMeet a text label.' $USER >items/a/_label1/text
+
+# Create another text label with pinkish background.
+mk_item items/a/_label2 -type label -foreground 000000ff -background eeaa70aa
+
+# Set its text.
+s=`{date}
+printf '[%s]\nLook how it expands' $"s >items/a/_label2/text
+
+# Create a text entry.
+mk_item items/a/_entry1 -type entry -foreground 000000ff -background fff0aaff
+str='This is text entry. It is unfinished yet.'
+# Set its text
+printf $str >items/a/_entry1/text
+
+# Create a button.
+mk_item items/a/_btn1 -type button -text 'Press button'
+
+# Add controls to our main window.
+add_control 'items/a/_label1' items/_main/items/a -sticky e -place '0 0 1 1'
+add_control 'items/a/_label2' items/_main/items/b -sticky nsew -place '0 1 1 1'
+add_control 'items/a/_entry1' items/_main/items/c -sticky nsew -place '0 2 1 1'
+add_control 'items/a/_btn1' items/_main/items/d -sticky nsew -place '0 3 1 1'
+
+# Sets expand flags to columns.
+echo '1 1 1 1' >items/_main/colsopts
+
+# Sets expand flags to rows.
+echo '0 1 0 0' >items/_main/rowsopts
+
+# Export main window.
+# If no window manager application exists then first exported window is set as
+# desktop window and shown fullscreen in uifs.
+echo exported >items/_main/flags

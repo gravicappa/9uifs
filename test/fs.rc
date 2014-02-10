@@ -49,7 +49,7 @@ fn write_fields {
   true
 }
 
-fn add_widget {
+fn add_control {
   w=$1 dir=$2 {
     mkdir -p $dir
     shift 2
@@ -65,4 +65,4 @@ fn mk_item {
   }
 }
 
-fn mk_widget {mk_item $*}
+fn mk_control {mk_item $*}
