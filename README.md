@@ -24,3 +24,8 @@ Issuing `mk` command builds the application `uifs`.
 ## API
 
 Read `docs/doc.md`.
+
+## Samples
+
+Window manager sample `test/wm` requires
+[command line 9p-client](https://github.com/gravicappa/9client).
