@@ -30,4 +30,5 @@ Read `docs/doc.md`.
 See `test/ui` for example. It uses 9pfuse.
 
 Window manager sample `test/wm` uses
-[command line 9p-client](https://github.com/gravicappa/9client).
+[command line 9p-client](https://github.com/gravicappa/9client). It does not
+do anything fancy but just switches to last exported control.
